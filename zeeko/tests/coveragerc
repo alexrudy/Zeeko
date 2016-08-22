@@ -1,0 +1,44 @@
+[run]
+source = Cauldron
+omit =
+   Cauldron/_astropy_init*
+   Cauldron/conftest*
+   Cauldron/cython_version*
+   Cauldron/setup_package*
+   Cauldron/*/setup_package*
+   Cauldron/*/*/setup_package*
+   Cauldron/tests/*
+   Cauldron/*/tests/*
+   Cauldron/*/*/tests/*
+   Cauldron/version*
+   Cauldron/bundled/*
+   Cauldron/utils/_weakrefset*
+   Cauldron/compat*
+   Cauldron/*/test_*
+
+[report]
+exclude_lines =
+   # Have to re-enable the standard pragma
+   pragma: no cover
+
+   # Don't complain about packages we have installed
+   except ImportError
+   
+   # Don't complain if we try to catch sporadic ZMQ errors.
+   except zmq.ZMQError
+   
+   # Don't complain if we don't check everything that could be garbage collected.
+   except weakref.ReferenceError
+   
+   # Don't complain if tests don't hit assertions
+   raise AssertionError
+   raise NotImplementedError
+
+   # Don't complain about script hooks
+   def main\(.*\):
+
+   # Ignore branches that don't pertain to this version of Python
+   pragma: py{ignore_python_version}
+   
+   # Ignore pass statements.
+   pass
