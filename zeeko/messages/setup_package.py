@@ -5,11 +5,12 @@ import glob
 import os
 import copy
 
-import zmq
 from distutils.core import Extension
 
 def get_extensions(**kwargs):
     """Get the Cython extensions"""
+    import zmq
+    
     this_directory = os.path.dirname(__file__)
     this_name = __name__.split(".")[:-1]
     
