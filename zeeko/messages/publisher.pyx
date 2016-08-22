@@ -105,7 +105,7 @@ cdef class Publisher:
 cdef class PublishedArray:
     """A single array publisher"""
     
-    def __cinit__(self, name, np.ndarray data):
+    def __cinit__(self, str name, np.ndarray data):
         
         self._data = np.asarray(data, dtype=np.float)
         self._name = bytearray(name)
