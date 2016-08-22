@@ -16,7 +16,7 @@ cdef class ReceivedArray:
     
     cdef tuple _shape
     cdef object _dtype
-    cdef carray_named * _message
+    cdef carray_named _message
     
     @staticmethod
     cdef ReceivedArray from_message(carray_named * message)

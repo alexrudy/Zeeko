@@ -12,13 +12,6 @@ def test_publisher_init():
     """PublishedArray object __init__"""
     p = PublishedArray("array", np.ones((10,)))
     
-    with pytest.raises(TypeError):
-        PublishedArray("array", 10)
-        
-    with pytest.raises(TypeError):
-        PublishedArray(10, np.ones((10,)))
-        
-    
 def test_publisher_update(req, rep):
     """Test update array items."""
     pub = PublishedArray("array", np.ones((10,)))

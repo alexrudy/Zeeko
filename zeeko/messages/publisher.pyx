@@ -14,7 +14,7 @@ import zmq
 from zmq.utils import jsonapi
 from zmq.backend.cython.socket cimport Socket
 
-from .carray cimport send_named_array
+from .carray cimport send_named_array, empty_named_array, close_named_array
 from .utils cimport check_rc, check_ptr
 
 cdef int MAXFRAMECOUNT = (2**30)
@@ -93,7 +93,7 @@ cdef class Publisher:
         self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
         rc = send_header(socket, self._framecount, self._n_messages, flags)
         for i in range(self._n_messages):
-            rc = send_named_array(socket, self._messages[i], flags)
+            rc = send_named_array(self._messages[i], socket, flags)
         return rc
         
     def publish(self, Socket socket, int flags = 0):
@@ -103,33 +103,52 @@ cdef class Publisher:
             self._publish(handle, flags)
 
 cdef class PublishedArray:
-    """A single array publisher"""
+    """A single array publisher.
     
-    def __cinit__(self, str name, np.ndarray data):
-        
+    You must retain a reference to this publisher for as long as it will be published.
+    """
+    
+    def __cinit__(self, name, data):
+        self._failed_init = True
         self._data = np.asarray(data, dtype=np.float)
         self._name = bytearray(name)
+        empty_named_array(&self._message)
         self._update_message()
+        self._failed_init = False
+        
+    def __dealloc__(self):
+        if not self._failed_init:
+            close_named_array(&self._message)
         
     cdef void _update_message(self):
+        cdef int rc = 0
+        
         # First, update array metadata, in case it has changed.
         A = <object>self._data
         metadata = jsonapi.dumps(dict(shape=A.shape, dtype=A.dtype.str))
         self._metadata = bytearray(metadata)
         
+        # Close the old message.
+        close_named_array(&self._message)
+        
         # Then update output structure for NOGIL function.
-        self._message.array.n = <size_t>np.PyArray_NBYTES(self._data)
-        self._message.array.data = <double *>np.PyArray_DATA(self._data)
-        self._message.array.nm = len(self._metadata)
-        self._message.array.metadata = <char *>&self._metadata[0]
-        self._message.nm = len(self._name)
-        self._message.name = <char *>&self._name[0]
+        self._message.array.data = <libzmq.zmq_msg_t *>malloc(sizeof(libzmq.zmq_msg_t))
+        rc = libzmq.zmq_msg_init_data(self._message.array.data, np.PyArray_DATA(self._data), <size_t>np.PyArray_NBYTES(self._data), NULL, NULL)
+        check_rc(rc)
+        
+        self._message.array.metadata = <libzmq.zmq_msg_t *>malloc(sizeof(libzmq.zmq_msg_t))
+        rc = libzmq.zmq_msg_init_data(self._message.array.metadata, <void *>&self._metadata[0], <size_t>len(self._metadata), NULL, NULL)
+        check_rc(rc)
+        
+        self._message.name = <libzmq.zmq_msg_t *>malloc(sizeof(libzmq.zmq_msg_t))
+        rc = libzmq.zmq_msg_init_data(self._message.name, <void *>&self._name[0], <size_t>len(self._name), NULL, NULL)
+        check_rc(rc)
         
     def send(self, Socket socket, int flags = 0):
         """Send the array."""
         cdef void * handle = socket.handle
         with nogil:
-            send_named_array(handle, &self._message, flags)
+            send_named_array(&self._message, handle, flags)
     
     property array:
         def __get__(self):

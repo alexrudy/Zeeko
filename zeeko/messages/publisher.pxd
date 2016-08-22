@@ -27,6 +27,7 @@ cdef class PublishedArray:
     cdef carray_named _message
     cdef char[:] _name
     cdef char[:] _metadata
+    cdef bint _failed_init
     
     cdef void _update_message(self)
     

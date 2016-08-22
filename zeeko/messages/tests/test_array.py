@@ -3,6 +3,7 @@
 import pytest
 import numpy as np
 import json
+import zmq
 
 from ..array import send_array, recv_array, generate_array_message
 from ..publisher import PublishedArray
@@ -28,8 +29,16 @@ def test_carray_roundtrip(req, rep, array, name):
     """Test c-array round-trip."""
     pub = PublishedArray(name, array)
     pub.send(req)
-    rec = ReceivedArray.receive(rep)
+    name = rep.recv()
+    rep_array = recv_array(rep)
+    np.testing.assert_allclose(rep_array, array)
+    np.testing.assert_allclose(rep_array, pub.array)
+    assert pub.name == name
+    
+    rep.send(name, flags=zmq.SNDMORE)
+    send_array(rep, rep_array)
+    
+    rec = ReceivedArray.receive(req)
+    assert rec.name == name
     np.testing.assert_allclose(rec.array, array)
     np.testing.assert_allclose(rec.array, pub.array)
-    assert rec.name == name
-    assert rec.name == pub.name
