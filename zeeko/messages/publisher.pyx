@@ -6,13 +6,15 @@ cimport numpy as np
 
 np.import_array()
 
-from libc.stdlib cimport free, malloc
+from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport strndup, memcpy
+from libc.time cimport time, time_t
 
-cimport zmq.backend.cython.libzmq as libzmq
 import zmq
 from zmq.utils import jsonapi
 from zmq.backend.cython.socket cimport Socket
+cimport zmq.backend.cython.libzmq as libzmq
+from zmq.backend.cython.message cimport Frame
 
 from .carray cimport send_named_array, empty_named_array, close_named_array
 from .utils cimport check_rc, check_ptr
@@ -24,15 +26,27 @@ cdef int send_header(void * socket, unsigned int fc, int nm, int flags) nogil ex
     [\0, fc, nm]
     """
     cdef int rc = 0
-    rc = libzmq.zmq_sendbuf(socket, NULL, 0, flags|libzmq.ZMQ_SNDMORE)
-    check_rc(rc)
+    cdef time_t now = time(NULL)
     
     rc = libzmq.zmq_sendbuf(socket, <void *>&fc, sizeof(unsigned int), flags|libzmq.ZMQ_SNDMORE)
     check_rc(rc)
     
-    rc = libzmq.zmq_sendbuf(socket, <void *>&nm, sizeof(int), flags)
+    rc = libzmq.zmq_sendbuf(socket, <void *>&nm, sizeof(int), flags|libzmq.ZMQ_SNDMORE)
     check_rc(rc)
     
+    rc = libzmq.zmq_sendbuf(socket, <void *>&now, sizeof(time_t), flags)
+    check_rc(rc)
+    
+    return rc
+    
+cdef inline int zmq_msg_from_chars(libzmq.zmq_msg_t * message, char[:] data):
+    """
+    Initialize and fill a message from a bytearray.
+    """
+    cdef int rc
+    rc = libzmq.zmq_msg_init_size(message, <size_t>len(data))
+    check_rc(rc)
+    memcpy(libzmq.zmq_msg_data(message), &data[0], libzmq.zmq_msg_size(message))
     return rc
 
 cdef class Publisher:
@@ -45,11 +59,11 @@ cdef class Publisher:
         self._n_messages = 0
         self._framecount = 0
         
-    def __init__(self, publishers):
-        self._publishers = list()
+    def __init__(self, publishers=list()):
+        self._publishers = dict()
         for publisher in publishers:
             if isinstance(publisher, PublishedArray):
-                self._publishers.append(publisher)
+                self._publishers[publisher.name] = publisher
             else:
                 raise TypeError("Publisher can only contain PublishedArray instances, got {!r}".format(publisher))
         self._update_messages()
@@ -58,13 +72,25 @@ cdef class Publisher:
         if self._messages is not NULL:
             free(self._messages)
     
-    cdef int lock(self) except -1:
+    def __setitem__(self, key, value):
+        try:
+            pub = self._publishers[key]
+        except KeyError:
+            self._publishers[key] = PublishedArray(key, np.asarray(value))
+            self._update_messages()
+        else:
+            pub.array = value
+        
+    def __getitem__(self, key):
+        return self._publishers[key]
+    
+    cdef int lock(self) nogil except -1:
         cdef int rc
         rc = pthread.pthread_mutex_lock(&self._mutex)
         pthread.check_rc(rc)
         return rc
     
-    cdef int unlock(self) except -1:
+    cdef int unlock(self) nogil except -1:
         cdef int rc
         rc = pthread.pthread_mutex_unlock(&self._mutex)
         pthread.check_rc(rc)
@@ -75,13 +101,12 @@ cdef class Publisher:
         
         self.lock()
         try:
-            if self._messages is not NULL:
-                free(self._messages)
-            self._messages = <carray_named **>malloc(sizeof(carray_named *) * len(self._publishers))
+
+            self._messages = <carray_named **>realloc(<void *>self._messages, sizeof(carray_named *) * len(self._publishers))
             if self._messages is NULL:
                 raise MemoryError("Could not allocate messages array for Publisher {!r}".format(self))
-            for i, publisher in enumerate(self._publishers):
-                self._messages[i] = &(<PublishedArray>publisher)._message
+            for i, key in enumerate(sorted(self._publishers.keys())):
+                self._messages[i] = &(<PublishedArray>self._publishers[key])._message
             self._n_messages = len(self._publishers)
         finally:
             self.unlock()
@@ -91,16 +116,21 @@ cdef class Publisher:
         """Inner-loop message sender."""
         cdef int i, rc
         self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
-        rc = send_header(socket, self._framecount, self._n_messages, flags)
-        for i in range(self._n_messages):
-            rc = send_named_array(self._messages[i], socket, flags)
+        rc = send_header(socket, self._framecount, self._n_messages, flags|libzmq.ZMQ_SNDMORE)
+        for i in range(self._n_messages-1):
+            rc = send_named_array(self._messages[i], socket, flags|libzmq.ZMQ_SNDMORE)
+        rc = send_named_array(self._messages[self._n_messages-1], socket, flags)
         return rc
         
     def publish(self, Socket socket, int flags = 0):
         """Publish all registered arrays."""
         cdef void * handle = socket.handle
         with nogil:
-            self._publish(handle, flags)
+            self.lock()
+            try:
+                self._publish(handle, flags)
+            finally:
+                self.unlock()
 
 cdef class PublishedArray:
     """A single array publisher.
@@ -120,7 +150,7 @@ cdef class PublishedArray:
         if not self._failed_init:
             close_named_array(&self._message)
         
-    cdef void _update_message(self):
+    cdef int _update_message(self) except -1:
         cdef int rc = 0
         
         # First, update array metadata, in case it has changed.
@@ -129,26 +159,28 @@ cdef class PublishedArray:
         self._metadata = bytearray(metadata)
         
         # Close the old message.
-        close_named_array(&self._message)
+        rc = close_named_array(&self._message)
+        check_rc(rc)
         
         # Then update output structure for NOGIL function.
-        self._message.array.data = <libzmq.zmq_msg_t *>malloc(sizeof(libzmq.zmq_msg_t))
-        rc = libzmq.zmq_msg_init_data(self._message.array.data, np.PyArray_DATA(self._data), <size_t>np.PyArray_NBYTES(self._data), NULL, NULL)
+        self._data_frame = Frame(data=self._data)
+        rc = libzmq.zmq_msg_init(&self._message.array.data)
+        rc = libzmq.zmq_msg_copy(&self._message.array.data, &self._data_frame.zmq_msg)
         check_rc(rc)
         
-        self._message.array.metadata = <libzmq.zmq_msg_t *>malloc(sizeof(libzmq.zmq_msg_t))
-        rc = libzmq.zmq_msg_init_data(self._message.array.metadata, <void *>&self._metadata[0], <size_t>len(self._metadata), NULL, NULL)
+        rc = zmq_msg_from_chars(&self._message.array.metadata, self._metadata)
         check_rc(rc)
         
-        self._message.name = <libzmq.zmq_msg_t *>malloc(sizeof(libzmq.zmq_msg_t))
-        rc = libzmq.zmq_msg_init_data(self._message.name, <void *>&self._name[0], <size_t>len(self._name), NULL, NULL)
+        rc = zmq_msg_from_chars(&self._message.name, self._name)
         check_rc(rc)
+        return rc
         
     def send(self, Socket socket, int flags = 0):
         """Send the array."""
         cdef void * handle = socket.handle
         with nogil:
-            send_named_array(&self._message, handle, flags)
+            rc = send_named_array(&self._message, handle, flags)
+        check_rc(rc)
     
     property array:
         def __get__(self):

@@ -6,12 +6,12 @@ cimport zmq.backend.cython.libzmq as libzmq
 from libc.time cimport time_t
 
 ctypedef struct carray_message:
-    libzmq.zmq_msg_t * data
-    libzmq.zmq_msg_t * metadata
+    libzmq.zmq_msg_t data
+    libzmq.zmq_msg_t metadata
 
 ctypedef struct carray_named:
     carray_message array
-    libzmq.zmq_msg_t * name
+    libzmq.zmq_msg_t name
     
 
 cdef int new_array(carray_message * message) nogil except -1
