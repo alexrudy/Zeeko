@@ -7,19 +7,27 @@ import copy
 
 from distutils.core import Extension
 
+def get_zmq_include_path():
+    """Get the ZMQ include path in an import-safe manner."""
+    try:
+        import zmq
+        return zmq.get_includes()
+    except ImportError as e:
+        return []
+
 def get_extensions(**kwargs):
     """Get the Cython extensions"""
-    import zmq
     
     this_directory = os.path.dirname(__file__)
     this_name = __name__.split(".")[:-1]
     
     extension_args = {
-        'include_dirs' : ['numpy'] + zmq.get_includes(),
+        'include_dirs' : ['numpy'] + get_zmq_include_path(),
         'libraries' : [],
         'sources' : []
     }
     extension_args.update(kwargs)
+    
     
     extensions = []
     
