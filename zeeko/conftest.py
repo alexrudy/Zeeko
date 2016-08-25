@@ -87,15 +87,33 @@ def address():
     return "inproc://test"
 
 @pytest.fixture
-def req(context, address):
+def req(request, context, address):
     """The REQ socket."""
     socket = context.socket(zmq.REQ)
     socket.connect(address)
+    request.addfinalizer(socket.close)
     return socket
 
 @pytest.fixture
-def rep(context, address):
+def rep(request, context, address):
     """The reply socket."""
     socket = context.socket(zmq.REP)
     socket.bind(address)
+    request.addfinalizer(socket.close)
+    return socket
+
+@pytest.fixture
+def push(request, context, address):
+    """The reply socket."""
+    socket = context.socket(zmq.PUSH)
+    socket.connect(address)
+    request.addfinalizer(socket.close)
+    return socket
+    
+@pytest.fixture
+def pull(request, context, address):
+    """The reply socket."""
+    socket = context.socket(zmq.PULL)
+    socket.bind(address)
+    request.addfinalizer(socket.close)
     return socket
