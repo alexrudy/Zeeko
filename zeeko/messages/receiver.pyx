@@ -16,34 +16,26 @@ from .utils cimport check_rc, check_ptr
 
 cdef int receive_header(void * socket, unsigned int * fc, int * nm, time_t * ts, int flags) nogil except -1:
     cdef int rc = 0
+    
+    rc = zmq_recv_sized_message(socket, fc, sizeof(unsigned int), flags)
+    check_rc(rc)
+    
+    rc = zmq_recv_sized_message(socket, nm, sizeof(int), flags)
+    check_rc(rc)
+    
+    rc = zmq_recv_sized_message(socket, ts, sizeof(time_t), flags)
+    check_rc(rc)
+    return rc
+    
+cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1:
+    cdef int rc = 0
     cdef libzmq.zmq_msg_t zmessage
-    
     rc = libzmq.zmq_msg_init(&zmessage)
     check_rc(rc)
     try:
         rc = libzmq.zmq_msg_recv(&zmessage, socket, flags)
         check_rc(rc)
-        memcpy(fc, libzmq.zmq_msg_data(&zmessage), sizeof(unsigned int))
-    finally:
-        rc = libzmq.zmq_msg_close(&zmessage)
-        check_rc(rc)
-    
-    rc = libzmq.zmq_msg_init(&zmessage)
-    check_rc(rc)
-    try:
-        rc = libzmq.zmq_msg_recv(&zmessage, socket, flags)
-        check_rc(rc)
-        memcpy(nm, libzmq.zmq_msg_data(&zmessage), sizeof(int))
-    finally:
-        rc = libzmq.zmq_msg_close(&zmessage)
-        check_rc(rc)
-    
-    rc = libzmq.zmq_msg_init(&zmessage)
-    check_rc(rc)
-    try:
-        rc = libzmq.zmq_msg_recv(&zmessage, socket, flags)
-        check_rc(rc)
-        memcpy(ts, libzmq.zmq_msg_data(&zmessage), sizeof(time_t))
+        memcpy(dest, libzmq.zmq_msg_data(&zmessage), size)
     finally:
         rc = libzmq.zmq_msg_close(&zmessage)
         check_rc(rc)
