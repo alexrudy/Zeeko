@@ -6,6 +6,7 @@ from zmq.backend.cython.utils import Stopwatch
 from ..receiver import ReceivedArray, Receiver
 from ..publisher import PublishedArray, Publisher
 
+@pytest.mark.xfail
 def test_roundtrip_speed(push, pull):
     """Check roundtrip speed"""
     pub = Publisher()
