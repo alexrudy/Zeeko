@@ -85,6 +85,9 @@ cdef class Publisher:
     def __getitem__(self, key):
         return self._publishers[key]
     
+    def __len__(self):
+        return len(self._publishers)
+    
     cdef int lock(self) nogil except -1:
         cdef int rc
         rc = pthread.pthread_mutex_lock(&self._mutex)
