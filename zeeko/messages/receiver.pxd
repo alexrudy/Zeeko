@@ -8,9 +8,10 @@ cimport numpy as np
 np.import_array()
 
 from .carray cimport carray_named
-from libc.time cimport time_t
 import zmq
 from zmq.backend.cython.socket cimport Socket
+
+cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1
 
 cdef class ReceivedArray:
     
@@ -24,7 +25,7 @@ cdef class ReceivedArray:
 cdef class Receiver:
     cdef int _n_messages
     cdef unsigned int _framecount
-    cdef time_t last_message
+    cdef double last_message
     cdef carray_named ** _messages
     cdef dict _name_cache
     cdef int _name_cache_valid

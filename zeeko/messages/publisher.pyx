@@ -8,7 +8,6 @@ np.import_array()
 
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport strndup, memcpy
-from libc.time cimport time, time_t
 
 import zmq
 from zmq.utils import jsonapi
@@ -16,8 +15,10 @@ from zmq.backend.cython.socket cimport Socket
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.message cimport Frame
 
+
 from .carray cimport send_named_array, empty_named_array, close_named_array
 from .utils cimport check_rc, check_ptr
+from ..utils.clock cimport current_time
 
 cdef int MAXFRAMECOUNT = (2**30)
 
@@ -26,7 +27,7 @@ cdef int send_header(void * socket, unsigned int fc, int nm, int flags) nogil ex
     [\0, fc, nm]
     """
     cdef int rc = 0
-    cdef time_t now = time(NULL)
+    cdef double now = current_time()
     
     rc = libzmq.zmq_sendbuf(socket, <void *>&fc, sizeof(unsigned int), flags|libzmq.ZMQ_SNDMORE)
     check_rc(rc)
@@ -34,7 +35,7 @@ cdef int send_header(void * socket, unsigned int fc, int nm, int flags) nogil ex
     rc = libzmq.zmq_sendbuf(socket, <void *>&nm, sizeof(int), flags|libzmq.ZMQ_SNDMORE)
     check_rc(rc)
     
-    rc = libzmq.zmq_sendbuf(socket, <void *>&now, sizeof(time_t), flags)
+    rc = libzmq.zmq_sendbuf(socket, <void *>&now, sizeof(double), flags)
     check_rc(rc)
     
     return rc

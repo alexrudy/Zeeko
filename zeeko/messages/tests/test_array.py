@@ -62,8 +62,8 @@ def test_packets(push, pull, shape, name):
     
     fc = struct.unpack("I",pull.recv())[0]
     nm = struct.unpack("i",pull.recv())[0]
-    tm = struct.unpack("l",pull.recv())[0]
-    print("Got Header: fc={:d} nm={:d} time={:d}".format(fc, nm, tm))
+    tm = struct.unpack("d",pull.recv())[0]
+    print("Got Header: fc={:d} nm={:d} time={:f}".format(fc, nm, tm))
     assert fc == framecount
     assert nm == len(arrays)
     count = 0

@@ -21,10 +21,8 @@ def get_extensions(**kwargs):
     this_directory = os.path.dirname(__file__)
     this_name = __name__.split(".")[:-1]
     
-    util_include = os.path.normpath(os.path.join(this_directory, "..", "utils"))
-    
     extension_args = {
-        'include_dirs' : [util_include, 'numpy'] + get_zmq_include_path(),
+        'include_dirs' : [this_directory] + ['numpy'] + get_zmq_include_path(),
         'libraries' : [],
         'sources' : []
     }

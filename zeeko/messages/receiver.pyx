@@ -7,14 +7,13 @@ from .carray cimport carray_named, carray_message, receive_named_array, new_name
 
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport memcpy
-from libc.time cimport time_t, time
 from cpython.string cimport PyString_FromStringAndSize
 from zmq.utils import jsonapi
 cimport zmq.backend.cython.libzmq as libzmq
 from .utils cimport check_rc, check_ptr
 
 
-cdef int receive_header(void * socket, unsigned int * fc, int * nm, time_t * ts, int flags) nogil except -1:
+cdef int receive_header(void * socket, unsigned int * fc, int * nm, double * ts, int flags) nogil except -1:
     cdef int rc = 0
     
     rc = zmq_recv_sized_message(socket, fc, sizeof(unsigned int), flags)
@@ -23,7 +22,7 @@ cdef int receive_header(void * socket, unsigned int * fc, int * nm, time_t * ts,
     rc = zmq_recv_sized_message(socket, nm, sizeof(int), flags)
     check_rc(rc)
     
-    rc = zmq_recv_sized_message(socket, ts, sizeof(time_t), flags)
+    rc = zmq_recv_sized_message(socket, ts, sizeof(double), flags)
     check_rc(rc)
     return rc
     
