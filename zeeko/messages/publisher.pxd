@@ -16,7 +16,7 @@ cdef class Publisher:
     cdef int _n_messages, _framecount
     cdef carray_named ** _messages
     cdef pthread.pthread_mutex_t _mutex
-    cdef dict _publishers
+    cdef object _publishers
     
     cdef int lock(self) nogil except -1
     cdef int unlock(self) nogil except -1

@@ -49,27 +49,31 @@ def client(ctx, interval):
         c.stop()
     
 @main.command()
+@click.option("--interval", type=int, help="Polling interval for server status.", default=3)
 @click.option("--frequency", type=float, help="Publish frequency for server.", default=100)
 @click.pass_context
-def server(ctx, frequency):
+def server(ctx, frequency, interval):
     """The server."""
-    from zeeko.messages.publisher import Publisher
+    from zeeko.workers.server import Server
     import numpy as np
     
-    pub = ctx.obj.zcontext.socket(zmq.PUB)
-    pub.bind(ctx.obj.bind)
-    p = Publisher()
-    p['array1'] = np.random.randn(200,200)
-    interval = 1.0 / frequency
-    click.echo("Publishing {:d} arrays to '{:s}' at {:.1f}Hz".format(len(p), ctx.obj.bind, frequency))
+    s = Server(ctx.obj.zcontext, ctx.obj.bind, frequency)
+    s['wfs'] = np.random.randn(180,180)
+    s['tw'] = np.random.randn(32, 32)
+    s['tw'] = np.random.randn(52)
+    
+    click.echo("Publishing {:d} array(s) to '{:s}' at {:.0f}Hz".format(len(s), ctx.obj.bind, s.frequency))
     click.echo("^C to stop.")
+    s.start()
+    count = s.counter
     try:
         while True:
-            p.publish(pub)
-            p['array1'] = np.random.randn(200, 200)
+            s['array1'] = np.random.randn(200, 200)
+            ctx.obj.log.info("Sending {:.1f} msgs per second. N={:d}, w={:.4f}".format((s.counter - count) / float(interval),s.counter, s.wait_time * 1e3))
+            count = s.counter
             time.sleep(interval)
     finally:
-        pub.close()
+        s.stop()
     
 class Namespace(object):
     pass

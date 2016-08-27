@@ -9,6 +9,7 @@ np.import_array()
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport strndup, memcpy
 
+import collections
 import zmq
 from zmq.utils import jsonapi
 from zmq.backend.cython.socket cimport Socket
@@ -61,7 +62,7 @@ cdef class Publisher:
         self._framecount = 0
         
     def __init__(self, publishers=list()):
-        self._publishers = dict()
+        self._publishers = collections.OrderedDict()
         for publisher in publishers:
             if isinstance(publisher, PublishedArray):
                 self._publishers[publisher.name] = publisher
@@ -109,7 +110,7 @@ cdef class Publisher:
             self._messages = <carray_named **>realloc(<void *>self._messages, sizeof(carray_named *) * len(self._publishers))
             if self._messages is NULL:
                 raise MemoryError("Could not allocate messages array for Publisher {!r}".format(self))
-            for i, key in enumerate(sorted(self._publishers.keys())):
+            for i, key in enumerate(self._publishers.keys()):
                 self._messages[i] = &(<PublishedArray>self._publishers[key])._message
             self._n_messages = len(self._publishers)
         finally:
