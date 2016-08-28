@@ -94,7 +94,11 @@ cdef class ReceivedArray:
     
     property array:
         def __get__(self):
-            buf = buffer(self)
+            try:
+                buf = buffer(self)
+            except NameError:
+                buf = memoryview(self)
+            
             view = np.frombuffer(buf, dtype=self.dtype)
             return view.reshape(self.shape)
         

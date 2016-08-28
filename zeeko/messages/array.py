@@ -105,7 +105,10 @@ def recv_array(socket, flags=0, copy=True, track=False):
     """
     md = socket.recv_json(flags=flags)
     msg = socket.recv(flags=flags, copy=copy, track=track)
-    buf = buffer(msg)
+    try:
+        buf = buffer(msg)
+    except NameError:
+        buf = memoryview(msg)
     A = np.frombuffer(buf, dtype=md['dtype'])
     return A.reshape(md['shape'])
 
