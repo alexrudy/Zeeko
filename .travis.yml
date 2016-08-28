@@ -1,7 +1,6 @@
 language: python
 
 python:
-    - 2.6
     - 2.7
     - 3.4
 env:
@@ -20,6 +19,9 @@ env:
       - SETUP_CMD='test'
 matrix:
     include:
+        
+        - python: 2.6
+          env: NUMPY_VERSION=1.10
         
         # Do a coverage test in Python 2.
         - python: 2.7
