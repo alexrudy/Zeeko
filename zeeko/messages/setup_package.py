@@ -1,51 +1,18 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
-import glob
 import os
-import copy
 
-from distutils.core import Extension
-
-def get_zmq_include_path():
-    """Get the ZMQ include path in an import-safe manner."""
-    try:
-        import zmq
-        return zmq.get_includes()
-    except ImportError as e:
-        return []
+from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions
+from astropy_helpers import setup_helpers
 
 def get_extensions(**kwargs):
     """Get the Cython extensions"""
+    extension_args = setup_helpers.DistutilsExtensionArgs()
+    extension_args.update(get_utils_extension_args())
+    extension_args.update(get_zmq_extension_args())
+    extension_args['include_dirs'].append('numpy')
     
-    this_directory = os.path.dirname(__file__)
-    this_name = __name__.split(".")[:-1]
-    
-    util_include = os.path.normpath(os.path.join(this_directory, "..", "utils"))
-    
-    extension_args = {
-        'include_dirs' : [util_include, 'numpy'] + get_zmq_include_path(),
-        'libraries' : [],
-        'sources' : []
-    }
-    extension_args.update(kwargs)
-    
-    
-    extensions = []
-    
-    for component in glob.iglob(os.path.join(this_directory, "*.pyx")):
-        # Component name and full module name.
-        this_extension_args = copy.deepcopy(extension_args)
-        cname = os.path.splitext(os.path.basename(component))[0]
-        if cname.startswith("_"):
-            cname = cname[1:]
-            name = ".".join(this_name + ["_{0:s}".format(cname)])
-        else:
-            name = ".".join(this_name + [cname])
-        this_extension_args['sources'].append(component)
-        
-        # Extension object.
-        extension = Extension(name, **this_extension_args)
-        extensions.append(extension)
-    
+    package_name = __name__.split(".")[:-1]
+    extensions = [e for e in _generate_cython_extensions(extension_args, os.path.dirname(__file__), package_name)]
     return extensions
