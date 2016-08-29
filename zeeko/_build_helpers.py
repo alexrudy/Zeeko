@@ -3,6 +3,7 @@
 import os
 import glob
 import copy
+import sys
 
 from distutils.core import Extension
 
@@ -30,6 +31,9 @@ def get_zmq_extension_args():
     cfg['include_dirs'] = get_zmq_include_path()
     cfg['library_dirs'] = get_zmq_library_path()
     cfg['libraries'] = ['zmq']
+    if not sys.platform.startswith(('darwin', 'freebsd')):
+        cfg['libraries'].append("rt")
+    
     cfg['extra_compile_args'] = ['-fsanitize=address', '-fsanitize=bounds', '-fsanitize-undefined-trap-on-error']
     cfg['extra_link_args'] = ['-fsanitize=address', '-fsanitize=bounds', '-fsanitize-undefined-trap-on-error']
     return cfg
