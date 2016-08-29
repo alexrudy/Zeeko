@@ -30,6 +30,8 @@ def get_zmq_extension_args():
     cfg['include_dirs'] = get_zmq_include_path()
     cfg['library_dirs'] = get_zmq_library_path()
     cfg['libraries'] = ['zmq']
+    cfg['extra_compile_args'] = ['-fsanitize=address', '-fsanitize=bounds', '-fsanitize-undefined-trap-on-error']
+    cfg['extra_link_args'] = ['-fsanitize=address', '-fsanitize=bounds', '-fsanitize-undefined-trap-on-error']
     return cfg
     
 def get_utils_extension_args():
