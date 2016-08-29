@@ -10,6 +10,7 @@ from libc.string cimport memcpy
 from cpython.string cimport PyString_FromStringAndSize
 from zmq.utils import jsonapi
 cimport zmq.backend.cython.libzmq as libzmq
+from zmq.utils.buffers cimport viewfromobject_r
 from .utils cimport check_rc, check_ptr
 
 
@@ -94,12 +95,7 @@ cdef class ReceivedArray:
     
     property array:
         def __get__(self):
-            try:
-                buf = buffer(self)
-            except NameError:
-                buf = memoryview(self)
-            
-            view = np.frombuffer(buf, dtype=self.dtype)
+            view = np.frombuffer(self, dtype=self.dtype)
             return view.reshape(self.shape)
         
     property name:
