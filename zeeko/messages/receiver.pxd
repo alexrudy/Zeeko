@@ -9,9 +9,12 @@ np.import_array()
 
 from .carray cimport carray_named
 import zmq
+cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
 
 cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1
+cdef str zmq_msg_to_str(libzmq.zmq_msg_t * msg)
+cdef int receive_header(void * socket, unsigned int * fc, int * nm, double * ts, int flags) nogil except -1
 
 cdef class ReceivedArray:
     

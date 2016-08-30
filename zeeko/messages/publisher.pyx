@@ -25,7 +25,7 @@ cdef int MAXFRAMECOUNT = (2**30)
 
 cdef int send_header(void * socket, unsigned int fc, int nm, int flags) nogil except -1:
     """Send the message header for a publisher. Sent as:
-    [\0, fc, nm]
+    [fc, nm, now]
     """
     cdef int rc = 0
     cdef double now = current_time()

@@ -10,6 +10,7 @@ from zmq.backend.cython.message cimport Frame
 from carray cimport carray_named
 from ..utils cimport pthread
 
+cdef int send_header(void * socket, unsigned int fc, int nm, int flags) nogil except -1
 
 cdef class Publisher:
     

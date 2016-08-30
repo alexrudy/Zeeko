@@ -1,7 +1,7 @@
 from ..messages.receiver cimport zmq_recv_sized_message
 
 cdef enum zeeko_state:
-    START=1
+    RUN=1
     PAUSE=2
     STOP=3
     
