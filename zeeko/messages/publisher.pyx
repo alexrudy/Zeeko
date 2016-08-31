@@ -135,11 +135,7 @@ cdef class Publisher:
         """Publish all registered arrays."""
         cdef void * handle = socket.handle
         with nogil:
-            self.lock()
-            try:
-                self._publish(handle, flags)
-            finally:
-                self.unlock()
+            self._publish(handle, flags)
 
 cdef class PublishedArray:
     """A single array publisher.
