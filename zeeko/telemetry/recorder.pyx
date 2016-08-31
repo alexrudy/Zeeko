@@ -89,16 +89,16 @@ cdef class Recorder(Client):
         for i in range(self._n_arrays):
             rc = chunk_append(self._chunks[i], self.receiver._messages[i], index)
         if index == (self.chunksize - 1):
-            self._send_for_output(self._writer.handle)
+            self._send_for_output(self._writer.handle, 0)
         
-    cdef int _send_for_output(self, void * socket) nogil except -1:
+    cdef int _send_for_output(self, void * socket, int flags) nogil except -1:
         cdef int i, rc
         if self.offset != -1:
             self._chunkcount += 1
-            send_header(socket, self._chunkcount, self._n_arrays, libzmq.ZMQ_SNDMORE)
+            send_header(socket, self._chunkcount, self._n_arrays, flags|libzmq.ZMQ_SNDMORE)
             for i in range(self._n_arrays - 1):
-                rc = chunk_send(self._chunks[i], socket, libzmq.ZMQ_SNDMORE)
-            rc = chunk_send(self._chunks[self._n_arrays - 1], socket, 0)
+                rc = chunk_send(self._chunks[i], socket, flags|libzmq.ZMQ_SNDMORE)
+            rc = chunk_send(self._chunks[self._n_arrays - 1], socket, flags)
         else:
             # Sentinel to turn off writer.
             printf("Requesting stop\n")
@@ -119,14 +119,15 @@ cdef class Recorder(Client):
         """Handler for when the buffer is complete and should be pushed to the writer."""
         cdef void * handle = self._writer.handle
         with nogil:
-            self._send_for_output(handle)
+            self._send_for_output(handle, 0)
     
     def _py_run(self):
         try:
             super(Recorder, self)._py_run()
         except (IndexError, ValueError) as e:
-            self._complete()
             self.log.info("RESET: Message changed while receiving: {0.__class__.__name__:s}:{0:s}".format(e))
+            self.log.debug("OFFSET: {:d}".format(self.offset))
+            self._complete()
         else:
             self.log.info("RUN: Finished, notifying writer.")
             self._complete()

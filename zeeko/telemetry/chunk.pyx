@@ -100,11 +100,13 @@ cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index) n
     size = libzmq.zmq_msg_size(&chunk.metadata)
     if libzmq.zmq_msg_size(&array.array.metadata) != size:
         with gil:
-            raise ValueError("Metadata size is different.")
+            raise ValueError("Metadata size is different. {!r} -> {!r}".format(
+                zmq_msg_to_str(&chunk.metadata), zmq_msg_to_str(&array.array.metadata)))
     rc = memcmp(libzmq.zmq_msg_data(&chunk.metadata), libzmq.zmq_msg_data(&array.array.metadata), size)
     if rc != 0:
         with gil:
-            raise ValueError("Metadata does not match!")
+            raise ValueError("Metadata does not match! {!r} -> {!r}".format(
+                zmq_msg_to_str(&chunk.metadata), zmq_msg_to_str(&array.array.metadata)))
     
     size = libzmq.zmq_msg_size(&array.array.data)
     if index >= chunk.chunksize:

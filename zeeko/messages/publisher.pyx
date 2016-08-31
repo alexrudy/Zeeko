@@ -120,11 +120,15 @@ cdef class Publisher:
     cdef int _publish(self, void * socket, int flags) nogil except -1:
         """Inner-loop message sender."""
         cdef int i, rc
-        self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
-        rc = send_header(socket, self._framecount, self._n_messages, flags|libzmq.ZMQ_SNDMORE)
-        for i in range(self._n_messages-1):
-            rc = send_named_array(self._messages[i], socket, flags|libzmq.ZMQ_SNDMORE)
-        rc = send_named_array(self._messages[self._n_messages-1], socket, flags)
+        self.lock()
+        try:
+            self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
+            rc = send_header(socket, self._framecount, self._n_messages, flags|libzmq.ZMQ_SNDMORE)
+            for i in range(self._n_messages-1):
+                rc = send_named_array(self._messages[i], socket, flags|libzmq.ZMQ_SNDMORE)
+            rc = send_named_array(self._messages[self._n_messages-1], socket, flags)
+        finally:
+            self.unlock()
         return rc
         
     def publish(self, Socket socket, int flags = 0):

@@ -36,6 +36,11 @@ class Pipeline(object):
             return self._events.popleft()
     
     @property
+    def delay(self):
+        """Running message delay."""
+        return self.recorder.delay
+    
+    @property
     def counter(self):
         """Return a counter of received frames."""
         return self.recorder.counter

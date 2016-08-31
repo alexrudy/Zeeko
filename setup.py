@@ -43,7 +43,7 @@ LONG_DESCRIPTION = package.__doc__
 builtins._ASTROPY_PACKAGE_NAME_ = PACKAGENAME
 
 # VERSION should be PEP386 compatible (http://www.python.org/dev/peps/pep-0386)
-VERSION = '0.1.0dev'
+VERSION = '0.1.0.dev'
 
 # Indicates if this version is a release version
 RELEASE = 'dev' not in VERSION
@@ -55,10 +55,6 @@ if not RELEASE:
 # invoking any other functionality from distutils since it can potentially
 # modify distutils' behavior.
 cmdclassd = register_commands(PACKAGENAME, VERSION, RELEASE)
-
-# Adjust the compiler in case the default on this platform is to use a
-# broken one.
-adjust_compiler(PACKAGENAME)
 
 # Freeze build information in version.py
 generate_version_py(PACKAGENAME, VERSION, RELEASE,

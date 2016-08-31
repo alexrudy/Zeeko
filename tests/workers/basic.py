@@ -33,6 +33,9 @@ def main(ctx, port, host, scheme):
     ctx.obj.log.setLevel(logging.DEBUG)
     ctx.obj.addr = "{scheme}://{hostname}:{port:d}".format(port=port, scheme=scheme, hostname=host)
     ctx.obj.bind = to_bind(ctx.obj.addr)
+    ctx.obj.host = host
+    ctx.obj.scheme = scheme
+    ctx.obj.port = port
 
 @main.command()
 @click.option("--interval", type=int, help="Polling interval for client status.", default=3)
@@ -101,12 +104,65 @@ def telemetry(ctx, interval, filename, chunk):
             if event:
                 ctx.obj.log.info("Got notification: {!r}".format(event))
             time.sleep(interval)
-            ctx.obj.log.info("Receiving {:.1f} msgs per second.".format((p.counter - count) / float(interval)))
+            ctx.obj.log.info("Receiving {:.1f} msgs per second. Delay: {:.3g}".format((p.counter - count) / float(interval), p.delay))
             count = p.counter
     finally:
         print(p.finish(timeout=5.0))
         p.stop()
         hdf5info(filename)
+
+@main.command()
+@click.option("--interval", type=float, help="Polling interval for client status.", default=3)
+@click.option("--chunk", type=int, help="Set chunk size.", default=10)
+@click.pass_context
+def recorder(ctx, interval, chunk):
+    """Recorder"""
+    from zeeko.telemetry.recorder import Recorder
+    writer = "{0.scheme:s}://{0.host:s}:{port:d}".format(ctx.obj, port=ctx.obj.port+1)
+    r = Recorder(ctx.obj.zcontext, ctx.obj.addr, to_bind(writer), chunk)
+    click.echo("Receiving on '{:s}'".format(ctx.obj.addr))
+    click.echo("Recording to '{:s}'".format(writer))
+    r.start()
+    count = r.counter
+    try:
+        while True:
+            time.sleep(interval)
+            ctx.obj.log.info("Receiving {:.1f} msgs per second. Delay: {:.3g}".format((r.counter - count) / float(interval), r.delay))
+            count = r.counter
+    finally:
+        r.stop()
+
+@main.command()
+@click.pass_context
+def subdebug(ctx):
+    """Subscription debugger"""
+    sub = ctx.obj.zcontext.socket(zmq.SUB)
+    sub.connect(ctx.obj.addr)
+    sub.subscribe("")
+    while True:
+        if sub.poll(timeout=1000):
+            msg = sub.recv_multipart()
+            for i,part in enumerate(msg):
+                rpart = repr(part)
+                if len(rpart) > 100:
+                    rpart = rpart[:100] + "..."
+                print("{:d}) {:s}".format(i+1, rpart))
+                
+    
+@main.command()
+@click.pass_context
+def pulldebug(ctx):
+    """Subscription debugger"""
+    pull = ctx.obj.zcontext.socket(zmq.PULL)
+    pull.connect(ctx.obj.addr)
+    while True:
+        if pull.poll(timeout=1000):
+            msg = pull.recv_multipart()
+            for i,part in enumerate(msg):
+                rpart = repr(part)
+                if len(rpart) > 100:
+                    rpart = rpart[:100] + "..." + " [{:d}]".format(len(part))
+                print("{:d}) {:s}".format(i+1, rpart))
 
 def hdf5visiotr(name, obj):
     """HDF5 Visitor."""
