@@ -20,23 +20,50 @@ STATE = {
     'RUN': 1,
     'PAUSE': 2,
     'STOP': 3,
+    'INIT': 4,
 }
+
+class _RunningWorkerContext(object):
+    
+    def __init__(self, worker):
+        super(_RunningWorkerContext, self).__init__()
+        self.worker = worker
+    
+    def __enter__(self):
+        self.worker.start()
+        
+    def __exit__(self, *exc):
+        self.worker.stop()
 
 cdef class Worker:
     
     def __init__(self, ctx, address):
         
-        self._state = PAUSE
+        self._state = INIT
         self.timeout = 10
         
         self.log = logging.getLogger(__name__)
         self.thread = threading.Thread(target=self._work)
         
         self.context = ctx or zmq.Context.instance()
-        self._internal = ctx.socket(zmq.PULL)
         self.address = address
         self.log = logging.getLogger(".".join([self.__class__.__module__,self.__class__.__name__]))
         self._internal_address = "inproc://{:s}-interrupt".format(hex(id(self)))
+        
+    def _close(self):
+        """Ensure that the worker is done and closes down properly."""
+        try:
+            self._internal.disconnect(self._internal_address)
+        except zmq.ZMQError as e:
+            if e.errno == zmq.ENOTCONN:
+                pass
+            else:
+                self.log.warning("Exception in Worker disconnect: {!r}".format(e))
+        try:
+            self._internal.close()
+            self._py_post_work()
+        except zmq.ZMQError as e:
+            self.log.warning("Exception in Worker Shutdown: {!r}".format(e))
         
     def _signal_state(self, state):
         """Signal a state change."""
@@ -49,6 +76,8 @@ cdef class Worker:
     def _not_done(self):
         if self._state == STOP:
             raise ValueError("Can't change state once the client is stopped.")
+        elif self._state == INIT:
+            self.thread.start()
         
     def start(self):
         self._signal_state("RUN")
@@ -60,6 +89,10 @@ cdef class Worker:
         self._signal_state("STOP")
         if self.thread.is_alive():
             self.thread.join()
+        
+    def running(self):
+        """Produce a context manager to ensure the shutdown of this worker."""
+        return _RunningWorkerContext(self)
         
     def _py_pre_run(self):
         """Hook for actions to take when the worker starts, while holding the GIL."""
@@ -88,7 +121,9 @@ cdef class Worker:
     
     def _work(self):
         """Thread Worker Function"""
+        self._internal = self.context.socket(zmq.PULL)
         self._internal.bind(self._internal_address)
+        self._state = PAUSE
         self._py_pre_work()
         while True:
             self.log.debug("State transition: {:s}.".format(self.state))
@@ -101,12 +136,7 @@ cdef class Worker:
             
             elif self._state == STOP:
                 break
-        try:
-            self._internal.disconnect(self._internal_address)
-            self._internal.close()
-            self._py_post_work()
-        except zmq.ZMQError as e:
-            self.log.warning("Exception in Worker Shutdown: {!r}".format(e))
+        self._close()
         
     cdef int _pause(self) nogil except -1:
         cdef void * internal = self._internal.handle
@@ -169,6 +199,13 @@ cdef class Worker:
                 return "RUN"
             elif self._state == STOP:
                 return "STOP"
+            elif self._state == INIT:
+                return "INIT"
             else:
                 return "UNKNOWN"
+                
+            
+    
+    def is_alive(self):
+        return self.thread.is_alive()
     

@@ -29,7 +29,6 @@ cdef class Server(Worker):
         self._outbound = self.context.socket(zmq.PUB)
         self.counter = 0
         self.interval = 1.0
-        self.thread.start()
         
     def _py_pre_work(self):
         """Bind the outbound socket as soon as work starts."""

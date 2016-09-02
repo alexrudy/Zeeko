@@ -15,23 +15,15 @@ import logging
 import warnings
 import struct as s
 
-STATE = {
-    'START': 1,
-    'PAUSE': 2,
-    'STOP': 3,
-}
-
 cdef class Client(Worker):
     
     def __init__(self, ctx, address):
         super(Client, self).__init__(ctx, address)
         self.receiver = Receiver()
-        self._inbound = self.context.socket(zmq.SUB)
         self.counter = 0
         self._snail_deaths = 0
         self.maxlag = 10
         self.subscriptions = []
-        self.thread.start()
     
     def subscribe(self, key):
         """Add a subscription key"""
@@ -39,6 +31,7 @@ cdef class Client(Worker):
         
     def _py_pre_run(self):
         """On worker run, connect and subscribe."""
+        self._inbound = self.context.socket(zmq.SUB)
         self._inbound.connect(self.address)
         if len(self.subscriptions):
             for s in self.subscriptions:

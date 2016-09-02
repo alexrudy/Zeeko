@@ -9,7 +9,7 @@ cdef class Client(Worker):
     cdef Socket _inbound
     cdef list subscriptions
     cdef readonly int counter
-    cdef public long maxlag
+    cdef public double maxlag
     cdef readonly double delay
     cdef int _snail_deaths
     
