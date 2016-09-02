@@ -24,15 +24,15 @@ matrix:
         #   env: NUMPY_VERSION=1.10
         
         # Do a coverage test in Python 2.
-        - python: 2.7
-          env: SETUP_CMD='test --coverage'
+        # - python: 2.7
+        #   env: SETUP_CMD='test --coverage'
           
         # Check for sphinx doc build warnings - we do this first because it
         # may run for a long time
-        - python: 2.7
-          env: 
-            - SETUP_CMD='build_sphinx -w'
-            - CONDA_DEPENDENCIES="$CONDA_DEPENDENCIES sphinx<1.4"
+        # - python: 2.7
+        #   env:
+        #     - SETUP_CMD='build_sphinx -w'
+        #     - CONDA_DEPENDENCIES="$CONDA_DEPENDENCIES sphinx<1.4"
           
 
 # Setting sudo to false opts in to Travis-CI container-based builds.
