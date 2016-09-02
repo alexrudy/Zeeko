@@ -6,53 +6,56 @@ import functools
 from ..base import Worker
 from zeeko.conftest import assert_canrecv
 
-def test_worker_attrs(address, context):
-    """Test worker attributes."""
+@pytest.fixture
+def worker(address, context):
     w = Worker(context, address)
-    assert w.context == context
-    
-    with pytest.raises(AttributeError):
-        w.context = 1
-    
-    assert w.address == address
-    with pytest.raises(AttributeError):
-        w.address = "something-else"
-    
-def test_worker_start_stop(address, context):
-    """Test worker start stop."""
-    w = Worker(context, address)
-    w.start()
-    assert w.is_alive()
-    w.stop()
-    assert not w.is_alive()
-    
-def test_worker_context(address, context):
-    """Test worker start stop."""
-    w = Worker(context, address)
-    with w.running():
-        assert w.is_alive()
-    assert not w.is_alive()
+    yield w
+    if w.is_alive():
+        w.stop()
 
-def test_worker_states(address, context):
+def test_worker_attrs(worker, address, context):
+    """Test worker attributes."""
+    assert worker.context == context
+    
+    with pytest.raises(AttributeError):
+        worker.context = 1
+    
+    assert worker.address == address
+    with pytest.raises(AttributeError):
+        worker.address = "something-else"
+    
+def test_worker_start_stop(worker):
+    """Test worker start stop."""
+    worker.start()
+    assert worker.is_alive()
+    worker.stop()
+    assert not worker.is_alive()
+    
+def test_worker_context(worker):
+    """Test worker start stop."""
+    with worker.running():
+        assert worker.is_alive()
+    assert not worker.is_alive()
+
+def test_worker_states(worker):
     """Test worker states."""
-    w = Worker(context, address)
-    assert w.state == "INIT"
-    assert not w.is_alive()
-    w.start()
-    assert w.is_alive()
+    assert worker.state == "INIT"
+    assert not worker.is_alive()
+    worker.start()
+    assert worker.is_alive()
     time.sleep(0.01)
-    assert w.state == "RUN"
-    w.pause()
+    assert worker.state == "RUN"
+    worker.pause()
     time.sleep(0.01)
-    assert w.state == "PAUSE"
-    w.start()
+    assert worker.state == "PAUSE"
+    worker.start()
     time.sleep(0.01)
-    assert w.state == "RUN"
-    assert w.is_alive()
-    w.stop()
+    assert worker.state == "RUN"
+    assert worker.is_alive()
+    worker.stop()
     time.sleep(0.01)
-    assert not w.is_alive()
-    assert w.state == "STOP"
+    assert not worker.is_alive()
+    assert worker.state == "STOP"
 
 
 def worker_py_hook(f):
@@ -86,37 +89,43 @@ class WorkerWithPyHook(Worker):
     @worker_py_hook
     def _py_post_work(self):
         pass
-
-def test_worker_py_hooks(address, context):
-    """Test worker python hooks."""
+        
+@pytest.fixture
+def hooked_worker(address, context):
+    """A worker with hooks."""
     w = WorkerWithPyHook(context, address)
-    assert w.state == "INIT"
-    assert w.hooks_run == []
-    w.pause()
-    time.sleep(0.01)
-    assert "_py_pre_work" in w.hooks_run
-    assert len(w.hooks_run) == 1
-    
-    w.start()
-    time.sleep(0.01)
-    assert "_py_pre_run" in w.hooks_run
-    
-    w.pause()
-    time.sleep(0.01)
-    assert "_py_post_run" in w.hooks_run
-    
-    w.stop()
-    time.sleep(0.01)
-    assert "_py_post_work" in w.hooks_run
-    assert not w.is_alive()
+    yield w
+    if w.is_alive():
+        w.stop()
 
-def test_worker_multistop(address, context):
+def test_worker_py_hooks(hooked_worker):
+    """Test worker python hooks."""
+    assert hooked_worker.state == "INIT"
+    assert hooked_worker.hooks_run == []
+    hooked_worker.pause()
+    time.sleep(0.01)
+    assert "_py_pre_work" in hooked_worker.hooks_run
+    assert len(hooked_worker.hooks_run) == 1
+    
+    hooked_worker.start()
+    time.sleep(0.01)
+    assert "_py_pre_run" in hooked_worker.hooks_run
+    
+    hooked_worker.pause()
+    time.sleep(0.01)
+    assert "_py_post_run" in hooked_worker.hooks_run
+    
+    hooked_worker.stop()
+    time.sleep(0.01)
+    assert "_py_post_work" in hooked_worker.hooks_run
+    assert not hooked_worker.is_alive()
+
+def test_worker_multistop(worker):
     """Test worker multistop"""
-    w = Worker(context, address)
-    w.start()
-    w.stop()
+    worker.start()
+    worker.stop()
     
     with pytest.raises(ValueError):
-        w.stop()
+        worker.stop()
     
 
