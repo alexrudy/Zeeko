@@ -1,20 +1,18 @@
 [run]
-source = Cauldron
+source = zeeko
 omit =
-   Cauldron/_astropy_init*
-   Cauldron/conftest*
-   Cauldron/cython_version*
-   Cauldron/setup_package*
-   Cauldron/*/setup_package*
-   Cauldron/*/*/setup_package*
-   Cauldron/tests/*
-   Cauldron/*/tests/*
-   Cauldron/*/*/tests/*
-   Cauldron/version*
-   Cauldron/bundled/*
-   Cauldron/utils/_weakrefset*
-   Cauldron/compat*
-   Cauldron/*/test_*
+   zeeko/_astropy_init*
+   zeeko/conftest*
+   zeeko/cython_version*
+   zeeko/setup_package*
+   zeeko/*/setup_package*
+   zeeko/*/*/setup_package*
+   zeeko/tests/*
+   zeeko/*/tests/*
+   zeeko/*/*/tests/*
+   zeeko/version*
+   zeeko/bundled/*
+plugins = Cython.Coverage
 
 [report]
 exclude_lines =
