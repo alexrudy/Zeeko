@@ -17,30 +17,35 @@ import struct as s
 
 cdef class Client(Worker):
     
-    def __init__(self, ctx, address):
+    def __init__(self, ctx, address, kind=zmq.SUB):
         super(Client, self).__init__(ctx, address)
         self.receiver = Receiver()
         self.counter = 0
         self._snail_deaths = 0
         self.maxlag = 10
         self.subscriptions = []
+        self.kind = kind
     
     def subscribe(self, key):
         """Add a subscription key"""
-        self.subscriptions.append(key)
+        if self.kind == zmq.SUB:
+            self.subscriptions.append(key)
+        else:
+            raise ValueError("Client is not a subscriber.")
         
     def _py_pre_run(self):
         """On worker run, connect and subscribe."""
-        self._inbound = self.context.socket(zmq.SUB)
+        self._inbound = self.context.socket(self.kind)
         self._inbound.connect(self.address)
-        if len(self.subscriptions):
-            for s in self.subscriptions:
-                self._inbound.subscribe(s)
-                self.log.debug("Subscribed to {:s}".format(s))
+        if self.kind == zmq.SUB:
+            if len(self.subscriptions):
+                for s in self.subscriptions:
+                    self._inbound.subscribe(s)
+                    self.log.debug("Subscribed to {:s}".format(s))
                 
-        else:
-            self._inbound.subscribe("")
-            self.log.debug("Subscribed to :all:")
+            else:
+                self._inbound.subscribe("")
+                self.log.debug("Subscribed to :all:")
         
     def _py_post_run(self):
         """On worker stop run, disconnect."""
