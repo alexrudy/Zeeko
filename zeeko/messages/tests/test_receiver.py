@@ -12,6 +12,8 @@ import zmq
 from ..receiver import ReceivedArray, Receiver
 from .. import array as array_api
 import struct
+from zeeko.conftest import assert_canrecv
+
 
 @pytest.fixture
 def n():
@@ -57,10 +59,12 @@ def test_receiver_multiple(push, pull, shape, name, n):
     array_api.send_array_packet(push, framecount, arrays2)
     
     rcv = Receiver()
+    assert_canrecv(pull)
     rcv.receive(pull)
     assert len(rcv) == n
     for i in range(len(rcv)):
         np.testing.assert_allclose(rcv["{:s}{:d}".format(name, i)].array, arrays[i][1])
+    assert_canrecv(pull)
     rcv.receive(pull)
     for i in range(len(rcv)):
         np.testing.assert_allclose(rcv["{:s}{:d}".format(name, i)].array, arrays2[i][1])
@@ -76,11 +80,13 @@ def test_retain_multiple(push, pull, shape, name, n):
     array_api.send_array_packet(push, framecount, arrays2)
     
     rcv = Receiver()
+    assert_canrecv(pull)
     rcv.receive(pull)
     assert len(rcv) == n
     for i in range(len(rcv)):
         np.testing.assert_allclose(rcv["{:s}{:d}".format(name, i)].array, arrays[i][1])
     refd_array = rcv[1].array
+    assert_canrecv(pull)
     rcv.receive(pull)
     for i in range(len(rcv)):
         np.testing.assert_allclose(rcv["{:s}{:d}".format(name, i)].array, arrays2[i][1])

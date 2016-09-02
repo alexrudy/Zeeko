@@ -5,6 +5,7 @@ from zmq.backend.cython.utils import Stopwatch
 
 from ..receiver import ReceivedArray, Receiver
 from ..publisher import PublishedArray, Publisher
+from zeeko.conftest import assert_canrecv
 
 @pytest.mark.xfail
 def test_roundtrip_speed(push, pull):
@@ -20,6 +21,7 @@ def test_roundtrip_speed(push, pull):
         w.start()
         pub.publish(push)
         pub['array1'] = np.random.randn(200, 200)
+        assert_canrecv(pull)
         rec.receive(pull)
         total += rec['array1'].array[1,1]
         t += w.stop()

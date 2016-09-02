@@ -73,13 +73,55 @@ def pytest_configure(config):
 # The code below sets up useful ZMQ fixtures for various tests. 
 
 import zmq
+import functools
+import threading
+import struct
+import numpy as np
+
+def try_term(context):
+    """Try context term."""
+    t = threading.Thread(target=context.term)
+    t.daemon = True
+    t.start()
+    t.join(timeout=2)
+    if t.is_alive():
+        zmq.sugar.context.Context._instance = None
+        raise RuntimeError("ZMQ Context failed to terminate.")
+    
+
+class Socket(zmq.Socket):
+    
+    def recv(self, *args, **kwargs):
+        """Do everything for receive, but possibly timeout."""
+        assert_canrecv(self, kwargs.pop('timeout', 5000))
+        return super(Socket, self).recv(*args, **kwargs)
+        
+    def recv_struct(self, fmt, *args, **kwargs):
+        """Receive and unpack a struct message."""
+        msg = self.recv(*args, **kwargs)
+        return struct.unpack(fmt, msg)
+        
+class Context(zmq.Context):
+    _socket_class = Socket
+        
 
 @pytest.fixture
 def context(request):
     """The ZMQ context."""
-    ctx = zmq.Context()
-    request.addfinalizer(ctx.destroy)
+    ctx = Context()
+    request.addfinalizer(functools.partial(try_term, ctx))
     return ctx
+    
+def socket(request, context, kind, address, bind=False):
+    """Given a context, make a socket."""
+    socket = context.socket(kind)
+    if bind:
+        socket.bind(address)
+    else:
+        socket.connect(address)
+    yield socket
+    socket.close(linger=0)
+    # request.addfinalizer(functools.partial(socket.close, linger=0))
 
 @pytest.fixture
 def address():
@@ -89,31 +131,64 @@ def address():
 @pytest.fixture
 def req(request, context, address):
     """The REQ socket."""
-    socket = context.socket(zmq.REQ)
-    socket.connect(address)
-    request.addfinalizer(socket.close)
-    return socket
+    for s in socket(request, context, zmq.REQ, address):
+        yield s
+    
 
 @pytest.fixture
 def rep(request, context, address):
     """The reply socket."""
-    socket = context.socket(zmq.REP)
-    socket.bind(address)
-    request.addfinalizer(socket.close)
-    return socket
+    for s in socket(request, context, zmq.REP, address, bind=True):
+        yield s
 
 @pytest.fixture
 def push(request, context, address):
     """The reply socket."""
-    socket = context.socket(zmq.PUSH)
-    socket.connect(address)
-    request.addfinalizer(socket.close)
-    return socket
-    
+    for s in socket(request, context, zmq.PUSH, address):
+        yield s
+
 @pytest.fixture
 def pull(request, context, address):
     """The reply socket."""
-    socket = context.socket(zmq.PULL)
-    socket.bind(address)
-    request.addfinalizer(socket.close)
-    return socket
+    for s in socket(request, context, zmq.PULL, address, bind=True):
+        yield s
+    
+@pytest.fixture
+def pub(request, context, address):
+    """The reply socket."""
+    for s in socket(request, context, zmq.PUB, address, bind=True):
+        yield s
+
+@pytest.fixture
+def shape():
+    """An array shape."""
+    return (100, 100)
+    
+@pytest.fixture
+def name():
+    """Array name"""
+    return "test_array"
+
+@pytest.fixture(params=(float, int))
+def dtype(request):
+    """An array dtype for testing."""
+    return np.dtype(request.param)
+
+@pytest.fixture
+def array(shape, dtype):
+    """An array to send over the wire"""
+    return (np.random.rand(*shape)).astype(dtype)
+
+def assert_canrecv(socket, timeout=5000):
+    """Check if a socket is ready to receive."""
+    if not socket.poll(timeout=5000):
+        pytest.fail("ZMQ Socket {!r} was not ready to receive.".format(socket))
+    
+def recv(socket, method='', **kwargs):
+    """Receive, via poll, in such a way as to fail when no message is ready."""
+    assert_canrecv(socket, kwargs.pop('timeout', 5000))
+    recv = getattr(socket, 'recv_{:s}'.format(method)) if method else socket.recv
+    return recv(**kwargs)
+    
+
+    

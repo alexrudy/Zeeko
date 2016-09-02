@@ -37,11 +37,12 @@ def test_publisher(push, pull, shape, name, n):
         pub[name_] = array_
     pub.publish(push)
     
-    fc, = struct.unpack("I",pull.recv())
+    
+    fc, = pull.recv_struct("I")
     assert fc == 1
-    nm, = struct.unpack("i",pull.recv())
+    nm, = pull.recv_struct("i")
     assert nm == n
-    ts, = struct.unpack("d",pull.recv())
+    ts, = pull.recv_struct("d")
     
     for i in range(n):
         recvd_name, A = array_api.recv_named_array(pull)
