@@ -78,6 +78,12 @@ import threading
 import struct
 import numpy as np
 
+def pytest_report_header(config):
+    import astropy.tests.pytest_plugins as astropy_pytest_plugins
+    s = astropy_pytest_plugins.pytest_report_header(config)
+    s += 'libzmq: {:s}\n'.format(zmq.zmq_version())
+    return s
+
 def try_term(context):
     """Try context term."""
     t = threading.Thread(target=context.term)
