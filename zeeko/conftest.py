@@ -118,16 +118,15 @@ def context(request):
     request.addfinalizer(functools.partial(try_term, ctx))
     return ctx
     
-def socket(request, context, kind, address, bind=False):
+def socket_pair(context, left, right, address):
     """Given a context, make a socket."""
-    socket = context.socket(kind)
-    if bind:
-        socket.bind(address)
-    else:
-        socket.connect(address)
-    yield socket
-    socket.close(linger=0)
-    # request.addfinalizer(functools.partial(socket.close, linger=0))
+    lsocket = context.socket(left)
+    rsocket = context.socket(right)
+    lsocket.bind(address)
+    rsocket.connect(address)
+    yield (lsocket, rsocket)
+    rsocket.close(linger=0)
+    lsocket.close(linger=0)
 
 @pytest.fixture
 def address():
@@ -135,35 +134,53 @@ def address():
     return "inproc://test"
 
 @pytest.fixture
-def req(request, context, address):
+def reqrep(context, address):
+    """Return a bound pair."""
+    for sockets in socket_pair(context, zmq.REQ, zmq.REP, address):
+        yield sockets
+
+@pytest.fixture
+def req(reqrep):
     """The REQ socket."""
-    for s in socket(request, context, zmq.REQ, address):
-        yield s
-    
-
-@pytest.fixture
-def rep(request, context, address):
-    """The reply socket."""
-    for s in socket(request, context, zmq.REP, address, bind=True):
-        yield s
-
-@pytest.fixture
-def push(request, context, address):
-    """The reply socket."""
-    for s in socket(request, context, zmq.PUSH, address):
-        yield s
-
-@pytest.fixture
-def pull(request, context, address):
-    """The reply socket."""
-    for s in socket(request, context, zmq.PULL, address, bind=True):
-        yield s
+    req, rep = reqrep
+    return req
     
 @pytest.fixture
-def pub(request, context, address):
+def rep(reqrep):
+    """The REQ socket."""
+    req, rep = reqrep
+    return rep
+
+@pytest.fixture
+def pushpull(context, address):
+    """Return a bound pair."""
+    for sockets in socket_pair(context, zmq.PUSH, zmq.PULL, address):
+        yield sockets
+
+@pytest.fixture
+def push(pushpull):
     """The reply socket."""
-    for s in socket(request, context, zmq.PUB, address, bind=True):
-        yield s
+    push, pull = pushpull
+    return push
+
+@pytest.fixture
+def pull(pushpull):
+    """The reply socket."""
+    push, pull = pushpull
+    return pull
+
+@pytest.fixture
+def subpub(context, address):
+    """Return a bound pair."""
+    for sockets in socket_pair(context, zmq.SUB, zmq.PUB, address):
+        yield sockets
+
+
+@pytest.fixture
+def pub(subpub):
+    """The reply socket."""
+    sub, pub = subpub
+    return pub
 
 @pytest.fixture
 def shape():
