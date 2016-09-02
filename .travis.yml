@@ -13,7 +13,7 @@ env:
         - CONDA_DEPENDENCIES='Cython jinja2 six setuptools'
         - SETUP_CMD='test'
         - MAIN_CMD='python setup.py'
-        - PIP_DEPENDENCIES='pytest-catchlog'
+        - PIP_DEPENDENCIES='pytest-catchlog pytest>=3.0.0'
     matrix:
       - SETUP_CMD='egg_info'
       - SETUP_CMD='test'
