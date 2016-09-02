@@ -60,7 +60,7 @@ cdef class Worker:
             else:
                 self.log.warning("Exception in Worker disconnect: {!r}".format(e))
         try:
-            self._internal.close()
+            self._internal.close(linger=0)
             self._py_post_work()
         except zmq.ZMQError as e:
             self.log.warning("Exception in Worker Shutdown: {!r}".format(e))
@@ -71,7 +71,7 @@ cdef class Worker:
         signal = self.context.socket(zmq.PUSH)
         signal.connect(self._internal_address)
         signal.send(s.pack("i", STATE[state]))
-        signal.close()
+        signal.close(linger=1000)
         
     def _not_done(self):
         if self._state == STOP:
@@ -85,10 +85,10 @@ cdef class Worker:
     def pause(self):
         self._signal_state("PAUSE")
     
-    def stop(self):
+    def stop(self, timeout=None):
         self._signal_state("STOP")
         if self.thread.is_alive():
-            self.thread.join()
+            self.thread.join(timeout=timeout)
         
     def running(self):
         """Produce a context manager to ensure the shutdown of this worker."""
