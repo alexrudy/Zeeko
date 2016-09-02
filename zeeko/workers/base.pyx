@@ -44,6 +44,7 @@ cdef class Worker:
         
         self.log = logging.getLogger(__name__)
         self.thread = threading.Thread(target=self._work)
+        self._ready = threading.Event()
         
         self.context = ctx or zmq.Context.instance()
         self.address = address
@@ -78,6 +79,7 @@ cdef class Worker:
             raise ValueError("Can't change state once the client is stopped.")
         elif self._state == INIT:
             self.thread.start()
+            self._ready.wait(timeout=1.0)
         
     def start(self):
         self._signal_state("RUN")
@@ -124,6 +126,7 @@ cdef class Worker:
         self._internal = self.context.socket(zmq.PULL)
         self._internal.bind(self._internal_address)
         self._state = PAUSE
+        self._ready.set()
         self._py_pre_work()
         while True:
             self.log.debug("State transition: {:s}.".format(self.state))

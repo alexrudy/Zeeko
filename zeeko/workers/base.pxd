@@ -12,6 +12,7 @@ cdef class Worker:
     cdef public long timeout
     cdef int _state
     cdef object log
+    cdef object _ready
     
     cdef int _pause(self) nogil except -1
     cdef int _run(self) nogil except -1
