@@ -25,6 +25,7 @@ except ImportError:
 # set up the test command
 def _get_test_runner():
     import os
+    os.environ['ASTROPY_USE_SYSTEM_PYTEST'] = "yes"
     from astropy.tests.helper import TestRunner
     return TestRunner(os.path.dirname(__file__))
 
