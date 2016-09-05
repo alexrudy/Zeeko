@@ -16,8 +16,11 @@ def test_client_attributes(context, address):
     c.maxlag = 20
     assert c.maxlag == 20.0
     
-def test_client_run(context, address, push, Publisher):
+def test_client_run(context, address, Publisher):
     """Test a client."""
+    push = context.socket(zmq.PUSH)
+    push.bind(address)
+    
     c = Client(context, address, zmq.PULL)
     c.start()
     try:
@@ -25,8 +28,8 @@ def test_client_run(context, address, push, Publisher):
         Publisher.publish(push)
         Publisher.publish(push)
         Publisher.publish(push)
-        time.sleep(0.1)
+        time.sleep(1.0)
     finally:
         c.stop()
-    assert c.counter == 1
+    assert c.counter == 3
     assert len(c) == 3
