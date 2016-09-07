@@ -86,6 +86,7 @@ cdef class Publisher:
             free(self._messages)
         if not self._failed_init:
             rc = libzmq.zmq_msg_close(&self._topic)
+            rc = pthread.pthread_mutex_destroy(&self._mutex)
     
     property topic:
         def __get__(self):
