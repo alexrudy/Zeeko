@@ -9,21 +9,30 @@ from distutils.core import Extension
 
 from astropy_helpers import setup_helpers
 
+pjoin = os.path.join
+HERE = os.path.dirname(__file__)
+
 def get_zmq_include_path():
     """Get the ZMQ include path in an import-safe manner."""
     try:
         import zmq
-        return zmq.get_includes()
+        includes = zmq.get_includes()
     except ImportError as e:
-        return []
+        includes = []
+    if os.path.exists(pjoin(HERE, 'includes')):
+        return includes + [ pjoin(HERE, 'includes') ]
+    return includes
 
 def get_zmq_library_path():
     """Get the ZMQ include path in an import-safe manner."""
     try:
         import zmq
-        return [os.path.dirname(zmq.__file__)]
     except ImportError as e:
-        return []
+        pass
+    else:
+        if len(glob.glob(pjoin(os.path.dirname(zmq.__file__), 'libzmq.*'))):
+            return [os.path.dirname(zmq.__file__)]
+    return []
 
 def get_zmq_extension_args():
     """Get the ZMQ Distutils Extension Args"""
@@ -47,6 +56,7 @@ def get_utils_extension_args():
     cfg['include_dirs'] = [os.path.normpath(os.path.join(directory, "utils"))]
     return cfg
     
+    
 def _generate_cython_extensions(extension_args, directory, package_name):
     """Generate cython extensions"""
     
@@ -56,7 +66,7 @@ def _generate_cython_extensions(extension_args, directory, package_name):
         cname = os.path.splitext(os.path.basename(component))[0]
         cfg['sources'].append(component)
         
-        pxd = os.path.splitext(component)[0] + ".pxd"
+        component_pxd = os.path.splitext(component)[0] + ".pxd"
         
         if cname.startswith("_"):
             cname = cname[1:]
