@@ -24,12 +24,34 @@ def test_client_run(context, address, Publisher):
     c = Client(context, address, zmq.PULL)
     c.start()
     try:
-        time.sleep(0.1)
+        time.sleep(0.01)
         Publisher.publish(push)
         Publisher.publish(push)
         Publisher.publish(push)
-        time.sleep(1.0)
+        time.sleep(0.01)
     finally:
         c.stop()
     assert c.counter == 3
+    assert len(c) == 3
+
+def test_client_snail_death(context, address, Publisher):
+    """Test client snail death."""
+    pub = context.socket(zmq.PUB)
+    pub.bind(address)
+    
+    c = Client(context, address, zmq.SUB)
+    c.maxlag = 0.0
+    c.start()
+    time.sleep(0.01)
+    try:
+        # First message gets recieved
+        Publisher.publish(pub, zmq.NOBLOCK)
+        # Nth one should get dropped, b/c other side disconnects.
+        Publisher.publish(pub, zmq.NOBLOCK)
+        Publisher.publish(pub, zmq.NOBLOCK)
+        time.sleep(0.01)
+        assert c.state == 'PAUSE'
+    finally:
+        c.stop()
+    assert c.counter == 1
     assert len(c) == 3
