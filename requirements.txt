@@ -5,3 +5,4 @@ click
 Cython>=0.24
 pytest
 pytest-catchlog
+h5py
