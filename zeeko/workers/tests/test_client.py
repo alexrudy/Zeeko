@@ -51,6 +51,7 @@ def test_client_snail_death(context, address, Publisher):
         Publisher.publish(pub, zmq.NOBLOCK)
         time.sleep(0.01)
         assert c.state == 'PAUSE'
+        assert c.snail_deaths == 1
     finally:
         c.stop()
     assert c.counter == 1

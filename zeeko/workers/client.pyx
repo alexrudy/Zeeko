@@ -21,7 +21,7 @@ cdef class Client(Worker):
         super(Client, self).__init__(ctx, address)
         self.receiver = Receiver()
         self.counter = 0
-        self._snail_deaths = 0
+        self.snail_deaths = 0
         self.maxlag = 10
         self.subscriptions = []
         self.kind = kind
@@ -53,7 +53,7 @@ cdef class Client(Worker):
     def _py_post_run(self):
         """On worker stop run, disconnect."""
         self._inbound.disconnect(self.address)
-        self.log.debug("Ended _run, accumulated {:d} snail deaths.".format(self._snail_deaths))
+        self.log.debug("Ended 'RUN', accumulated {:d} snail deaths.".format(self.snail_deaths))
         
     def _py_post_work(self):
         """On worker done, close socket."""
@@ -66,7 +66,7 @@ cdef class Client(Worker):
         self.delay = current_time() - self.receiver.last_message
         if self.delay > self.maxlag:
             self._state = PAUSE
-            self._snail_deaths = self._snail_deaths + 1
+            self.snail_deaths = self.snail_deaths + 1
             return self.counter
         return 0
     

@@ -11,6 +11,6 @@ cdef class Client(Worker):
     cdef readonly int counter
     cdef public double maxlag
     cdef readonly double delay
-    cdef int _snail_deaths
+    cdef readonly int snail_deaths
     cdef int kind
     
