@@ -33,9 +33,12 @@ cdef class Client(Worker):
         else:
             raise ValueError("Client is not a subscriber.")
         
+    def _py_pre_work(self):
+        """When work starts, allocate the first socket."""
+        self._inbound = self.context.socket(self.kind)
+        
     def _py_pre_run(self):
         """On worker run, connect and subscribe."""
-        self._inbound = self.context.socket(self.kind)
         self._inbound.connect(self.address)
         if self.kind == zmq.SUB:
             if len(self.subscriptions):
