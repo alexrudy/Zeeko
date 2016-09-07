@@ -156,16 +156,34 @@ cdef class ReceivedArray:
 cdef class Receiver:
     
     def __cinit__(self):
+        self._failed_init = True
         self._n_messages = 0
         self._framecount = 0
         self._name_cache = {}
         self._name_cache_valid = 1
+        rc = pthread.pthread_mutex_init(&self._mutex, NULL)
+        pthread.check_rc(rc)
+        self._failed_init = False
+        
+    
+    cdef int lock(self) nogil except -1:
+        cdef int rc
+        rc = pthread.pthread_mutex_lock(&self._mutex)
+        pthread.check_rc(rc)
+        return rc
+
+    cdef int unlock(self) nogil except -1:
+        cdef int rc
+        rc = pthread.pthread_mutex_unlock(&self._mutex)
+        pthread.check_rc(rc)
+        return rc
     
     cdef int _update_messages(self, int nm) nogil except -1:
         cdef int i
         cdef carray_named * message
         if nm < self._n_messages:
             return 0
+        self._name_cache_valid = 0
         self._messages = <carray_named **>realloc(<void *>self._messages, sizeof(carray_named *) * nm)
         check_ptr(self._messages)
         for i in range(self._n_messages, nm):
@@ -175,8 +193,7 @@ cdef class Receiver:
             check_rc(rc)
             self._messages[i] = message
         self._n_messages = nm
-        self._name_cache_valid = 0
-        return 0
+        return nm
         
     def __dealloc__(self):
         if self._messages is not NULL:
@@ -184,23 +201,27 @@ cdef class Receiver:
                 if self._messages[i] is not NULL:
                     free(self._messages[i])
             free(self._messages)
+        if not self._failed_init:
+            pthread.pthread_mutex_destroy(&self._mutex)
             
     cdef int _receive(self, void * socket, int flags) nogil except -1:
         cdef int rc
         cdef int nm, i
         cdef libzmq.zmq_msg_t topic
-        
         libzmq.zmq_msg_init(&topic)
         rc = receive_header(socket, &topic, &self._framecount, &nm, &self.last_message, flags)
         check_rc(rc)
         libzmq.zmq_msg_close(&topic)
-        
-        if nm != self._n_messages:
-            self._update_messages(nm)
-        
-        for i in range(self._n_messages):
-            rc = receive_named_array(self._messages[i], socket, flags)
-            check_rc(rc)
+        self.lock()
+        try:
+            if nm != self._n_messages:
+                nm = self._update_messages(nm)
+            
+            for i in range(nm):
+                rc = receive_named_array(self._messages[i], socket, flags)
+                check_rc(rc)
+        finally:
+            self.unlock()
         
         return rc
     
@@ -217,17 +238,25 @@ cdef class Receiver:
             return 0
         
         self._name_cache.clear()
-        for i in range(self._n_messages):
-            name = zmq_msg_to_str(&self._messages[i].name)
-            self._name_cache[name] = i
+        self.lock()
+        try:
+            for i in range(self._n_messages):
+                name = zmq_msg_to_str(&self._messages[i].name)
+                self._name_cache[name] = i
+        finally:
+            self.unlock()
         self._name_cache_valid = 1
         return 0
         
     def _get_by_index(self, i):
-        if i < self._n_messages:
-            return ReceivedArray.from_message(self._messages[i])
-        else:
-            raise IndexError("Index to messages out of range.")
+        self.lock()
+        try:
+            if i < self._n_messages:
+                return ReceivedArray.from_message(self._messages[i])
+            else:
+                raise IndexError("Index to messages out of range.")
+        finally:
+            self.unlock()
     
     def keys(self):
         self._build_namecache()

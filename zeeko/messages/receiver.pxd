@@ -11,6 +11,7 @@ from .carray cimport carray_named
 import zmq
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
+from ..utils cimport pthread
 
 cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1
 cdef str zmq_msg_to_str(libzmq.zmq_msg_t * msg)
@@ -32,7 +33,11 @@ cdef class Receiver:
     cdef carray_named ** _messages
     cdef dict _name_cache
     cdef int _name_cache_valid
+    cdef pthread.pthread_mutex_t _mutex
+    cdef bint _failed_init
     
+    cdef int lock(self) nogil except -1
+    cdef int unlock(self) nogil except -1
     cdef int _build_namecache(self)
     cdef int _update_messages(self, int nm) nogil except -1
     cdef int _receive(self, void * socket, int flags) nogil except -1
