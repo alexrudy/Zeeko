@@ -3,3 +3,5 @@ astropy
 pyzmq>=15.4.0
 click
 Cython>=0.24
+pytest
+pytest-catchlog
