@@ -59,7 +59,7 @@ def test_packets(push, pull, shape, name):
     framecount = 5
     array_api.send_array_packet(push, framecount, arrays)
     print("Sent Header: NULL fc={:d} nm={:d} time=?".format(framecount, len(arrays)))
-    
+    topic = pull.recv()
     fc = struct.unpack("I",pull.recv())[0]
     nm = struct.unpack("i",pull.recv())[0]
     tm = struct.unpack("d",pull.recv())[0]

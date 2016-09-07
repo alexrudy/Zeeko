@@ -18,17 +18,25 @@ from zmq.backend.cython.message cimport Frame
 
 
 from .carray cimport send_named_array, empty_named_array, close_named_array
+from .receiver cimport zmq_msg_to_str
 from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
 
 cdef int MAXFRAMECOUNT = (2**30)
 
-cdef int send_header(void * socket, unsigned int fc, int nm, int flags) nogil except -1:
+cdef int send_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int fc, int nm, int flags) nogil except -1:
     """Send the message header for a publisher. Sent as:
     [fc, nm, now]
     """
     cdef int rc = 0
     cdef double now = current_time()
+    cdef libzmq.zmq_msg_t zmessage
+    
+    rc = libzmq.zmq_msg_init(&zmessage)
+    check_rc(rc)
+    libzmq.zmq_msg_copy(&zmessage, topic)
+    rc = libzmq.zmq_msg_send(&zmessage, socket, flags|libzmq.ZMQ_SNDMORE)
+    check_rc(rc)
     
     rc = libzmq.zmq_sendbuf(socket, <void *>&fc, sizeof(unsigned int), flags|libzmq.ZMQ_SNDMORE)
     check_rc(rc)
@@ -56,10 +64,13 @@ cdef class Publisher:
     
     def __cinit__(self):
         cdef int rc
+        self._failed_init = True
         rc = pthread.pthread_mutex_init(&self._mutex, NULL)
         pthread.check_rc(rc)
+        libzmq.zmq_msg_init_size(&self._topic, 0)
         self._n_messages = 0
         self._framecount = 0
+        self._failed_init = False
         
     def __init__(self, publishers=list()):
         self._publishers = collections.OrderedDict()
@@ -73,6 +84,19 @@ cdef class Publisher:
     def __dealloc__(self):
         if self._messages is not NULL:
             free(self._messages)
+        if not self._failed_init:
+            rc = libzmq.zmq_msg_close(&self._topic)
+    
+    property topic:
+        def __get__(self):
+            return zmq_msg_to_str(&self._topic)
+        def __set__(self, value):
+            cdef char[:] topic = value
+            rc = libzmq.zmq_msg_close(&self._topic)
+            check_rc(rc)
+            rc = libzmq.zmq_msg_init_size(&self._topic, len(topic))
+            check_rc(rc)
+            memcpy(libzmq.zmq_msg_data(&self._topic), &topic[0], len(topic))
     
     def __setitem__(self, key, value):
         try:
@@ -123,7 +147,7 @@ cdef class Publisher:
         self.lock()
         try:
             self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
-            rc = send_header(socket, self._framecount, self._n_messages, flags|libzmq.ZMQ_SNDMORE)
+            rc = send_header(socket, &self._topic, self._framecount, self._n_messages, flags|libzmq.ZMQ_SNDMORE)
             for i in range(self._n_messages-1):
                 rc = send_named_array(self._messages[i], socket, flags|libzmq.ZMQ_SNDMORE)
             rc = send_named_array(self._messages[self._n_messages-1], socket, flags)

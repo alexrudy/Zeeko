@@ -37,7 +37,7 @@ def test_publisher(push, pull, shape, name, n):
         pub[name_] = array_
     pub.publish(push)
     
-    
+    topic = pull.recv()
     fc, = pull.recv_struct("I")
     assert fc == 1
     nm, = pull.recv_struct("i")

@@ -148,6 +148,7 @@ def send_array_packet_header(socket, framecount, n_arrays, flags=0, copy=True, t
     framecount = 5
     now = time.time()
     # Send the array header.
+    socket.send("", flags=flags|zmq.SNDMORE, copy=copy, track=track)
     socket.send(struct.pack("I", framecount), flags=flags|zmq.SNDMORE, copy=copy, track=track)
     socket.send(struct.pack("i", n_arrays), flags=flags|zmq.SNDMORE, copy=copy, track=track)
     return socket.send(struct.pack("d", long(now)), flags=flags, copy=copy, track=track)

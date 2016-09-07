@@ -76,7 +76,7 @@ cdef class Recorder(Client):
         self.delay = current_time() - self.receiver.last_message
         if self.delay > self.maxlag:
             self._state = PAUSE
-            self._snail_deaths = self._snail_deaths + 1
+            self.snail_deaths = self.snail_deaths + 1
             return self.counter
         
         if (self.offset == -1) or (self.receiver._framecount < self.offset):
@@ -93,16 +93,31 @@ cdef class Recorder(Client):
         
     cdef int _send_for_output(self, void * socket, int flags) nogil except -1:
         cdef int i, rc
+        cdef libzmq.zmq_msg_t topic
         if self.offset != -1:
             self._chunkcount += 1
-            send_header(socket, self._chunkcount, self._n_arrays, flags|libzmq.ZMQ_SNDMORE)
+            rc = libzmq.zmq_msg_init_size(&topic, 0)
+            check_rc(rc)
+            try:
+                rc = send_header(socket, &topic, self._chunkcount, self._n_arrays, flags|libzmq.ZMQ_SNDMORE)
+                check_rc(rc)
+            finally:
+                rc = libzmq.zmq_msg_close(&topic)
+                check_rc(rc)
             for i in range(self._n_arrays - 1):
                 rc = chunk_send(self._chunks[i], socket, flags|libzmq.ZMQ_SNDMORE)
             rc = chunk_send(self._chunks[self._n_arrays - 1], socket, flags)
         else:
             # Sentinel to turn off writer.
             printf("Requesting stop\n")
-            send_header(socket, 0, 0, 0)
+            rc = libzmq.zmq_msg_init_size(&topic, 0)
+            check_rc(rc)
+            try:
+                rc = send_header(socket, &topic, 0, 0, 0)
+                check_rc(rc)
+            finally:
+                rc = libzmq.zmq_msg_close(&topic)
+                check_rc(rc)
         self._release_arrays()
         self.offset = -1
         

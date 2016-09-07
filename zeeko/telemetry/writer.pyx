@@ -81,9 +81,15 @@ cdef class Writer(Worker):
         cdef unsigned int fc = 0
         cdef int nm = 0
         cdef double tm = 0.0
-        
-        rc = receive_header(socket, &fc, &nm, &tm, flags)
+        cdef libzmq.zmq_msg_t topic
+        rc = libzmq.zmq_msg_init(&topic)
         check_rc(rc)
+        try:
+            rc = receive_header(socket, &topic, &fc, &nm, &tm, flags)
+            check_rc(rc)
+        finally:
+            rc = libzmq.zmq_msg_close(&topic)
+            check_rc(rc)
         if nm == 0:
             self._state = PAUSE
             return -2

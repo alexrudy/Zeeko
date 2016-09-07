@@ -14,8 +14,12 @@ from zmq.utils.buffers cimport viewfromobject_r
 from .utils cimport check_rc, check_ptr
 
 
-cdef int receive_header(void * socket, unsigned int * fc, int * nm, double * ts, int flags) nogil except -1:
+cdef int receive_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int * fc, int * nm, double * ts, int flags) nogil except -1:
     cdef int rc = 0
+    
+    # Receive topic message.
+    rc = libzmq.zmq_msg_recv(topic, socket, flags)
+    check_rc(rc)
     
     rc = zmq_recv_sized_message(socket, fc, sizeof(unsigned int), flags)
     check_rc(rc)
@@ -184,9 +188,12 @@ cdef class Receiver:
     cdef int _receive(self, void * socket, int flags) nogil except -1:
         cdef int rc
         cdef int nm, i
+        cdef libzmq.zmq_msg_t topic
         
-        rc = receive_header(socket, &self._framecount, &nm, &self.last_message, flags)
+        libzmq.zmq_msg_init(&topic)
+        rc = receive_header(socket, &topic, &self._framecount, &nm, &self.last_message, flags)
         check_rc(rc)
+        libzmq.zmq_msg_close(&topic)
         
         if nm != self._n_messages:
             self._update_messages(nm)
