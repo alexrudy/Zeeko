@@ -61,8 +61,6 @@ cdef class Client(Worker):
         
     cdef int _post_receive(self) nogil except -1:
         self.counter = self.counter + 1
-        with gil:
-            print("RECV {:d}".format(self.counter))
         self.delay = current_time() - self.receiver.last_message
         if self.delay > self.maxlag:
             self._state = PAUSE
