@@ -15,3 +15,9 @@ def Publisher(name, n, shape):
     for name_, array_ in publishers:
         p[name_] = array_
     return p
+
+@pytest.fixture
+def Receiver():
+    """Receiver"""
+    from ...messages.receiver import Receiver as _Receiver
+    return _Receiver()

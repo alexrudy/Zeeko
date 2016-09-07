@@ -7,6 +7,22 @@ import zmq
 from ..client import Client
 from zeeko.conftest import assert_canrecv
 
+@pytest.fixture
+def push(context, address):
+    """Push socket."""
+    socket = context.socket(zmq.PUSH)
+    socket.bind(address)
+    yield socket
+    socket.close(linger=0)
+
+@pytest.fixture
+def pub(context, address):
+    """Push socket."""
+    socket = context.socket(zmq.PUB)
+    socket.bind(address)
+    yield socket
+    socket.close(linger=0)
+
 def test_client_attributes(context, address):
     """Test client attributes defaults."""
     c = Client(context, address)
@@ -16,11 +32,8 @@ def test_client_attributes(context, address):
     c.maxlag = 20
     assert c.maxlag == 20.0
     
-def test_client_run(context, address, Publisher):
-    """Test a client."""
-    push = context.socket(zmq.PUSH)
-    push.bind(address)
-    
+def test_client_run(context, address, Publisher, push):
+    """Test a client."""    
     c = Client(context, address, zmq.PULL)
     c.start()
     try:
@@ -34,11 +47,8 @@ def test_client_run(context, address, Publisher):
     assert c.counter == 3
     assert len(c) == 3
 
-def test_client_snail_death(context, address, Publisher):
+def test_client_snail_death(context, address, Publisher, pub):
     """Test client snail death."""
-    pub = context.socket(zmq.PUB)
-    pub.bind(address)
-    
     c = Client(context, address, zmq.SUB)
     c.maxlag = 0.0
     c.start()

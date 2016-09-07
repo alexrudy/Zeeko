@@ -11,5 +11,5 @@ cdef class Server(Worker):
     cdef readonly int counter
     cdef readonly double wait_time
     cdef double interval
-    cdef double last_message
-    
+    cdef readonly double last_message
+    cdef int kind

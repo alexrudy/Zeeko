@@ -23,15 +23,16 @@ STATE = {
 
 cdef class Server(Worker):
     
-    def __init__(self, ctx, address):
+    def __init__(self, ctx, address, kind=zmq.PUB):
         super(Server, self).__init__(ctx, address)
         self.publisher = Publisher()
-        self._outbound = self.context.socket(zmq.PUB)
         self.counter = 0
         self.interval = 1.0
+        self.kind = kind
         
     def _py_pre_work(self):
         """Bind the outbound socket as soon as work starts."""
+        self._outbound = self.context.socket(self.kind)
         self._outbound.bind(self.address)
     
     def _py_post_work(self):
