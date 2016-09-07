@@ -68,6 +68,7 @@ cdef class Publisher:
         rc = pthread.pthread_mutex_init(&self._mutex, NULL)
         pthread.check_rc(rc)
         libzmq.zmq_msg_init_size(&self._topic, 0)
+        self.bundled = True
         self._n_messages = 0
         self._framecount = 0
         self._failed_init = False
@@ -145,12 +146,18 @@ cdef class Publisher:
     cdef int _publish(self, void * socket, int flags) nogil except -1:
         """Inner-loop message sender."""
         cdef int i, rc
+        cdef int bundle = 0
+        if self.bundled:
+            bundle = bundle|libzmq.ZMQ_SNDMORE
+        
         self.lock()
         try:
             self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
-            rc = send_header(socket, &self._topic, self._framecount, self._n_messages, flags|libzmq.ZMQ_SNDMORE)
+            if self.bundled:
+                rc = send_header(socket, &self._topic, self._framecount, self._n_messages, flags|libzmq.ZMQ_SNDMORE)
+            
             for i in range(self._n_messages-1):
-                rc = send_named_array(self._messages[i], socket, flags|libzmq.ZMQ_SNDMORE)
+                rc = send_named_array(self._messages[i], socket, flags|bundle)
             rc = send_named_array(self._messages[self._n_messages-1], socket, flags)
         finally:
             self.unlock()

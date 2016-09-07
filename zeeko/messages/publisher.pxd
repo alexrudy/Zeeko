@@ -21,6 +21,7 @@ cdef class Publisher:
     cdef libzmq.zmq_msg_t _topic
     cdef object _publishers
     cdef bint _failed_init
+    cdef public bint bundled
     
     
     cdef int lock(self) nogil except -1
