@@ -26,28 +26,48 @@ STATE = {
 cdef class Throttle(Worker):
     
     cdef Publisher publisher
+    cdef Receiver receiver
     cdef Socket _outbound
+    cdef Socket _inbound
+    cdef list subscriptions
+    cdef str outbound_address
+    cdef str inbound_address
+    
     cdef readonly int counter
+    cdef int kind
+    
     cdef readonly double wait_time
     cdef double interval
     cdef readonly double last_message
-    cdef int kind
-    
-    cdef Receiver receiver
-    cdef Socket _inbound
-    cdef str outbound_address
-    cdef readonly int snail_deaths
     cdef public double maxlag
     cdef readonly double delay
+    cdef readonly int snail_deaths
     
-    def __init__(self, ctx, address, outbound_address):
-        super(Throttle, self).__init__(ctx, address)
+    def __init__(self, ctx, inbound_address, outbound_address, kind=zmq.SUB):
+        super(Throttle, self).__init__(ctx, inbound_address)
+        self.publisher = Publisher()
         self.publisher.bundled = False
         self.receiver = Receiver()
-        self.publisher._messages = self.receiver._messages
         self.outbound_address = outbound_address
+        self.inbound_address = inbound_address
         self.maxlag = 10.0
-        
+        self.interval = 1.0
+        self.wait_time = 0.0
+        self.last_message = 0.0
+        self.kind = kind
+        self.subscriptions = []
+    
+    def subscribe(self, key):
+        """Add a subscription key"""
+        if self.kind == zmq.SUB:
+            self.subscriptions.append(key)
+        else:
+            raise ValueError("Client is not a subscriber.")
+    
+    def __dealloc__(self):
+        if self.publisher is not None:
+            self.publisher._messages = NULL
+    
     cdef int _run(self) nogil except -1:
         cdef void * outbound = self._outbound.handle
         cdef void * inbound = self._inbound.handle
@@ -111,14 +131,17 @@ cdef class Throttle(Worker):
                 if rc != 0:
                     return rc
             elif (items[2].revents & libzmq.ZMQ_POLLOUT) and ((next - now) * 1e3 < 1.0):
-                self.publisher._publish(outbound, 0)
-                now = current_time()
-                overhead = now - self.last_message
-                error = (interval - overhead)
-                self.wait_time = (self.wait_time + (gain * error)) * leak
-                self.last_message = now
-                self.counter = self.counter + 1
-                next = now + self.wait_time
+                if self.receiver._n_messages > 0:
+                    self.publisher._messages = self.receiver._messages
+                    self.publisher._n_messages = self.receiver._n_messages
+                    self.publisher._publish(outbound, 0)
+                    now = current_time()
+                    overhead = now - self.last_message
+                    error = (interval - overhead)
+                    self.wait_time = (self.wait_time + (gain * error)) * leak
+                    self.last_message = now
+                    self.counter = self.counter + 1
+                    next = now + self.wait_time
             
     cdef int _post_receive(self) nogil except -1:
         self.counter = self.counter + 1
@@ -137,7 +160,7 @@ cdef class Throttle(Worker):
 
     def _py_pre_run(self):
         """On worker run, connect and subscribe."""
-        self._inbound.connect(self.address)
+        self._inbound.connect(self.inbound_address)
         if self.kind == zmq.SUB:
             if len(self.subscriptions):
                 for s in self.subscriptions:
@@ -150,11 +173,17 @@ cdef class Throttle(Worker):
 
     def _py_post_run(self):
         """On worker stop run, disconnect."""
-        self._inbound.disconnect(self.address)
+        self._inbound.disconnect(self.inbound_address)
         self.log.debug("Ended 'RUN', accumulated {:d} snail deaths.".format(self.snail_deaths))
 
     def _py_post_work(self):
         """On worker done, close socket."""
+        self._outbound.close()
         self._inbound.close()
-
-        
+    
+    property frequency:
+        def __get__(self):
+            return 1.0 / self.interval
+        def __set__(self, value):
+            self.interval = 1.0 / value
+    

@@ -23,22 +23,63 @@ def sub(context):
     yield socket
     socket.close(linger=0)
     
-    
 @pytest.fixture
 def arrays(name, n, shape):
     """The arrays to publish."""
     return [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
 
-def test_throttle_attributes(context, address):
+@pytest.fixture
+def outbound_address():
+    """Return the outbound address."""
+    return "inproc://test-outbound"
+
+@pytest.fixture
+def server(context, address, arrays):
+    """Make a server object."""
+    s = Server(context, address)
+    s.frequency = 100
+    for k, v in arrays:
+        s[k] = v
+    s.start()
+    yield s
+    s.stop()
+
+def test_throttle_attributes(context, address, outbound_address):
     """Test client attributes defaults."""
-    t = Throttle(context, address, address + "-outbound")
+    t = Throttle(context, address, outbound_address)
     assert t.counter == 0
     assert t.wait_time == 0.0
     assert t.counter == 0
     assert t.delay == 0
     assert t.maxlag == 10.0
+    t.frequency = 10.0
+    assert t.frequency == 10.0
     t.maxlag = 20
     assert t.maxlag == 20.0
     
+def test_throttle_noop(context, address, outbound_address, server, sub):
+    """Test full throttle"""
+    t = Throttle(context, address, outbound_address)
+    t.frequency = 10.0
+    t.pause()
+    try:
+        t.start()
+    finally:
+        t.stop()
 
+def test_throttle(context, address, outbound_address, server, sub):
+    """Test full throttle"""
+    t = Throttle(context, address, outbound_address)
+    t.frequency = 10.0
+    t.pause()
+    try:
+        sub.connect(outbound_address)
+        sub.subscribe("")
+        t.start()
+        time.sleep(0.3)
+        assert_canrecv(sub)
+        sub.recv_multipart(zmq.NOBLOCK)
+    finally:
+        t.stop()
+    
 
