@@ -36,6 +36,9 @@ def main(ctx, port, host, scheme):
     ctx.obj.host = host
     ctx.obj.scheme = scheme
     ctx.obj.port = port
+    ctx.obj.extra_addr = "{scheme}://{hostname}:{port:d}".format(port=port+1, scheme=scheme, hostname=host)
+    ctx.obj.extra_bind = to_bind(ctx.obj.extra_addr)
+    
 
 @main.command()
 @click.option("--interval", type=int, help="Polling interval for client status.", default=3)
@@ -84,6 +87,28 @@ def server(ctx, frequency, interval):
     finally:
         s.stop()
     
+
+@main.command()
+@click.option("--interval", type=int, help="Polling interval for server status.", default=3)
+@click.option("--frequency", type=float, help="Publish frequency for server.", default=100)
+@click.pass_context
+def throttle(ctx, frequency, interval):
+    """The server."""
+    from zeeko.workers.throttle import Throttle
+    
+    t = Throttle(ctx.obj.zcontext, ctx.obj.addr, ctx.obj.extra_bind)
+    t.frequency = frequency
+    click.echo("Throttling from '{:s}' to '{:s}' at {:.0f}Hz".format(ctx.obj.addr, ctx.obj.extra_bind, t.frequency))
+    click.echo("^C to stop.")
+    t.start()
+    count = t.send_counter
+    try:
+        while True:
+            ctx.obj.log.info("Sending {:.1f} msgs per second. N={:d}, w={:.4f}".format((t.send_counter - count) / float(interval),t.send_counter, t.wait_time * 1e3))
+            count = t.send_counter
+            time.sleep(interval)
+    finally:
+        t.stop()
 
 @main.command()
 @click.option("--interval", type=float, help="Polling interval for client status.", default=3)

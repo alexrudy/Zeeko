@@ -42,6 +42,8 @@ cdef class Throttle(Worker):
     cdef public double maxlag
     cdef readonly double delay
     cdef readonly int snail_deaths
+    cdef readonly int send_counter
+    
     
     def __init__(self, ctx, inbound_address, outbound_address, kind=zmq.SUB):
         super(Throttle, self).__init__(ctx, inbound_address)
@@ -54,6 +56,7 @@ cdef class Throttle(Worker):
         self.interval = 1.0
         self.wait_time = 0.0
         self.last_message = 0.0
+        self.send_counter = 0
         self.kind = kind
         self.subscriptions = []
     
@@ -140,7 +143,7 @@ cdef class Throttle(Worker):
                     error = (interval - overhead)
                     self.wait_time = (self.wait_time + (gain * error)) * leak
                     self.last_message = now
-                    self.counter = self.counter + 1
+                    self.send_counter = self.send_counter + 1
                     next = now + self.wait_time
             
     cdef int _post_receive(self) nogil except -1:
