@@ -78,7 +78,7 @@ def test_throttle(context, address, outbound_address, server, sub):
         t.start()
         time.sleep(0.3)
         assert_canrecv(sub)
-        sub.recv_multipart(zmq.NOBLOCK)
+        sub.recv_multipart()
     finally:
         t.stop()
     
