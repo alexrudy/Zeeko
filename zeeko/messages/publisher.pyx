@@ -21,6 +21,7 @@ from .carray cimport send_named_array, empty_named_array, close_named_array
 from .receiver cimport zmq_msg_to_str
 from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
+from .. import ZEEKO_PROTOCOL_VERSION
 
 cdef int MAXFRAMECOUNT = (2**30)
 

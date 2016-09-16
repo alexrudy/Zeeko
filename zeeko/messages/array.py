@@ -12,6 +12,8 @@ import struct
 import time
 import itertools
 
+from .. import ZEEKO_PROTOCOL_VERSION
+
 def generate_array_message(A):
     """
     Generate an array message from an array. The generated message is a list.
@@ -25,10 +27,11 @@ def generate_array_message(A):
     md = dict(
         dtype = A.dtype.str,
         shape = A.shape,
+        version = ZEEKO_PROTOCOL_VERSION,
     )
     return [json.dumps(md), A]
 
-def send_array(socket, A, flags=0, copy=True, track=False):
+def send_array(socket, A, framecount=0, flags=0, copy=True, track=False):
     """Send a numpy array with metadata.
     
     Parameters
@@ -50,6 +53,7 @@ def send_array(socket, A, flags=0, copy=True, track=False):
     
     """
     metadata, _ = generate_array_message(A)
+    socket.send(struct.pack('I', framecount), flags|zmq.SNDMORE)
     socket.send(metadata, flags|zmq.SNDMORE)
     return socket.send(A, flags, copy=copy, track=track)
     
@@ -103,6 +107,7 @@ def recv_array(socket, flags=0, copy=True, track=False):
         The received array.
     
     """
+    fc, = struct.unpack('I',socket.recv(flags=flags))
     md = socket.recv_json(flags=flags)
     msg = socket.recv(flags=flags, copy=copy, track=track)
     try:
