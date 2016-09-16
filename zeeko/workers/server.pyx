@@ -37,7 +37,13 @@ cdef class Server(Worker):
     
     def _py_post_work(self):
         """Work here is done, close up shop."""
-        self._outbound.disconnect(self.address)
+        try:
+            self._outbound.disconnect(self.address)
+        except zmq.ZMQError as e:
+            if e.errno == zmq.EAGAIN or e.errno == zmq.ENOTCONN:
+                pass
+            else:
+                raise
         self._outbound.close()
         
         
