@@ -55,20 +55,16 @@ cdef class Worker:
         """Ensure that the worker is done and closes down properly."""
         try:
             self._internal.disconnect(self._internal_address)
-        except zmq.Again as e:
-            pass
-        except zmq.ZMQError as e:
-            if e.errno == zmq.ENOTCONN:
+        except (zmq.ZMQError, zmq.Again) as e:
+            if e.errno == zmq.ENOTCONN or e.errno == zmq.EAGAIN:
                 pass
             else:
                 self.log.warning("Exception in Worker disconnect: {!r}".format(e))
         try:
             self._internal.close(linger=0)
             self._py_post_work()
-        except zmq.Again as e:
-            pass
-        except zmq.ZMQError as e:
-            self.log.warning("Exception in Worker Shutdown: {!r}".format(e))
+        except (zmq.ZMQError, zmq.Again) as e:
+            self.log.warning("Ignoring exception in worker shutdown: {!r}".format(e))
         
     def _signal_state(self, state):
         """Signal a state change."""

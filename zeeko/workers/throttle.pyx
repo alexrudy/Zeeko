@@ -176,7 +176,13 @@ cdef class Throttle(Worker):
 
     def _py_post_run(self):
         """On worker stop run, disconnect."""
-        self._inbound.disconnect(self.inbound_address)
+        try:
+            self._inbound.disconnect(self.inbound_address)
+        except zmq.ZMQError as e:
+            if e.errno == zmq.EAGAIN or e.errno == zmq.ENOTCONN:
+                pass
+            else:
+                raise
         self.log.debug("Ended 'RUN', accumulated {:d} snail deaths.".format(self.snail_deaths))
 
     def _py_post_work(self):
