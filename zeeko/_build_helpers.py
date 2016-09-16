@@ -43,9 +43,6 @@ def get_zmq_extension_args():
     if not sys.platform.startswith(('darwin', 'freebsd')):
         cfg['libraries'].append("rt")
     
-    if sys.platform.startswith('darwin'):
-        cfg['extra_compile_args'] = ['-fsanitize=address', '-fsanitize=bounds', '-fsanitize-undefined-trap-on-error']
-        cfg['extra_link_args'] = ['-fsanitize=address', '-fsanitize=bounds', '-fsanitize-undefined-trap-on-error']
     return cfg
     
 def get_utils_extension_args():
