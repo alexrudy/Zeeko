@@ -13,6 +13,13 @@ cimport zmq.backend.cython.libzmq as libzmq
 from zmq.utils.buffers cimport viewfromobject_r
 from .utils cimport check_rc, check_ptr
 
+cdef unsigned long hash_name(char * name, size_t length) nogil except -1:
+    cdef unsigned long hashvalue = 5381
+    cdef int i, c
+    for i in range(length):
+        c = <int>name[i]
+        hashvalue = ((hashvalue << 5) + hashvalue) + c
+    return hashvalue
 
 cdef int receive_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int * fc, int * nm, double * ts, int flags) nogil except -1:
     cdef int rc = 0
@@ -161,6 +168,7 @@ cdef class Receiver:
         self._framecount = 0
         self._name_cache = {}
         self._name_cache_valid = 1
+        self._bundled = True
         rc = pthread.pthread_mutex_init(&self._mutex, NULL)
         pthread.check_rc(rc)
         self._failed_init = False
@@ -185,6 +193,7 @@ cdef class Receiver:
             return 0
         self._name_cache_valid = 0
         self._messages = <carray_named **>realloc(<void *>self._messages, sizeof(carray_named *) * nm)
+        self._hashes = <unsigned long *>realloc(<void*>self._hashes, sizeof(unsigned long) * nm)
         check_ptr(self._messages)
         for i in range(self._n_messages, nm):
             message = <carray_named *>malloc(sizeof(carray_named))
@@ -192,6 +201,7 @@ cdef class Receiver:
             rc = new_named_array(message)
             check_rc(rc)
             self._messages[i] = message
+            self._hashes[i] = 0
         self._n_messages = nm
         return nm
         
@@ -203,15 +213,55 @@ cdef class Receiver:
             free(self._messages)
         if not self._failed_init:
             pthread.pthread_mutex_destroy(&self._mutex)
-            
+    
     cdef int _receive(self, void * socket, int flags) nogil except -1:
         cdef int rc
+        if self._bundled:
+            rc = self._receive_bundled(socket, flags)
+        else:
+            rc = self._receive_unbundled(socket, flags)
+        return rc
+    
+    
+    cdef int _receive_unbundled(self, void * socket, int flags) nogil except -1:
+        cdef int rc, i
+        cdef unsigned long hashvalue
+        cdef carray_named message
+        rc = new_named_array(&message)
+        check_rc(rc)
+        rc = receive_named_array(&message, socket, flags)
+        check_rc(rc)
+        
+        hashvalue = hash_name(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
+        
+        self.lock()
+        try:
+            
+            for i in range(self._n_messages):
+                if self._hashes[i] == hashvalue:
+                    break
+            else:
+                self._name_cache_valid = 0
+                i = self._update_messages(self._n_messages + 1) - 1
+            
+            self._hashes[i] = hashvalue
+            copy_named_array(self._messages[i], &message)
+            
+        finally:
+            self.unlock()
+        return rc
+    
+    cdef int _receive_bundled(self, void * socket, int flags) nogil except -1:
+        cdef int rc
         cdef int nm, i
+        cdef unsigned long hashvalue
         cdef libzmq.zmq_msg_t topic
+        
         libzmq.zmq_msg_init(&topic)
         rc = receive_header(socket, &topic, &self._framecount, &nm, &self.last_message, flags)
         check_rc(rc)
         libzmq.zmq_msg_close(&topic)
+        
         self.lock()
         try:
             if nm != self._n_messages:
@@ -220,6 +270,11 @@ cdef class Receiver:
             for i in range(nm):
                 rc = receive_named_array(self._messages[i], socket, flags)
                 check_rc(rc)
+                hashvalue = hash_name(<char *>libzmq.zmq_msg_data(&self._messages[i].name), libzmq.zmq_msg_size(&self._messages[i].name))
+                if self._hashes[i] != hashvalue:
+                    self._hashes[i] = hashvalue
+                    self._name_cache_valid = 0
+                
         finally:
             self.unlock()
         
@@ -247,6 +302,15 @@ cdef class Receiver:
             self.unlock()
         self._name_cache_valid = 1
         return 0
+    
+    property bundled:
+        def __get__(self):
+            return self._bundled
+    
+        def __set__(self, value):
+            if self._framecount != 0:
+                raise ValueError("Can't set budled mode after publisher has published messages.")
+            self._bundled = bool(value)
         
     def _get_by_index(self, i):
         self.lock()

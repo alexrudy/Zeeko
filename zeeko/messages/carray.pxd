@@ -8,6 +8,7 @@ from libc.time cimport time_t
 ctypedef struct carray_message:
     libzmq.zmq_msg_t data
     libzmq.zmq_msg_t metadata
+    libzmq.zmq_msg_t framecounter
 
 ctypedef struct carray_named:
     carray_message array

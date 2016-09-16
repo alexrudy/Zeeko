@@ -19,15 +19,17 @@ cdef class Publisher:
     cdef carray_named ** _messages
     cdef pthread.pthread_mutex_t _mutex
     cdef libzmq.zmq_msg_t _topic
+    cdef libzmq.zmq_msg_t _framecounter
     cdef object _publishers
     cdef bint _failed_init
-    cdef public bint bundled
+    cdef bint _bundled
     
     
     cdef int lock(self) nogil except -1
     cdef int unlock(self) nogil except -1
     cdef int _update_messages(self) except -1
     cdef int _publish(self, void * socket, int flags) nogil except -1
+    cdef int _set_framecounter_message(self, unsigned int framecount) nogil except -1
 
 cdef class PublishedArray:
     

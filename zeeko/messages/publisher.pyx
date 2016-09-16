@@ -60,18 +60,31 @@ cdef inline int zmq_msg_from_chars(libzmq.zmq_msg_t * message, char[:] data):
     memcpy(libzmq.zmq_msg_data(message), &data[0], libzmq.zmq_msg_size(message))
     return rc
 
+cdef inline int zmq_msg_from_unsigned_int(libzmq.zmq_msg_t * message, unsigned int data) nogil except -1:
+    """Set an unsigned int value."""
+    cdef unsigned int * msg_buffer
+    cdef size_t size = libzmq.zmq_msg_size(message)
+    msg_buffer = <unsigned int *>libzmq.zmq_msg_data(message)
+    check_ptr(msg_buffer)
+    msg_buffer[0] = data
+    return 0
+
 cdef class Publisher:
     """A collection of arrays which are published for consumption as a telemetry stream."""
     
     def __cinit__(self):
         cdef int rc
+        cdef unsigned int * _framecounter
         self._failed_init = True
         rc = pthread.pthread_mutex_init(&self._mutex, NULL)
         pthread.check_rc(rc)
-        libzmq.zmq_msg_init_size(&self._topic, 0)
-        self.bundled = True
+        rc = libzmq.zmq_msg_init_size(&self._topic, 0)
+        check_rc(rc)
+        rc = libzmq.zmq_msg_init_size(&self._framecounter, sizeof(unsigned int))
+        check_rc(rc)
+        self._set_framecounter_message(0)
+        self._bundled = True
         self._n_messages = 0
-        self._framecount = 0
         self._failed_init = False
         
     def __init__(self, publishers=list()):
@@ -88,6 +101,7 @@ cdef class Publisher:
             free(self._messages)
         if not self._failed_init:
             rc = libzmq.zmq_msg_close(&self._topic)
+            rc = libzmq.zmq_msg_close(&self._framecounter)
             rc = pthread.pthread_mutex_destroy(&self._mutex)
     
     property topic:
@@ -100,6 +114,16 @@ cdef class Publisher:
             rc = libzmq.zmq_msg_init_size(&self._topic, len(topic))
             check_rc(rc)
             memcpy(libzmq.zmq_msg_data(&self._topic), &topic[0], len(topic))
+    
+    property bundled:
+        def __get__(self):
+            return self._bundled
+        
+        def __set__(self, value):
+            if self._framecount != 0:
+                raise ValueError("Can't set budled mode after publisher has published messages.")
+            self._bundled = bool(value)
+    
     
     def __setitem__(self, key, value):
         try:
@@ -127,10 +151,20 @@ cdef class Publisher:
         rc = pthread.pthread_mutex_unlock(&self._mutex)
         pthread.check_rc(rc)
         return rc
+        
+    cdef int _set_framecounter_message(self, unsigned int framecount) nogil except -1:
+        """Set the framecounter value."""
+        cdef unsigned int * _framecounter
+        cdef size_t size = libzmq.zmq_msg_size(&self._framecounter)
+        _framecounter = <unsigned int *>libzmq.zmq_msg_data(&self._framecounter)
+        check_ptr(_framecounter)
+        _framecounter[0] = framecount
+        return 0
+        
     
     cdef int _update_messages(self) except -1:
         """Function to update the messages array."""
-        
+        cdef int rc
         self.lock()
         try:
 
@@ -139,6 +173,7 @@ cdef class Publisher:
                 raise MemoryError("Could not allocate messages array for Publisher {!r}".format(self))
             for i, key in enumerate(self._publishers.keys()):
                 self._messages[i] = &(<PublishedArray>self._publishers[key])._message
+                rc = libzmq.zmq_msg_copy(&self._messages[i].array.framecounter, &self._framecounter)
             self._n_messages = len(self._publishers)
         finally:
             self.unlock()
@@ -148,15 +183,16 @@ cdef class Publisher:
         """Inner-loop message sender."""
         cdef int i, rc
         cdef int bundle = 0
-        if self.bundled:
+        if self._bundled:
             bundle = bundle|libzmq.ZMQ_SNDMORE
         
         self.lock()
         try:
             self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
-            if self.bundled:
+            _framecounter = <unsigned int *>libzmq.zmq_msg_data(&self._framecounter)
+            _framecounter[0] = self._framecount
+            if self._bundled:
                 rc = send_header(socket, &self._topic, self._framecount, self._n_messages, flags|libzmq.ZMQ_SNDMORE)
-            
             for i in range(self._n_messages-1):
                 rc = send_named_array(self._messages[i], socket, flags|bundle)
             rc = send_named_array(self._messages[self._n_messages-1], socket, flags)
@@ -193,7 +229,7 @@ cdef class PublishedArray:
         
         # First, update array metadata, in case it has changed.
         A = <object>self._data
-        metadata = jsonapi.dumps(dict(shape=A.shape, dtype=A.dtype.str))
+        metadata = jsonapi.dumps(dict(shape=A.shape, dtype=A.dtype.str, version=ZEEKO_PROTOCOL_VERSION))
         self._metadata = bytearray(metadata)
         
         # Close the old message.
@@ -206,7 +242,14 @@ cdef class PublishedArray:
         rc = libzmq.zmq_msg_copy(&self._message.array.data, &self._data_frame.zmq_msg)
         check_rc(rc)
         
+        # Set the metadata message.
         rc = zmq_msg_from_chars(&self._message.array.metadata, self._metadata)
+        check_rc(rc)
+        
+        # Set up the framecounter for synchronization.
+        rc = libzmq.zmq_msg_init_size(&self._message.array.framecounter, sizeof(unsigned int))
+        check_rc(rc)
+        rc = zmq_msg_from_unsigned_int(&self._message.array.framecounter, 0)
         check_rc(rc)
         
         rc = zmq_msg_from_chars(&self._message.name, self._name)

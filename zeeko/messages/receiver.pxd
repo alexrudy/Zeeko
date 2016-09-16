@@ -31,15 +31,20 @@ cdef class Receiver:
     cdef unsigned int _framecount
     cdef double last_message
     cdef carray_named ** _messages
+    cdef unsigned long * _hashes
     cdef dict _name_cache
     cdef int _name_cache_valid
     cdef pthread.pthread_mutex_t _mutex
     cdef bint _failed_init
+    cdef bint _bundled
     
     cdef int lock(self) nogil except -1
     cdef int unlock(self) nogil except -1
     cdef int _build_namecache(self)
     cdef int _update_messages(self, int nm) nogil except -1
     cdef int _receive(self, void * socket, int flags) nogil except -1
+    cdef int _receive_bundled(self, void * socket, int flags) nogil except -1
+    cdef int _receive_unbundled(self, void * socket, int flags) nogil except -1
+    
 
     
