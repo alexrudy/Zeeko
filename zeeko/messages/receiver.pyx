@@ -216,10 +216,15 @@ cdef class Receiver:
     
     cdef int _receive(self, void * socket, int flags) nogil except -1:
         cdef int rc
+        cdef int value = 1
+        cdef size_t optsize = sizeof(int)
         if self._bundled:
             rc = self._receive_bundled(socket, flags)
         else:
-            rc = self._receive_unbundled(socket, flags)
+            while value == 1:
+                rc = self._receive_unbundled(socket, flags)
+                rc = libzmq.zmq_getsockopt(socket, libzmq.ZMQ_RCVMORE, &value, &optsize)
+                check_rc(rc)
         return rc
     
     
@@ -236,7 +241,6 @@ cdef class Receiver:
         
         self.lock()
         try:
-            
             for i in range(self._n_messages):
                 if self._hashes[i] == hashvalue:
                     break
