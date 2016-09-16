@@ -42,7 +42,6 @@ cdef class Worker:
         self._state = INIT
         self.timeout = 10
         
-        self.log = logging.getLogger(__name__)
         self.thread = threading.Thread(target=self._work)
         self._ready = threading.Event()
         
