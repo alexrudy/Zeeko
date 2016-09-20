@@ -7,6 +7,7 @@ import socket
 import urlparse
 import time
 import h5py
+import os
 
 
 def to_bind(address):
@@ -27,10 +28,12 @@ def main(ctx, port, host, scheme):
     f = logging.Formatter("--> %(message)s [%(name)s]")
     h.setLevel(logging.DEBUG)
     h.setFormatter(f)
-    ctx.obj.log=logging.getLogger()
+    logger = logging.getLogger()
+    logger.addHandler(h)
+    logger.setLevel(logging.DEBUG)
+    
+    ctx.obj.log=logging.getLogger(ctx.invoked_subcommand)
     ctx.obj.zcontext=zmq.Context()
-    ctx.obj.log.addHandler(h)
-    ctx.obj.log.setLevel(logging.DEBUG)
     ctx.obj.addr = "{scheme}://{hostname}:{port:d}".format(port=port, scheme=scheme, hostname=host)
     ctx.obj.bind = to_bind(ctx.obj.addr)
     ctx.obj.host = host
@@ -76,17 +79,48 @@ def server(ctx, frequency, interval):
     click.echo("^C to stop.")
     s.start()
     count = s.counter
+    with s.wsocket() as poller:
+        try:
+            while s.is_alive():
+                s['wfs'] = np.random.randn(180,180)
+                s['tweeter'] = np.random.randn(32, 32)
+                s['woofer'] = np.random.randn(52)
+                ctx.obj.log.info("Sending {:.1f} msgs per second. N={:d}, w={:.4f}".format((s.counter - count) / float(interval),s.counter, s.wait_time * 1e3))
+                count = s.counter
+                if poller.poll(interval*1000):
+                    ctx.obj.log.debug("State transition notification: {!r}".format(poller.recv()))
+                
+        finally:
+            s.stop()
+    
+
+@main.command()
+@click.pass_context
+def incrementer(ctx):
+    """Make a ramping incrementer server."""
+    from zeeko.messages.publisher import Publisher
+    import numpy as np
+    
+    s = ctx.obj.zcontext.socket(zmq.PUB)
+    s.bind(ctx.obj.bind)
+    p = Publisher()
+    p['wfs'] = np.random.randn(180,180)
+    p['tweeter'] = np.random.randn(32, 32)
+    p['woofer'] = np.random.randn(52)
+    
+    click.echo("Publishing {:d} array(s) to '{:s}'".format(len(p), ctx.obj.bind))
+    click.echo("^C to stop.")
+    count = 0
     try:
         while True:
-            s['wfs'] = np.random.randn(180,180)
-            s['tweeter'] = np.random.randn(32, 32)
-            s['woofer'] = np.random.randn(52)
-            ctx.obj.log.info("Sending {:.1f} msgs per second. N={:d}, w={:.4f}".format((s.counter - count) / float(interval),s.counter, s.wait_time * 1e3))
-            count = s.counter
-            time.sleep(interval)
+            p['wfs'] = count
+            p['tweeter'] = count
+            p['woofer'] = count
+            count += 1
+            p.publish(s)
+            time.sleep(0.1)
     finally:
-        s.stop()
-    
+        s.close(linger=0)
 
 @main.command()
 @click.option("--interval", type=int, help="Polling interval for server status.", default=3)
@@ -118,6 +152,11 @@ def throttle(ctx, frequency, interval):
 def telemetry(ctx, interval, filename, chunk):
     """Make a client"""
     from zeeko.telemetry.pipeline import Pipeline
+    
+    if os.path.exists(filename):
+        os.remove(filename)
+        click.echo("Removed old {:s}".format(filename))
+    
     p = Pipeline(ctx.obj.addr, filename, ctx.obj.zcontext, chunk)    
     click.echo("Receiving on '{:s}'".format(ctx.obj.addr))
     
