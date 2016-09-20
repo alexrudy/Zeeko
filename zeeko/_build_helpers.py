@@ -12,6 +12,11 @@ from astropy_helpers import setup_helpers
 pjoin = os.path.join
 HERE = os.path.dirname(__file__)
 
+# ASAN_PATH = '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/8.0.0/lib/darwin/libclang_rt.asan_osx_dynamic.dylib'
+# if os.path.exists(ASAN_PATH):
+#     os.environ.setdefault('SHADY_USE_ASAN', 'yes')
+#     os.environ.setdefault('DYLD_INSERT_LIBRARIES', ASAN_PATH)
+
 def get_zmq_include_path():
     """Get the ZMQ include path in an import-safe manner."""
     try:
@@ -56,6 +61,10 @@ def get_utils_extension_args():
     
 def _generate_cython_extensions(extension_args, directory, package_name):
     """Generate cython extensions"""
+    
+    if sys.platform == 'darwin' and os.environ.get("SHADY_USE_ASAN","") == 'yes':
+        extension_args['extra_compile_args'].extend(['-fsanitize=address', '-fno-omit-frame-pointer'])
+        extension_args['extra_link_args'].extend(['-fsanitize=address'])
     
     for component in glob.iglob(os.path.join(directory, "*.pyx")):
         # Component name and full module name.
