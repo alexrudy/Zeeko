@@ -149,10 +149,9 @@ cdef class Publisher:
         try:
             self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
             self._set_framecounter_message(self._framecount)
-            for i in range(self._n_messages-1):
+            for i in range(self._n_messages):
                 rc = libzmq.zmq_msg_copy(&self._messages[i].array.info, &self._infomessage)
                 rc = send_named_array(self._messages[i], socket, flags)
-            rc = send_named_array(self._messages[self._n_messages-1], socket, flags)
         finally:
             self.unlock()
         return rc
