@@ -5,6 +5,7 @@ A telemetry recording pipeline.
 
 import zmq
 import collections
+import logging
 
 from .recorder import Recorder
 from .writer import Writer
@@ -13,6 +14,7 @@ class Pipeline(object):
     """A telemetry recording pipeline."""
     def __init__(self, address, filename, ctx=None, chunksize=1024):
         super(Pipeline, self).__init__()
+        self.log = logging.getLogger(__name__+".Pipeline")
         self.address = address
         self.filename = filename
         self.ctx = ctx or zmq.Context.instance()

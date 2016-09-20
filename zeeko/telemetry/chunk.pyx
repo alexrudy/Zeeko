@@ -118,7 +118,7 @@ cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index) n
     
     
     data = libzmq.zmq_msg_data(&chunk.data)
-    memcpy(&data[index * chunk.stride], data, size)
+    memcpy(&data[index * chunk.stride], libzmq.zmq_msg_data(&array.array.data), size)
     mask = <DINT_t *>libzmq.zmq_msg_data(&chunk.mask)
     mask[index] = <DINT_t>index
     return 0
@@ -219,7 +219,7 @@ cdef class Chunk:
             cdef Frame msg = Frame()
             libzmq.zmq_msg_copy(&msg.zmq_msg, &self._chunk.data)
             view = np.frombuffer(msg, dtype=self.dtype)
-            return view.reshape(self.shape + (self.chunksize,))
+            return view.reshape((self.chunksize,) + self.shape)
     
     property name:
         def __get__(self):
@@ -261,7 +261,7 @@ cdef class Chunk:
         def __get__(self):
             return np.prod(self.shape)
         
-    cdef int extend(self, d) except -1:
+    cdef int extend(self, g) except -1:
         """Extend an existing H5PY dataset with the new chunk.
     
         :param d: h5py Dataset object to extend.
@@ -277,20 +277,26 @@ cdef class Chunk:
             int cstop = 0
             int ndim = 0
         
+        d = g['data']
+        m = g['mask']
+        
         cstop = np.argmax(self.mask) + 1
         
         if self.stride != 0:
             
             
-            dstart = d.shape[-1]
+            dstart = d.shape[0]
             dstop = dstart + cstop
-            d.resize(dstop, axis=len(d.shape) - 1)
-            d[..., dstart:dstop] = self.array[...,0:cstop]
+            d.resize(dstart+self.chunksize, axis=0)
+            d[dstart:dstop] = self.array[0:cstop,...]
+            d[dstop:dstart+self.chunksize] = 0.0
+            m.resize(dstart+self.chunksize, axis=0)
+            m[dstart:dstop] = 1.0
+            m[dstop:] = 0.0
         
         else:
-            dstart = d.attrs['index']
-            dstop = dstart + self.chunksize
-        d.attrs['index'] = dstop
+            dstart = g.attrs['index']
+        g.attrs['index'] = dstart + self.chunksize
         return 0
     
     cdef int write(self, g) except -1:
@@ -304,13 +310,23 @@ cdef class Chunk:
             d = g[self.name]
             self.extend(d)
         elif self.stride != 0:
-            d = g.create_dataset(self.name, 
-                shape=self.shape + (self.chunksize,), 
-                maxshape=self.shape + (None,), 
-                chunks=self.shape + (self.chunksize,), 
-                dtype=self.dtype)
-            d[...,0:cstop] = self.array[...,0:cstop]
-            d.attrs['index'] = self.chunksize
+            g_sub = g.create_group(self.name)
+            d = g_sub.create_dataset("data", 
+                shape=(self.chunksize,) + self.shape, 
+                maxshape=(None,) + self.shape, 
+                chunks=(self.chunksize,) + self.shape, 
+                dtype=self.dtype,
+                fillvalue=0.0)
+            m = g_sub.create_dataset("mask",
+                shape=(self.chunksize,),
+                maxshape=(None,),
+                chunks=(self.chunksize,),
+                dtype=np.int32,
+                fillvalue=0)
+            d[0:cstop,...] = self.array[0:cstop,...]
+            m[0:cstop] = 1.0
+            m[cstop:] = 0.0
+            g_sub.attrs['index'] = self.chunksize
         else:
             d = g.create_group(self.name)
             d.attrs['index'] = self.chunksize
