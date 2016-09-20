@@ -60,4 +60,5 @@ html/*
 .cache/*
 .tm_properties
 ci-docker.sh
+zeeko.test.hdf5
 
