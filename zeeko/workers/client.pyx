@@ -25,6 +25,7 @@ cdef class Client(Worker):
         self.maxlag = 10
         self.subscriptions = []
         self.kind = kind
+        self._notify_address = "inproc://{:s}-notify".format(hex(id(self)))
     
     def subscribe(self, key):
         """Add a subscription key"""
@@ -36,6 +37,7 @@ cdef class Client(Worker):
     def _py_pre_work(self):
         """When work starts, allocate the first socket."""
         self._inbound = self.context.socket(self.kind)
+        self.notify = self.context.socket(zmq.PUSH)
         
     def _py_pre_run(self):
         """On worker run, connect and subscribe."""
@@ -58,6 +60,7 @@ cdef class Client(Worker):
     def _py_post_work(self):
         """On worker done, close socket."""
         self._inbound.close()
+        self._notify.close()
         
     cdef int _post_receive(self) nogil except -1:
         self.counter = self.counter + 1
@@ -77,6 +80,7 @@ cdef class Client(Worker):
     cdef int _run(self) nogil except -1:
         cdef void * inbound = self._inbound.handle
         cdef void * internal = self._internal.handle
+        cdef void * notify = self.notify.handle
         cdef int sentinel
         cdef double delay = 0.0
         cdef libzmq.zmq_pollitem_t items[2]
@@ -93,7 +97,7 @@ cdef class Client(Worker):
                 self._state = sentinel
                 return self.counter
             elif (items[0].revents & libzmq.ZMQ_POLLIN):
-                self.receiver._receive(inbound, 0)
+                self.receiver._receive(inbound, 0, NULL)
                 rc = self._post_receive()
                 if rc != 0:
                     return rc

@@ -7,10 +7,11 @@ from .base cimport Worker
 cdef class Client(Worker):
     cdef Receiver receiver
     cdef Socket _inbound
+    cdef Socket notify
     cdef list subscriptions
     cdef readonly int counter
     cdef public double maxlag
     cdef readonly double delay
     cdef readonly int snail_deaths
     cdef int kind
-    
+    cdef str _notify_address
