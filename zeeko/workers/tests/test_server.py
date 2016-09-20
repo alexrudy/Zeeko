@@ -44,13 +44,11 @@ def test_server_run(context, address, Receiver, sub, arrays):
     sub.connect(address)
     sub.subscribe("")
     s.start()
+    c = 0
     try:
-        assert_canrecv(sub)
-        Receiver.receive(sub, zmq.NOBLOCK)
-        assert_canrecv(sub)
-        Receiver.receive(sub, zmq.NOBLOCK)
-        assert_canrecv(sub)
-        Receiver.receive(sub, zmq.NOBLOCK)
+        while sub.poll(100) and c < 3 * len(arrays):
+            Receiver.receive(sub, zmq.NOBLOCK)
+            c += 1
     finally:
         s.stop()
     assert s.counter >= 3

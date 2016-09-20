@@ -44,7 +44,7 @@ def test_client_run(context, address, Publisher, push):
         time.sleep(0.1)
     finally:
         c.stop()
-    assert c.counter == 3
+    assert c.counter == 3 * len(Publisher)
     assert len(c) == 3
 
 def test_client_snail_death(context, address, Publisher, pub):
