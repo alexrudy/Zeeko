@@ -48,7 +48,6 @@ cdef class Throttle(Worker):
     def __init__(self, ctx, inbound_address, outbound_address, kind=zmq.SUB):
         super(Throttle, self).__init__(ctx, inbound_address)
         self.publisher = Publisher()
-        self.publisher.bundled = False
         self.receiver = Receiver()
         self.outbound_address = outbound_address
         self.inbound_address = inbound_address
@@ -129,7 +128,7 @@ cdef class Throttle(Worker):
                 self._state = sentinel
                 return self.counter
             elif (items[0].revents & libzmq.ZMQ_POLLIN):
-                self.receiver._receive(inbound, 0)
+                self.receiver._receive(inbound, 0, NULL)
                 rc = self._post_receive()
                 if rc != 0:
                     return rc
