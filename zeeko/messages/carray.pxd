@@ -5,10 +5,15 @@ Definition of the array message structure.
 cimport zmq.backend.cython.libzmq as libzmq
 from libc.time cimport time_t
 
+ctypedef struct carray_message_info:
+    unsigned long framecount
+    double timestamp
+    
+
 ctypedef struct carray_message:
     libzmq.zmq_msg_t data
     libzmq.zmq_msg_t metadata
-    libzmq.zmq_msg_t framecounter
+    libzmq.zmq_msg_t info
 
 ctypedef struct carray_named:
     carray_message array

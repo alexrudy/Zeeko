@@ -3,7 +3,7 @@ cimport numpy as np
 
 np.import_array()
 
-from .carray cimport carray_named, carray_message, receive_named_array, new_named_array, close_named_array, copy_named_array
+from .carray cimport carray_named, carray_message, receive_named_array, new_named_array, close_named_array, copy_named_array, carray_message_info
 
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport memcpy
@@ -135,6 +135,17 @@ cdef class ReceivedArray:
             self._parse_metadata()
             return self._dtype
         
+    property framecount:
+        def __get__(self):
+            cdef carray_message_info * info
+            info = <carray_message_info *>libzmq.zmq_msg_data(&self._message.array.info)
+            return info.framecount
+    
+    property timestamp:
+        def __get__(self):
+            cdef carray_message_info * info
+            info = <carray_message_info *>libzmq.zmq_msg_data(&self._message.array.info)
+            return info.timestamp
             
     @staticmethod
     cdef ReceivedArray from_message(carray_named * message):
@@ -168,11 +179,10 @@ cdef class Receiver:
         self._framecount = 0
         self._name_cache = {}
         self._name_cache_valid = 1
-        self._bundled = True
         rc = pthread.pthread_mutex_init(&self._mutex, NULL)
         pthread.check_rc(rc)
         self._failed_init = False
-        
+        self.last_message = 0.0
     
     cdef int lock(self) nogil except -1:
         cdef int rc
@@ -211,33 +221,64 @@ cdef class Receiver:
                 if self._messages[i] is not NULL:
                     free(self._messages[i])
             free(self._messages)
+            self._messages = NULL
+        if self._hashes is not NULL:
+            free(self._hashes)
         if not self._failed_init:
             pthread.pthread_mutex_destroy(&self._mutex)
     
-    cdef int _receive(self, void * socket, int flags) nogil except -1:
+    cdef int _receive(self, void * socket, int flags, void * notify_socket) nogil except -1:
         cdef int rc
         cdef int value = 1
         cdef size_t optsize = sizeof(int)
-        if self._bundled:
-            rc = self._receive_bundled(socket, flags)
-        else:
-            while value == 1:
-                rc = self._receive_unbundled(socket, flags)
-                rc = libzmq.zmq_getsockopt(socket, libzmq.ZMQ_RCVMORE, &value, &optsize)
-                check_rc(rc)
+        while value == 1:
+            rc = self._receive_unbundled(socket, flags, notify_socket)
+            rc = libzmq.zmq_getsockopt(socket, libzmq.ZMQ_RCVMORE, &value, &optsize)
+            check_rc(rc)
         return rc
     
+    cdef int get_message_index(self, libzmq.zmq_msg_t * name) nogil except -1:
+        """Return the message index."""
+        cdef int rc, idx
+        cdef int size
+        cdef unsigned long hashvalue
+        cdef char * data
+        
+        size = libzmq.zmq_msg_size(name)
+        check_rc(size)
+        data = <char *>libzmq.zmq_msg_data(name)
+        hashvalue = hash_name(data, size)
+        
+        self.lock()
+        try:
+            for i in range(self._n_messages):
+                if self._hashes[i] == hashvalue:
+                     idx = i
+                     break
+            else:
+                idx = -1
+        finally:
+            self.unlock()
+        return idx
     
-    cdef int _receive_unbundled(self, void * socket, int flags) nogil except -1:
+    cdef int _receive_unbundled(self, void * socket, int flags, void * notify_socket) nogil except -1:
         cdef int rc, i
         cdef unsigned long hashvalue
+        cdef double timestamp
         cdef carray_named message
+        cdef carray_message_info * info
+        cdef libzmq.zmq_msg_t notification
+        
         rc = new_named_array(&message)
         check_rc(rc)
         rc = receive_named_array(&message, socket, flags)
         check_rc(rc)
         
         hashvalue = hash_name(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
+        
+        info = <carray_message_info *>libzmq.zmq_msg_data(&message.array.info)
+        if self.last_message < info.timestamp:
+            self.last_message = info.timestamp
         
         self.lock()
         try:
@@ -253,42 +294,35 @@ cdef class Receiver:
             
         finally:
             self.unlock()
-        return rc
-    
-    cdef int _receive_bundled(self, void * socket, int flags) nogil except -1:
-        cdef int rc
-        cdef int nm, i
-        cdef unsigned long hashvalue
-        cdef libzmq.zmq_msg_t topic
         
-        libzmq.zmq_msg_init(&topic)
-        rc = receive_header(socket, &topic, &self._framecount, &nm, &self.last_message, flags)
-        check_rc(rc)
-        libzmq.zmq_msg_close(&topic)
-        
-        self.lock()
-        try:
-            if nm != self._n_messages:
-                nm = self._update_messages(nm)
-            
-            for i in range(nm):
-                rc = receive_named_array(self._messages[i], socket, flags)
-                check_rc(rc)
-                hashvalue = hash_name(<char *>libzmq.zmq_msg_data(&self._messages[i].name), libzmq.zmq_msg_size(&self._messages[i].name))
-                if self._hashes[i] != hashvalue:
-                    self._hashes[i] = hashvalue
-                    self._name_cache_valid = 0
-                
-        finally:
-            self.unlock()
+        if notify_socket != NULL:
+            rc = libzmq.zmq_msg_init(&notification)
+            check_rc(rc)
+            rc = libzmq.zmq_msg_copy(&notification, &message.name)
+            check_rc(rc)
+            rc = libzmq.zmq_msg_send(&notification, notify_socket, 0)
+            check_rc(rc)
         
         return rc
+        
+    cdef int reset(self) nogil except -1:
+        if self._messages is not NULL:
+            for i in range(self._n_messages):
+                if self._messages[i] is not NULL:
+                    free(self._messages[i])
+            free(self._messages)
+            self._messages = NULL
+            self._n_messages = 0
+            self._name_cache_valid = 0
     
-    def receive(self, Socket socket, int flags = 0):
+    def receive(self, Socket socket, int flags = 0, Socket notify = None):
         """Receive a full message"""
         cdef void * handle = socket.handle
+        cdef void * notify_handle = NULL
+        if notify is not None:
+            notify_handle = notify.handle
         with nogil:
-            self._receive(handle, flags)
+            self._receive(handle, flags, notify_handle)
     
     cdef int _build_namecache(self):
         cdef int i
@@ -306,15 +340,6 @@ cdef class Receiver:
             self.unlock()
         self._name_cache_valid = 1
         return 0
-    
-    property bundled:
-        def __get__(self):
-            return self._bundled
-    
-        def __set__(self, value):
-            if self._framecount != 0:
-                raise ValueError("Can't set budled mode after publisher has published messages.")
-            self._bundled = bool(value)
         
     def _get_by_index(self, i):
         self.lock()

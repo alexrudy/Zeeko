@@ -24,11 +24,12 @@ def test_publisher_single_update():
     """Test update array items."""
     pub = PublishedArray("array", np.ones((10,)))
     
-    pub.array = np.ones((20,))
-    assert pub.array.shape == (20,)
+    with pytest.raises(ValueError):
+        pub.array = np.ones((20,))
+    pub.array = np.ones((10,))
+    assert pub.array.shape == (10,)
     
-    pub.name = "Other Array"
-    assert pub.name == "Other Array"
+    assert pub.name == "array"
 
 def test_publisher(push, pull, shape, name, n):
     """Test the array publisher."""
@@ -37,13 +38,6 @@ def test_publisher(push, pull, shape, name, n):
     for name_, array_ in publishers:
         pub[name_] = array_
     pub.publish(push)
-    
-    topic = pull.recv()
-    fc, = pull.recv_struct("I")
-    assert fc == 1
-    nm, = pull.recv_struct("i")
-    assert nm == n
-    ts, = pull.recv_struct("d")
     
     for i in range(n):
         recvd_name, A = array_api.recv_named_array(pull)
@@ -54,7 +48,6 @@ def test_publisher_unbundle(push, pull, shape, name, n):
     """Test publisher in unbundled mode."""
     publishers = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
     pub = Publisher([])
-    pub.bundled = False
     for name_, array_ in publishers:
         pub[name_] = array_
     pub.publish(push)

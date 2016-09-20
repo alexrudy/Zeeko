@@ -16,7 +16,7 @@ cdef int new_array(carray_message * message) nogil except -1:
     """
     cdef int rc = 0
     
-    rc = libzmq.zmq_msg_init(&message.framecounter)
+    rc = libzmq.zmq_msg_init(&message.info)
     check_rc(rc)
     
     rc = libzmq.zmq_msg_init(&message.metadata)
@@ -42,7 +42,7 @@ cdef int empty_array(carray_message * message) nogil except -1:
     """
     cdef int rc = 0
     
-    rc = libzmq.zmq_msg_init_size(&message.framecounter, sizeof(unsigned int))
+    rc = libzmq.zmq_msg_init_size(&message.info, sizeof(carray_message_info))
     check_rc(rc)
     
     rc = libzmq.zmq_msg_init_size(&message.metadata, 0)
@@ -75,7 +75,7 @@ cdef int close_array(carray_message * message) nogil except -1:
     Initialize the messages required for sending and receiving a named array.
     """
     cdef int rc = 0
-    rc = libzmq.zmq_msg_close(&message.framecounter)
+    rc = libzmq.zmq_msg_close(&message.info)
     check_rc(rc)
     rc = libzmq.zmq_msg_close(&message.metadata)
     check_rc(rc)
@@ -88,7 +88,7 @@ cdef int copy_array(carray_message * dest, carray_message * src) nogil except -1
     Perform the necessary ZMQ copies.
     """
     cdef int rc = 0
-    rc = libzmq.zmq_msg_copy(&dest.framecounter, &src.framecounter)
+    rc = libzmq.zmq_msg_copy(&dest.info, &src.info)
     check_rc(rc)
     rc = libzmq.zmq_msg_copy(&dest.metadata, &src.metadata)
     check_rc(rc)
@@ -126,7 +126,7 @@ cdef int send_array(carray_message * message, void * socket, int flags) nogil ex
     Send a numpy array over a ZMQ socket.
     Requires an array prepared with a carray_message."""
     cdef int rc = 0
-    rc = send_copy_zmq_msq(&message.framecounter, socket, flags|libzmq.ZMQ_SNDMORE)
+    rc = send_copy_zmq_msq(&message.info, socket, flags|libzmq.ZMQ_SNDMORE)
     rc = send_copy_zmq_msq(&message.metadata, socket, flags|libzmq.ZMQ_SNDMORE)
     rc = send_copy_zmq_msq(&message.data, socket, flags)
     return rc
@@ -157,7 +157,7 @@ cdef int receive_array(carray_message * message, void * socket, int flags) nogil
     be received entirely.
     """
     cdef int rc
-    rc = libzmq.zmq_msg_recv(&message.framecounter, socket, flags)
+    rc = libzmq.zmq_msg_recv(&message.info, socket, flags)
     check_rc(rc)
     rc = should_recv_more(socket)
     # Recieve the metadata message

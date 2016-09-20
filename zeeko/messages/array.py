@@ -30,6 +30,16 @@ def generate_array_message(A):
         version = ZEEKO_PROTOCOL_VERSION,
     )
     return [json.dumps(md), A]
+    
+def generate_info_packet(framecount, timestamp=None):
+    """Generate an info packet."""
+    if timestamp is None:
+        timestamp = time.time()
+    return struct.pack("Ld", framecount, timestamp)
+
+def unpack_info_packet(packet):
+    """Unpack an informational packet."""
+    return struct.unpack("Ld", packet)
 
 def send_array(socket, A, framecount=0, flags=0, copy=True, track=False):
     """Send a numpy array with metadata.
@@ -53,11 +63,11 @@ def send_array(socket, A, framecount=0, flags=0, copy=True, track=False):
     
     """
     metadata, _ = generate_array_message(A)
-    socket.send(struct.pack('I', framecount), flags|zmq.SNDMORE)
+    socket.send(generate_info_packet(framecount), flags|zmq.SNDMORE)
     socket.send(metadata, flags|zmq.SNDMORE)
     return socket.send(A, flags, copy=copy, track=track)
     
-def send_named_array(socket, name, A, flags=0, copy=True, track=False):
+def send_named_array(socket, name, A, framecount=0, flags=0, copy=True, track=False):
     """Send an array in the named-array format.
     
     Parameters
@@ -82,7 +92,7 @@ def send_named_array(socket, name, A, flags=0, copy=True, track=False):
     
     """
     socket.send(name, flags|zmq.SNDMORE)
-    return send_array(socket, A, flags=flags, copy=copy, track=track)
+    return send_array(socket, A, framecount=framecount, flags=flags, copy=copy, track=track)
 
 def recv_array(socket, flags=0, copy=True, track=False):
     """Receive a numpy array.
@@ -107,7 +117,7 @@ def recv_array(socket, flags=0, copy=True, track=False):
         The received array.
     
     """
-    fc, = struct.unpack('I',socket.recv(flags=flags))
+    fc, timestamp = unpack_info_packet(socket.recv(flags=flags))
     md = socket.recv_json(flags=flags)
     msg = socket.recv(flags=flags, copy=copy, track=track)
     try:
@@ -147,20 +157,9 @@ def recv_named_array(socket, flags=0, copy=True, track=False):
     name = socket.recv(flags=flags, copy=copy, track=track)
     A = recv_array(socket, flags=flags, copy=copy, track=track)
     return (name, A)
-    
-def send_array_packet_header(socket, framecount, n_arrays, flags=0, copy=True, track=False):
-    """Send an array packet header."""
-    framecount = 5
-    now = time.time()
-    # Send the array header.
-    socket.send("", flags=flags|zmq.SNDMORE, copy=copy, track=track)
-    socket.send(struct.pack("I", framecount), flags=flags|zmq.SNDMORE, copy=copy, track=track)
-    socket.send(struct.pack("i", n_arrays), flags=flags|zmq.SNDMORE, copy=copy, track=track)
-    return socket.send(struct.pack("d", long(now)), flags=flags, copy=copy, track=track)
-    
+        
 def send_array_packet(socket, framecount, arrays, flags=0, copy=True, track=False):
     """Send a packet of arrays."""
-    send_array_packet_header(socket, framecount, len(arrays), flags=flags|zmq.SNDMORE, copy=copy, track=track)
     for name, array in arrays[:-1]:
         send_named_array(socket, name, array, flags=flags|zmq.SNDMORE, copy=copy, track=track)
     name, array = arrays[-1]

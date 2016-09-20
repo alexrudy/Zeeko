@@ -57,7 +57,6 @@ def test_receiver_unbundled(push, pull, shape, name, n):
         array_api.send_named_array(push, _name, array)
     
     rcv = Receiver()
-    rcv.bundled = False
     for i in range(n):
         assert_canrecv(pull)
         rcv.receive(pull)

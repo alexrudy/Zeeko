@@ -58,19 +58,11 @@ def test_packets(push, pull, shape, name):
     
     framecount = 5
     array_api.send_array_packet(push, framecount, arrays)
-    print("Sent Header: NULL fc={:d} nm={:d} time=?".format(framecount, len(arrays)))
-    topic = pull.recv()
-    fc = struct.unpack("I",pull.recv())[0]
-    nm = struct.unpack("i",pull.recv())[0]
-    tm = struct.unpack("d",pull.recv())[0]
-    print("Got Header: fc={:d} nm={:d} time={:f}".format(fc, nm, tm))
-    assert fc == framecount
-    assert nm == len(arrays)
     count = 0
-    for i in range(nm):
+    while pull.poll(timeout=0.01):
         name, array = array_api.recv_named_array(pull)
-        assert name == arrays[i][0]
-        np.testing.assert_allclose(array, arrays[i][1])
+        assert name == arrays[count][0]
+        np.testing.assert_allclose(array, arrays[count][1])
         print("Got Array: {:s}={!r}".format(name, array))
         count += 1
     assert count == len(arrays)
