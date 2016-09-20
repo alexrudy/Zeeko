@@ -155,7 +155,7 @@ cdef class Writer(Worker):
         super(Writer, self)._py_post_work()
         self._outbound.unbind(self.notify_address)
         self._inbound.disconnect(self.address)
-        self._inbound.close()
-        self._outbound.close()
+        self._inbound.close(linger=0)
+        self._outbound.close(linger=0)
 
     
