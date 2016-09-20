@@ -7,8 +7,10 @@ cdef class Worker:
     cdef object thread
     cdef readonly Context context
     cdef Socket _internal
+    cdef Socket _notify
     cdef readonly str address
-    cdef str _internal_address
+    cdef str _internal_address_interrupt
+    cdef str _internal_address_notify
     cdef public long timeout
     cdef int _state
     cdef object log

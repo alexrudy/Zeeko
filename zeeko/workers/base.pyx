@@ -48,12 +48,13 @@ cdef class Worker:
         self.context = ctx or zmq.Context.instance()
         self.address = address
         self.log = logging.getLogger(".".join([self.__class__.__module__,self.__class__.__name__]))
-        self._internal_address = "inproc://{:s}-interrupt".format(hex(id(self)))
+        self._internal_address_interrupt = "inproc://{:s}-interrupt".format(hex(id(self)))
+        self._internal_address_notify = "inproc://{:s}-interrupt-notify".format(hex(id(self)))
         
     def _close(self):
         """Ensure that the worker is done and closes down properly."""
         try:
-            self._internal.disconnect(self._internal_address)
+            self._internal.disconnect(self._internal_address_interrupt)
         except (zmq.ZMQError, zmq.Again) as e:
             if e.errno == zmq.ENOTCONN or e.errno == zmq.EAGAIN:
                 pass
@@ -61,6 +62,7 @@ cdef class Worker:
                 self.log.warning("Exception in Worker disconnect: {!r}".format(e))
         try:
             self._internal.close(linger=0)
+            self._notify.close(linger=0)
             self._py_post_work()
         except (zmq.ZMQError, zmq.Again) as e:
             self.log.warning("Ignoring exception in worker shutdown: {!r}".format(e))
@@ -69,7 +71,7 @@ cdef class Worker:
         """Signal a state change."""
         self._not_done()
         signal = self.context.socket(zmq.PUSH)
-        signal.connect(self._internal_address)
+        signal.connect(self._internal_address_interrupt)
         signal.send(s.pack("i", STATE[state]))
         signal.close(linger=1000)
         
@@ -123,12 +125,15 @@ cdef class Worker:
     def _work(self):
         """Thread Worker Function"""
         self._internal = self.context.socket(zmq.PULL)
-        self._internal.bind(self._internal_address)
+        self._internal.bind(self._internal_address_interrupt)
+        self._notify = self.context.socket(zmq.PUB)
+        self._notify.bind(self._internal_address_notify)
         self._state = PAUSE
         self._ready.set()
         self._py_pre_work()
         while True:
             self.log.debug("State transition: {:s}.".format(self.state))
+            self._notify.send("notify:{:s}".format(self.state), zmq.NOBLOCK)
             if self._state == RUN:
                 self._py_run()
             
@@ -210,4 +215,11 @@ cdef class Worker:
     
     def is_alive(self):
         return self.thread.is_alive()
+        
+    def wsocket(self):
+        """Wait on the underlying thread, listening for a state change."""
+        socket = self.context.socket(zmq.SUB)
+        socket.connect(self._internal_address_notify)
+        socket.subscribe("notify")
+        return socket
     
