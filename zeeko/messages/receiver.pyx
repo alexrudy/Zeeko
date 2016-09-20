@@ -263,7 +263,7 @@ cdef class Receiver:
     
     cdef int _receive_unbundled(self, void * socket, int flags, void * notify_socket) nogil except -1:
         cdef int rc, i
-        cdef unsigned long hashvalue
+        cdef unsigned long hashvalue, framecount
         cdef double timestamp
         cdef carray_named message
         cdef carray_message_info * info
@@ -291,6 +291,9 @@ cdef class Receiver:
             
             self._hashes[i] = hashvalue
             copy_named_array(self._messages[i], &message)
+            framecount = (<carray_message_info *>libzmq.zmq_msg_data(&self._messages[i].array.info)).framecount
+            if framecount > self._framecount:
+                self._framecount = framecount
             
         finally:
             self.unlock()
