@@ -17,8 +17,12 @@ def display_dataset(ax, group):
     data = group['data'][...]
     print("{:s} -> {!r}".format(group.name, data.shape))
     data = data.reshape(data.shape[0],-1)
-    
     mask = group['mask'][...]
+    
+    if data.shape[0] > 1e4:
+        data = data[:100]
+        mask = mask[:100]
+    
     top = np.ones_like(mask)
     bot = np.zeros_like(mask)
     t = np.arange(mask.shape[0])
@@ -42,6 +46,7 @@ def plot(filename):
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
             display_dataset(ax, g)
+            plt.pause(0.001)
     plt.show()
 
 if __name__ == '__main__':

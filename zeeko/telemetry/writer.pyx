@@ -2,6 +2,7 @@ cimport numpy as np
 
 import zmq
 import h5py
+import time
 
 from zmq.utils import jsonapi
 
@@ -25,6 +26,7 @@ cdef class Writer(Worker):
     cdef int _n_arrays
     cdef array_chunk ** _chunks
     cdef str filename
+    cdef object file
     cdef readonly str notify_address
     cdef readonly int counter
     cdef Socket _inbound
@@ -128,14 +130,16 @@ cdef class Writer(Worker):
         cdef int rc = 0
         cdef int i
         cdef Chunk chunk
-        with h5py.File(self.filename) as f:
-            index = 0
-            data = {}
-            for i in range(self._n_arrays):
-                chunk = Chunk.from_chunk(self._chunks[i])
-                chunk.write(f)
-                data[chunk.name] = f[chunk.name].attrs['index']
-        self._outbound.send_json({'event':'write', 'filename':self.filename, 'data':data})
+        s = time.time()
+        index = 0
+        data = {}
+        for i in range(self._n_arrays):
+            chunk = Chunk.from_chunk(self._chunks[i])
+            chunk.write(self.file)
+            data[chunk.name] = self.file[chunk.name].attrs['index']
+        self.file.flush()
+        d = time.time() - s
+        self._outbound.send_json({'event':'write', 'filename':self.filename, 'data':data, 'duration':d})
     
     cdef int _post_receive(self) nogil except -1:
         with gil:
@@ -150,6 +154,9 @@ cdef class Writer(Worker):
         super(Writer, self)._py_pre_work()
         self._inbound.connect(self.address)
         self._outbound.bind(self.notify_address)
+        
+        if self.file is None:
+            self.file = h5py.File(self.filename)
     
     def _py_post_work(self):
         super(Writer, self)._py_post_work()
@@ -157,5 +164,7 @@ cdef class Writer(Worker):
         self._inbound.disconnect(self.address)
         self._inbound.close(linger=0)
         self._outbound.close(linger=0)
-
+        if self.file is not None:
+            self.file.close()
+        
     

@@ -54,7 +54,7 @@ class Pipeline(object):
         
     def stop(self):
         """Stop the pipeline. This is a hard stop."""
-        self.recorder.stop()
+        self.recorder.stop(join=False)
         self.writer.stop()
     
     def pause(self):

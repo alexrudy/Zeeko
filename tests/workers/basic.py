@@ -171,6 +171,7 @@ def telemetry(ctx, interval, filename, chunk):
             ctx.obj.log.info("Receiving {:.1f} msgs per second. Delay: {:.3g}".format((p.counter - count) / float(interval), p.delay))
             count = p.counter
     finally:
+        print("Waiting for pipeline to finish.")
         print(p.finish(timeout=5.0))
         p.stop()
         hdf5info(filename)

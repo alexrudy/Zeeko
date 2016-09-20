@@ -88,9 +88,9 @@ cdef class Worker:
     def pause(self):
         self._signal_state("PAUSE")
     
-    def stop(self, timeout=None):
+    def stop(self, timeout=None, join=True):
         self._signal_state("STOP")
-        if self.thread.is_alive():
+        if self.thread.is_alive() and join:
             self.thread.join(timeout=timeout)
         
     def running(self):

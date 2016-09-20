@@ -164,8 +164,9 @@ cdef class Recorder(Client):
     
     def _py_post_work(self):
         super(Recorder, self)._py_post_work()
+        self._complete()
         self._writer.unbind(self.writer_address)
-        self._writer.close(linger=0)
+        self._writer.close(linger=10)
     
     def _complete(self):
         """Handler for when the buffer is complete and should be pushed to the writer."""
