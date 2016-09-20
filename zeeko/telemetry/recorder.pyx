@@ -14,7 +14,7 @@ cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport memcpy
-from libc.stdio cimport printf
+#from libc.stdio cimport printf
 
 cdef class Recorder(Client):
     
@@ -105,11 +105,8 @@ cdef class Recorder(Client):
                 n_done = n_done + 1
         
         if n_done != 0:
-            printf("done = %d", n_done)
             if n_done == self._n_arrays:
-                printf(" w")
                 self._send_for_output(self._writer.handle, 0)
-            printf("\n")
         
         # Determine the next index to set.
         if (self.offset == -1):
@@ -122,16 +119,13 @@ cdef class Recorder(Client):
         
         self._update_arrays()
         
-        printf("i = ")
         for i in range(self._n_arrays):
             framecount = (<carray_message_info *>libzmq.zmq_msg_data(&self.receiver._messages[i].array.info)).framecount
             index = (<long>framecount - <long>self.offset)
             if index >= 0 and ((self._indexes[i] < (<size_t>index)) or (self._indexes[i] == 0 and index == 0)):
-                printf("%d, ", index)
                 rc = chunk_append(self._chunks[i], self.receiver._messages[i], <size_t>index)
                 self._indexes[i] = index
                 
-        printf("\n")
         return 0
         
     cdef int _send_for_output(self, void * socket, int flags) nogil except -1:
