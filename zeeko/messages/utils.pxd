@@ -1,10 +1,10 @@
 # Inline implementations of important ZMQ problems
 cimport zmq.backend.cython.libzmq as libzmq
-from zmq.error import _check_rc
 
 cdef inline int check_rc(int rc) nogil except -1:
     if rc == -1:
         with gil:
+            from zmq.error import _check_rc
             _check_rc(rc)
     return 0
 
