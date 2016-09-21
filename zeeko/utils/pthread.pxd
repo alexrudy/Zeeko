@@ -2,6 +2,7 @@
 
 from libc.string cimport strerror
 from libc.errno cimport errno
+from .clock cimport timespec
 
 cdef extern from "pthread.h" nogil:
     
@@ -23,8 +24,12 @@ cdef extern from "pthread.h" nogil:
     
     cdef int pthread_cond_init(pthread_cond_t *, const pthread_condattr_t *)
     cdef int pthread_cond_destroy(pthread_cond_t *)
+    
     cdef int pthread_cond_wait(pthread_cond_t *, pthread_mutex_t *)
+    cdef int pthread_cond_timedwait(pthread_cond_t *, pthread_mutex_t *, timespec *)
+    
     cdef int pthread_cond_signal(pthread_cond_t *)
+    cdef int pthread_cond_broadcast(pthread_cond_t *)
     
     ctypedef struct pthread_rwlock_t:
         pass
