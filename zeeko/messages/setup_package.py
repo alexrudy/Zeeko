@@ -15,8 +15,8 @@ pxd = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pxd")
 dependencies = {
     'carray' : [pxd("utils")],
     'message' : [pxd("carray"), pxd("utils"), pxd("..","utils","clock")],
-    'receiver' : [pxd("carray"), pxd("..", "utils", "pthread"), pxd("utils")],
-    'publisher' : [pxd("carray"), pxd("reciever"), pxd("..", "utils", "pthread"), pxd("..","utils","clock")]
+    'receiver' : [pxd("carray"), pxd("..", "utils", "pthread"), pxd("utils"), pxd("..", "utils", "condition")],
+    'publisher' : [pxd("carray"), pxd("receiver"), pxd("..", "utils", "pthread"), pxd("..","utils","clock")]
 }
 
 def get_extensions(**kwargs):
@@ -32,4 +32,7 @@ def get_extensions(**kwargs):
         name = extension.name.split(".")[-1]
         if name in dependencies:
             extension.depends.extend(dependencies[name])
+        print(name)
+        print("-> {}".format(extension.sources))
+        print("=> {}".format(extension.depends))
     return extensions
