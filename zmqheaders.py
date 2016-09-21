@@ -94,7 +94,9 @@ def main():
         os.makedirs(bundledir)
     fetch_libzmq(bundledir, libzmq, libzmq_url)
     
-    includedir = pjoin(HERE, 'zeeko', 'include')
+    includedir = pjoin(HERE, 'zeeko', 'include') + os.path.sep
+    if not os.path.exists(includedir):
+        os.makedirs(includedir)
     for header in glob.iglob(pjoin(bundledir, 'zeromq', 'include', '*.h')):
         shutil.copy(header, includedir)
     info("put zmq headers in %s" % includedir)
