@@ -4,7 +4,7 @@ import numpy as np
 
 from libc.string cimport memcpy, memcmp, memset
 from ..messages.utils cimport check_rc, check_ptr
-from ..messages.receiver cimport zmq_msg_to_str
+from ..messages.message cimport zmq_msg_to_str
 from cpython.string cimport PyString_FromStringAndSize
 from zmq.utils import jsonapi
 cimport zmq.backend.cython.libzmq as libzmq

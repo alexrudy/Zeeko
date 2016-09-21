@@ -24,7 +24,9 @@ publisher = [clock, mutils, pxd("..","messages","publisher")]
 
 
 dependencies = {
-    'recorder' : client + receiver,
+    'recorder' : client + receiver + publisher + [pxd('..',"messages","carray"), pxd("chunk")],
+    'chunk' :  [pxd("..","messages","utils"), pxd("..","messages","carray"),pxd("..","messages","message")],
+    'writer' : [base, state, pxd('chunk')] + receiver
 }
 
 
