@@ -11,10 +11,12 @@ cdef int event_init(event * src) nogil except -1
 cdef int event_destroy(event * src) nogil except -1
 
 cdef class Event:
-    cdef bint _setting
+    cdef bint * _setting
+    cdef bint _own_pthread
     cdef pthread.pthread_mutex_t * mutex
     cdef pthread.pthread_cond_t * cond
     
+    cdef void _destroy(self) nogil
     
     @staticmethod
     cdef Event _from_event(event * evt)

@@ -56,41 +56,54 @@ cdef class Event:
     which should mimic the python event object."""
     
     def __cinit__(self):
-        self._setting = False
-        self._own_pthread = True
+        self._setting = <bint *>malloc(sizeof(bint))
+        self._setting[0] = False
+        self._own_pthread = False
         self.mutex = <pthread.pthread_mutex_t *>malloc(sizeof(pthread.pthread_mutex_t))
         rc = pthread.pthread_mutex_init(self.mutex, NULL)
         pthread.check_rc(rc)
         self.cond = <pthread.pthread_cond_t *>malloc(sizeof(pthread.pthread_cond_t))
         rc = pthread.pthread_cond_init(self.cond, NULL)
         pthread.check_rc(rc)
+        self._own_pthread = True
+        
     
     def __dealloc__(self):
+        self._destroy()
+    
+    cdef void _destroy(self) nogil:
         if self.mutex is not NULL and self._own_pthread:
             pthread.pthread_mutex_destroy(self.mutex)
             free(self.mutex)
         if self.cond is not NULL and self._own_pthread:
             pthread.pthread_cond_destroy(self.cond)
             free(self.cond)
+        if self._setting is not NULL and self._own_pthread:
+            free(self._setting)
+        self._own_pthread = False
     
     cdef event _get_event(self) nogil:
         cdef event evt
+        evt._own_pthread = False
         evt.mutex = self.mutex
         evt.cond = self.cond
-        evt._setting = &self._setting
+        evt._setting = self._setting
         return evt
         
     @staticmethod
     cdef Event _from_event(event * evt):
         cdef Event obj = Event()
-        pthread.pthread_mutex_destroy(obj.mutex)
+        obj._destroy()
         obj.mutex = evt.mutex
-        pthread.pthread_cond_destroy(obj.cond)
         obj.cond = evt.cond
-        obj._setting = evt._setting[0]
-        evt._setting = &obj._setting
-        obj._own_pthread = False
+        obj._setting = evt._setting
         return obj
+        
+    def copy(self):
+        """Copy this event by reference"""
+        cdef event evt
+        evt = self._get_event()
+        return Event._from_event(&evt)
     
     cdef int lock(self) nogil except -1:
         cdef int rc
@@ -113,7 +126,7 @@ cdef class Event:
         cdef int rc
         rc = self.lock()
         try:
-            self._setting = False
+            self._setting[0] = False
         finally:
             rc = self.unlock()
         return rc
@@ -127,7 +140,7 @@ cdef class Event:
         cdef int rc
         rc = self.lock()
         try:
-            self._setting = True
+            self._setting[0] = True
             rc = pthread.pthread_cond_broadcast(self.cond)
             pthread.check_rc(rc)
         finally:
@@ -150,7 +163,7 @@ cdef class Event:
         cdef int rc
         rc = self.lock()
         try:
-            if not self._setting:
+            if not self._setting[0]:
                 rc = pthread.pthread_cond_wait(self.cond, self.mutex)
                 pthread.check_rc(rc)
         finally:
@@ -162,7 +175,7 @@ cdef class Event:
         cdef timespec ts
         rc = self.lock()
         try:
-            if not self._setting:
+            if not self._setting[0]:
                 current_utc_time(&ts)
                 ts.tv_sec += <time_t>floor(seconds)
                 ts.tv_nsec += <long>floor(fmod(seconds,1)*1e9)
@@ -183,7 +196,7 @@ cdef class Event:
         cdef int is_set = 0
         rc = self.lock()
         try:
-            is_set = <int>self._setting
+            is_set = <int>self._setting[0]
         finally:
             rc = self.unlock()
         return is_set

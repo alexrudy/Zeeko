@@ -61,6 +61,7 @@ cdef class Receiver:
         self._failed_init = True
         self._n_messages = 0
         self._n_events = 0
+        self._events = NULL
         self._framecount = 0
         self._name_cache = {}
         self._name_cache_valid = 1
@@ -224,13 +225,13 @@ cdef class Receiver:
                 return j
         else:
             j = self._n_events
-            self._events = <msg_event *>realloc(<void *>self._events, sizeof(msg_event) * (self._n_events + 1))
+            self._events = <msg_event *>realloc(<void *>self._events, sizeof(msg_event) * (j + 1))
             self._events[j].evt.cond = NULL
             self._events[j].evt.mutex = NULL
             self._events[j].evt._setting = NULL
             rc = event_init(&self._events[j].evt)
             self._events[j].hash = hashvalue
-            self._n_events = self._n_events + 1
+            self._n_events = j + 1
         return j
         
     def event(self, name):

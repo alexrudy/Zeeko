@@ -80,9 +80,12 @@ def test_receiver_multiple(push, pull, shape, name, n):
     array_api.send_array_packet(push, framecount, arrays2)
     
     rcv = Receiver()
+    event = rcv.event("{:s}{:d}".format(name, 0))
+    assert not event.is_set()
     assert_canrecv(pull)
     rcv.receive(pull)
     assert len(rcv) == n
+    assert event.is_set()
     for i in range(len(rcv)):
         np.testing.assert_allclose(rcv["{:s}{:d}".format(name, i)].array, arrays[i][1])
     assert_canrecv(pull)
