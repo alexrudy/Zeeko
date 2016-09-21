@@ -24,8 +24,8 @@ def get_zmq_include_path():
         includes = zmq.get_includes()
     except ImportError as e:
         includes = []
-    if os.path.exists(pjoin(HERE, 'includes')):
-        return includes + [ pjoin(HERE, 'includes') ]
+    if os.path.exists(pjoin(HERE, 'include')):
+        return includes + [ pjoin(HERE, 'include') ]
     return includes
 
 def get_zmq_library_path():
@@ -45,7 +45,7 @@ def get_zmq_extension_args():
     cfg['include_dirs'] = get_zmq_include_path()
     cfg['library_dirs'] = get_zmq_library_path()
     cfg['libraries'] = ['zmq']
-    if not sys.platform.startswith(('darwin', 'freebsd')):
+    if not (sys.platform.startswith('darwin') or sys.platform.startswith('freebsd')):
         cfg['libraries'].append("rt")
     
     return cfg
