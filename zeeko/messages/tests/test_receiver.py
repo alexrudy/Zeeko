@@ -9,7 +9,8 @@ import numpy as np
 import time
 import zmq
 
-from ..receiver import ReceivedArray, Receiver
+from ..message import ArrayMessage
+from ..receiver import Receiver
 from .. import array as array_api
 import struct
 from zeeko.conftest import assert_canrecv
@@ -23,14 +24,14 @@ def n():
 def test_receiver_array_init():
     """Can't raw init."""
     with pytest.raises(TypeError):
-        ReceivedArray()
+        ArrayMessage()
     
     
 def test_receiver_array(req, rep, array, name):
     """Test update array items."""
     array_api.send_named_array(req, name, array)
     
-    reply = ReceivedArray.receive(rep)
+    reply = ArrayMessage.receive(rep)
     np.testing.assert_allclose(reply.array, array)
     assert reply.name == name
     

@@ -14,6 +14,7 @@ pxd = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pxd")
 
 dependencies = {
     'carray' : [pxd("utils")],
+    'message' : [pxd("carray"), pxd("utils"), pxd("..","utils","clock")],
     'receiver' : [pxd("carray"), pxd("..", "utils", "pthread"), pxd("utils")],
     'publisher' : [pxd("carray"), pxd("reciever"), pxd("..", "utils", "pthread"), pxd("..","utils","clock")]
 }

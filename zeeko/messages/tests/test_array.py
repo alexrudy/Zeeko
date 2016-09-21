@@ -7,8 +7,7 @@ import zmq
 import struct
 
 from .. import array as array_api
-from ..publisher import PublishedArray
-from ..receiver import ReceivedArray
+from ..message import ArrayMessage
 
 def test_array_message(array):
     """Test generating an array message."""
@@ -37,7 +36,7 @@ def test_named_array_roundtrip(req, rep, array, name):
     
 def test_carray_roundtrip(req, rep, array, name):
     """Test c-array round-trip."""
-    pub = PublishedArray(name, array)
+    pub = ArrayMessage(name, array)
     pub.send(req)
     name, rep_array = array_api.recv_named_array(rep)
     np.testing.assert_allclose(rep_array, array)
@@ -46,7 +45,7 @@ def test_carray_roundtrip(req, rep, array, name):
     
     array_api.send_named_array(rep, name, rep_array)
     
-    rec = ReceivedArray.receive(req)
+    rec = ArrayMessage.receive(req)
     assert rec.name == name
     np.testing.assert_allclose(rec.array, array)
     np.testing.assert_allclose(rec.array, pub.array)

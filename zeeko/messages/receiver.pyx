@@ -3,7 +3,10 @@ cimport numpy as np
 
 np.import_array()
 
-from .carray cimport carray_named, carray_message, receive_named_array, new_named_array, close_named_array, copy_named_array, carray_message_info
+from .message cimport ArrayMessage, zmq_msg_to_str
+from .carray cimport carray_named, carray_message, carray_message_info
+from .carray cimport new_named_array, close_named_array, copy_named_array
+from .carray cimport receive_named_array
 
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport memcpy
@@ -51,125 +54,6 @@ cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int fla
         rc = libzmq.zmq_msg_close(&zmessage)
         check_rc(rc)
     return rc
-    
-cdef str zmq_msg_to_str(libzmq.zmq_msg_t * msg):
-    return PyString_FromStringAndSize(<char *>libzmq.zmq_msg_data(msg), <Py_ssize_t>libzmq.zmq_msg_size(msg))
-
-cdef class ReceivedArray:
-    
-    def __cinit__(self):
-        new_named_array(&self._message)
-    
-    def __init__(self):
-        raise TypeError("Cannot instantiate ReceivedArray from Python")
-        
-    def __dealloc__(self):
-        close_named_array(&self._message)
-    
-    def __getbuffer__(self, Py_buffer* buffer, int flags):
-        # new-style (memoryview) buffer interface
-        buffer.buf = libzmq.zmq_msg_data(&self._message.array.data)
-        buffer.len = libzmq.zmq_msg_size(&self._message.array.data)
-
-        buffer.obj = self
-        buffer.readonly = 1
-        buffer.format = "B"
-        buffer.ndim = 1
-        buffer.shape = &(buffer.len)
-        buffer.strides = NULL
-        buffer.suboffsets = NULL
-        buffer.itemsize = 1
-        buffer.internal = NULL
-        
-    def __releasebuffer__(self, Py_buffer *buffer):
-        pass
-        
-    
-    def __getsegcount__(self, Py_ssize_t *lenp):
-        # required for getreadbuffer
-        if lenp != NULL:
-            lenp[0] = libzmq.zmq_msg_size(&self._message.array.data)
-        return 1
-
-    def __getreadbuffer__(self, Py_ssize_t idx, void **p):
-        # old-style (buffer) interface
-        cdef void *data = NULL
-        cdef Py_ssize_t data_len_c
-        if idx != 0:
-            raise SystemError("accessing non-existent buffer segment")
-        # read-only, because we don't want to allow
-        # editing of the message in-place
-        data_len_c = libzmq.zmq_msg_size(&self._message.array.data)
-        if p != NULL:
-            p[0] = libzmq.zmq_msg_data(&self._message.array.data)
-        return data_len_c
-    
-    property array:
-        def __get__(self):
-            view = np.frombuffer(self, dtype=self.dtype)
-            return view.reshape(self.shape)
-        
-    property name:
-        def __get__(self):
-            return zmq_msg_to_str(&self._message.name)
-    
-    property metadata:
-        def __get__(self):
-            return zmq_msg_to_str(&self._message.array.metadata)
-            
-    def _parse_metadata(self):
-        try:
-            meta = jsonapi.loads(self.metadata)
-        except ValueError as e:
-            raise ValueError("Can't decode JSON in {!r}".format(self.metadata))
-        self._shape = tuple(meta['shape'])
-        self._dtype = np.dtype(meta['dtype'])
-    
-    property shape:
-        def __get__(self):
-            self._parse_metadata()
-            return self._shape
-    
-    property dtype:
-        def __get__(self):
-            self._parse_metadata()
-            return self._dtype
-        
-    property framecount:
-        def __get__(self):
-            cdef carray_message_info * info
-            info = <carray_message_info *>libzmq.zmq_msg_data(&self._message.array.info)
-            return info.framecount
-    
-    property timestamp:
-        def __get__(self):
-            cdef carray_message_info * info
-            info = <carray_message_info *>libzmq.zmq_msg_data(&self._message.array.info)
-            return info.timestamp
-            
-    @staticmethod
-    cdef ReceivedArray from_message(carray_named * message):
-        cdef ReceivedArray obj = ReceivedArray.__new__(ReceivedArray)
-        copy_named_array(&obj._message, message)
-        return obj
-        
-    @classmethod
-    def receive(cls, Socket socket, int flags = 0):
-        cdef carray_named * message
-        cdef void * handle = socket.handle
-        cdef int rc
-        
-        message = <carray_named *>malloc(sizeof(carray_named))
-        
-        if message is NULL:
-            raise MemoryError("Couldn't allocate named array message.")
-        
-        rc = new_named_array(message)
-        rc = receive_named_array(message, handle, flags)
-        obj = ReceivedArray.from_message(message)
-        close_named_array(message)
-        free(message)
-        return obj
 
 cdef class Receiver:
     
@@ -348,7 +232,7 @@ cdef class Receiver:
         self.lock()
         try:
             if i < self._n_messages:
-                return ReceivedArray.from_message(self._messages[i])
+                return ArrayMessage.from_message(self._messages[i])
             else:
                 raise IndexError("Index to messages out of range.")
         finally:

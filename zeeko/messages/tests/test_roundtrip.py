@@ -3,8 +3,8 @@ import pytest
 import numpy as np
 from zmq.backend.cython.utils import Stopwatch
 
-from ..receiver import ReceivedArray, Receiver
-from ..publisher import PublishedArray, Publisher
+from ..receiver import Receiver
+from ..publisher import Publisher
 from zeeko.conftest import assert_canrecv
 
 @pytest.mark.xfail

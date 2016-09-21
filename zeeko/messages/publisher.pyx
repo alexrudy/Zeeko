@@ -18,7 +18,7 @@ from zmq.backend.cython.message cimport Frame
 
 
 from .carray cimport send_named_array, empty_named_array, close_named_array, carray_message_info
-from .receiver cimport zmq_msg_to_str
+from .message cimport ArrayMessage, zmq_msg_to_str
 from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
 from .. import ZEEKO_PROTOCOL_VERSION
@@ -70,10 +70,10 @@ cdef class Publisher:
         self._publishers = collections.OrderedDict()
         self._active_publishers = []
         for publisher in publishers:
-            if isinstance(publisher, PublishedArray):
+            if isinstance(publisher, ArrayMessage):
                 self._publishers[publisher.name] = publisher
             else:
-                raise TypeError("Publisher can only contain PublishedArray instances, got {!r}".format(publisher))
+                raise TypeError("Publisher can only contain ArrayMessage instances, got {!r}".format(publisher))
         self._update_messages()
     
     def __dealloc__(self):
@@ -87,7 +87,7 @@ cdef class Publisher:
         try:
             pub = self._publishers[key]
         except KeyError:
-            self._publishers[key] = PublishedArray(key, np.asarray(value))
+            self._publishers[key] = ArrayMessage(key, np.asarray(value))
             self._update_messages()
         else:
             pub.array = value
@@ -130,7 +130,7 @@ cdef class Publisher:
             if self._messages is NULL:
                 raise MemoryError("Could not allocate messages array for Publisher {!r}".format(self))
             for i, key in enumerate(self._publishers.keys()):
-                self._messages[i] = &(<PublishedArray>self._publishers[key])._message
+                self._messages[i] = &(<ArrayMessage>self._publishers[key])._message
                 rc = libzmq.zmq_msg_copy(&self._messages[i].array.info, &self._infomessage)
                 
             # This array is used to retain references to the publishers
@@ -161,95 +161,3 @@ cdef class Publisher:
         cdef void * handle = socket.handle
         with nogil:
             self._publish(handle, flags)
-
-cdef class PublishedArray:
-    """A single array publisher.
-    
-    You must retain a reference to this publisher for as long as it will be published.
-    """
-    
-    def __cinit__(self, name, data):
-        self._failed_init = True
-        self._data = np.asarray(data, dtype=np.float)
-        self._name = bytearray(name)
-        empty_named_array(&self._message)
-        self._update_message()
-        self._failed_init = False
-        
-    def __dealloc__(self):
-        if not self._failed_init:
-            close_named_array(&self._message)
-        
-    cdef int _update_message(self) except -1:
-        cdef int rc = 0
-        cdef unsigned long framecount = 0
-        cdef double timestamp = current_time()
-        cdef carray_message_info * info
-        cdef libzmq.zmq_msg_t zmessage
-        
-        # First, update array metadata, in case it has changed.
-        A = <object>self._data
-        metadata = jsonapi.dumps(dict(shape=A.shape, dtype=A.dtype.str, version=ZEEKO_PROTOCOL_VERSION))
-        self._metadata = bytearray(metadata)
-        
-        if libzmq.zmq_msg_size(&self._message.array.info) > 0:
-            info = <carray_message_info *>libzmq.zmq_msg_data(&self._message.array.info)
-            framecount = info.framecount
-            timestamp = info.timestamp
-        
-        # Close the old message.
-        rc = close_named_array(&self._message)
-        check_rc(rc)
-        
-        # Then update output structure for NOGIL function.
-        self._data_frame = Frame(data=self._data)
-        rc = libzmq.zmq_msg_init(&self._message.array.data)
-        rc = libzmq.zmq_msg_copy(&self._message.array.data, &self._data_frame.zmq_msg)
-        check_rc(rc)
-        
-        # Set the metadata message.
-        rc = zmq_msg_from_chars(&self._message.array.metadata, self._metadata)
-        check_rc(rc)
-        
-        # Set up the framecounter for synchronization.
-        rc = libzmq.zmq_msg_init_size(&self._message.array.info, sizeof(carray_message_info))
-        check_rc(rc)
-        info = <carray_message_info *>libzmq.zmq_msg_data(&self._message.array.info)
-        info.framecount = 0
-        info.timestamp = current_time()
-        check_rc(rc)
-        
-        rc = zmq_msg_from_chars(&self._message.name, self._name)
-        check_rc(rc)
-        return rc
-        
-    def send(self, Socket socket, int flags = 0):
-        """Send the array."""
-        cdef void * handle = socket.handle
-        with nogil:
-            rc = send_named_array(&self._message, handle, flags)
-        check_rc(rc)
-    
-    property array:
-        def __get__(self):
-            return self._data
-        
-        def __set__(self, value):
-            self._data[:] = np.asarray(value, dtype=np.float)
-    
-    property name:
-        def __get__(self):
-            return bytes(bytearray(self._name))
-            
-    property framecount:
-        def __get__(self):
-            cdef carray_message_info * info
-            info = <carray_message_info *>libzmq.zmq_msg_data(&self._message.array.info)
-            return info.framecount
-
-    property timestamp:
-        def __get__(self):
-            cdef carray_message_info * info
-            info = <carray_message_info *>libzmq.zmq_msg_data(&self._message.array.info)
-            return info.timestamp
-    

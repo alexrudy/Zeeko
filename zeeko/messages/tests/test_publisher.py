@@ -8,7 +8,8 @@ import numpy as np
 import struct
 import zmq
 
-from ..publisher import PublishedArray, Publisher
+from ..message import ArrayMessage
+from ..publisher import Publisher
 from .. import array as array_api
 
 @pytest.fixture
@@ -18,15 +19,15 @@ def n():
 
 def test_publisher_single_init():
     """PublishedArray object __init__"""
-    p = PublishedArray("array", np.ones((10,)))
+    p = ArrayMessage("array", np.ones((10,)))
     
 def test_publisher_single_update():
     """Test update array items."""
-    pub = PublishedArray("array", np.ones((10,)))
+    pub = ArrayMessage("array", np.ones((10,)))
     
     with pytest.raises(ValueError):
-        pub.array = np.ones((20,))
-    pub.array = np.ones((10,))
+        pub.array[:] = np.ones((20,))
+    pub.array[:] = np.ones((10,))
     assert pub.array.shape == (10,)
     
     assert pub.name == "array"
