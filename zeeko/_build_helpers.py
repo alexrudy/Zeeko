@@ -51,6 +51,7 @@ def get_zmq_extension_args():
     cfg['libraries'] = ['zmq']
     if not (sys.platform.startswith('darwin') or sys.platform.startswith('freebsd')):
         cfg['libraries'].append("rt")
+        cfg['libraries'].append("pthread")
     
     return cfg
     
