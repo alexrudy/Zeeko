@@ -15,6 +15,7 @@ extern-reference/
 # Other generated files
 */version.py
 */cython_version.py
+*/include/*.h
 htmlcov
 .coverage
 MANIFEST
@@ -44,11 +45,13 @@ sdist
 develop-eggs
 .installed.cfg
 distribute-*.tar.gz
+bundled
 
 # Other
 .*.swp
 *~
 .eggs/
+
 # Mac OSX
 .DS_Store
 
