@@ -47,6 +47,7 @@ def get_zmq_extension_args():
     cfg = setup_helpers.DistutilsExtensionArgs()
     cfg['include_dirs'] = get_zmq_include_path()
     cfg['library_dirs'] = get_zmq_library_path()
+    cfg['runtime_library_dirs'] = get_zmq_library_path()
     cfg['libraries'] = ['zmq']
     if not (sys.platform.startswith('darwin') or sys.platform.startswith('freebsd')):
         cfg['libraries'].append("rt")
