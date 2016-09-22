@@ -5,8 +5,8 @@ import glob
 import os
 import copy
 
-from distutils.core import Extension
 from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions
+from astropy_helpers import setup_helpers
 
 HERE = os.path.dirname(__file__)
 
