@@ -35,8 +35,11 @@ def get_zmq_library_path():
     except ImportError as e:
         pass
     else:
-        if len(glob.glob(pjoin(os.path.dirname(zmq.__file__), 'libzmq.*'))):
-            return [os.path.dirname(zmq.__file__)]
+        ZMQDIR = os.path.dirname(zmq.__file__)
+        if len(glob.glob(pjoin(ZMQDIR, 'libzmq.*'))):
+            return [ZMQDIR]
+        elif os.path.exists(pjoin(ZMQDIR,".libs")):
+            return [pjoin(ZMQDIR,".libs")+os.path.sep]
     return []
 
 def get_zmq_extension_args():
