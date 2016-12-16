@@ -90,7 +90,7 @@ cdef class Publisher:
             self._publishers[key] = ArrayMessage(key, np.asarray(value))
             self._update_messages()
         else:
-            pub.array = value
+            pub.array[:] = value
         
     def __getitem__(self, key):
         return self._publishers[key]
