@@ -95,8 +95,9 @@ def server(ctx, frequency, interval):
     
 
 @main.command()
+@click.option("--frequency", type=float, help="Publish frequency for server.", default=100)
 @click.pass_context
-def incrementer(ctx):
+def incrementer(ctx, frequency):
     """Make a ramping incrementer server."""
     from zeeko.messages.publisher import Publisher
     import numpy as np
@@ -104,11 +105,11 @@ def incrementer(ctx):
     s = ctx.obj.zcontext.socket(zmq.PUB)
     s.bind(ctx.obj.bind)
     p = Publisher()
-    p['wfs'] = np.random.randn(180,180)
-    p['tweeter'] = np.random.randn(32, 32)
-    p['woofer'] = np.random.randn(52)
+    p['wfs'] = np.zeros((180,180))
+    p['tweeter'] = np.zeros((32, 32))
+    p['woofer'] = np.zeros((52,))
     
-    click.echo("Publishing {:d} array(s) to '{:s}'".format(len(p), ctx.obj.bind))
+    click.echo("Publishing {:d} array(s) to '{:s}' at {:.0f}Hz".format(len(p), ctx.obj.bind, frequency))
     click.echo("^C to stop.")
     count = 0
     try:
@@ -118,7 +119,7 @@ def incrementer(ctx):
             p['woofer'] = count
             count += 1
             p.publish(s)
-            time.sleep(0.1)
+            time.sleep(1.0 / frequency)
     finally:
         s.close(linger=0)
 
