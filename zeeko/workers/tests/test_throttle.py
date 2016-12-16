@@ -76,7 +76,7 @@ def test_throttle(context, address, outbound_address, server, sub):
         sub.connect(outbound_address)
         sub.subscribe("")
         t.start()
-        time.sleep(0.3)
+        time.sleep((1.0/t.frequency) + 0.1)
         assert_canrecv(sub)
         sub.recv_multipart()
     finally:
