@@ -2,6 +2,7 @@
 cimport numpy as np
 from libc.string cimport memcpy
 cimport zmq.backend.cython.libzmq as libzmq
+from zmq.backend.cython.message cimport Frame
 
 from ..messages.carray cimport carray_named
 
@@ -28,6 +29,8 @@ cdef class Chunk:
     cdef array_chunk _chunk
     cdef tuple _shape
     cdef object _dtype
+    cdef Frame _data_frame
+    cdef Frame _mask_frame
     
     cdef int extend(self, d) except -1
     cdef int write(self, g) except -1

@@ -3,13 +3,15 @@ cimport numpy as np
 import numpy as np
 
 from libc.string cimport memcpy, memcmp, memset
+from zmq.backend.cython.socket cimport Socket
 from ..messages.utils cimport check_rc, check_ptr
-from ..messages.message cimport zmq_msg_to_str
+from ..messages.message cimport zmq_msg_to_str, zmq_msg_from_str, ArrayMessage
 from cpython.string cimport PyString_FromStringAndSize
 from zmq.utils import jsonapi
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.utils.buffers cimport viewfromobject_r
 from zmq.backend.cython.message cimport Frame
+from .. import ZEEKO_PROTOCOL_VERSION
 
 cdef int chunk_init(array_chunk * chunk) nogil except -1:
     """
@@ -202,11 +204,42 @@ cdef class Chunk:
     def __cinit__(self):
         chunk_init(&self._chunk)
     
-    def __init__(self):
-        raise TypeError("Cannot instantiate Chunk from Python")
+    def __init__(self, str name, data, mask):
+        cdef int stride = np.prod(data.shape[:-1])
+        cdef int chunksize = data.shape[-1]
+        cdef int rc = 0
+        
+        #Re-initialize and replace the chunk array object.
+        self._chunk.stride = stride
+        self._data_frame = Frame(data=np.asanyarray(data))
+        rc = libzmq.zmq_msg_copy(&self._chunk.data, &self._data_frame.zmq_msg)
+        check_rc(rc)
+        
+        self._mask_frame = Frame(data=np.asanyarray(mask))
+        rc = libzmq.zmq_msg_copy(&self._chunk.mask, &self._mask_frame.zmq_msg)
+        check_rc(rc)
+        
+        self._construct_metadata(np.asarray(data))
+        
+        
+    def _construct_metadata(self, np.ndarray data):
+        """Construct the metadata message."""
+        cdef int rc
+        cdef char[:] metadata
+        cdef void * msg_data
+        A = <object>data
+        metadata = bytearray(jsonapi.dumps(dict(shape=A.shape[1:], dtype=A.dtype.str, version=ZEEKO_PROTOCOL_VERSION)))
+        
+        rc = libzmq.zmq_msg_close(&self._chunk.metadata)
+        check_rc(rc)
+        
+        rc = zmq_msg_from_str(&self._chunk.metadata, metadata)
+        check_rc(rc)
+        self._parse_metadata()
         
     def __dealloc__(self):
         chunk_close(&self._chunk)
+    
     
     @staticmethod
     cdef Chunk from_chunk(array_chunk * chunk):
@@ -246,6 +279,11 @@ cdef class Chunk:
             raise ValueError("Can't decode JSON in {!r}".format(self.metadata))
         self._shape = tuple(meta['shape'])
         self._dtype = np.dtype(meta['dtype'])
+    
+    property md:
+        def __get__(self):
+            return dict(shape=self.shape, dtype=self.dtype.str, version=ZEEKO_PROTOCOL_VERSION)
+            
 
     property shape:
         def __get__(self):
@@ -260,6 +298,16 @@ cdef class Chunk:
     property stride:
         def __get__(self):
             return np.prod(self.shape)
+            
+    property lastindex:
+        def __get__(self):
+            return np.argmax(self.mask) + 1
+        
+    def send(self, Socket socket, int flags=0):
+        cdef void * handle = socket.handle
+        with nogil:
+            rc = chunk_send(&self._chunk, handle, flags)
+        check_rc(rc)
         
     cdef int extend(self, g) except -1:
         """Extend an existing H5PY dataset with the new chunk.
