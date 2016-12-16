@@ -1,0 +1,17 @@
+session_name: Zeeko
+start_directory: ./ # load session relative to config location (project root).
+windows:
+- window_name: src
+  focus: True
+  shell_command_before:
+    - workon -n Zeeko
+  panes:
+    - pane
+- window_name: testing
+  layout: even-horizontal
+  shell_command_before:
+    - workon -n Zeeko
+  panes:
+    - pane
+    - pane
+    - pane
