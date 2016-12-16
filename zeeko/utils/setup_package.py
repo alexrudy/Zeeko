@@ -15,7 +15,8 @@ pxd = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pxd")
 h = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".h")
 
 dependencies = {
-    'condition' : [pxd("condition"), pxd("pthread"), pxd("clock"), h("mclock")]
+    'condition' : [pxd("condition"), pxd("pthread"), pxd("clock"), h("mclock")],
+    'stopwatch' : [pxd("clock"), h("mclock")]
 }
 
 def get_extensions(**kwargs):

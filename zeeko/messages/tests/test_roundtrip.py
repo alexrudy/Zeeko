@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 import numpy as np
-from zmq.backend.cython.utils import Stopwatch
 
+from ...utils.stopwatch import Stopwatch
 from ..receiver import Receiver
 from ..publisher import Publisher
 from zeeko.conftest import assert_canrecv
