@@ -32,7 +32,4 @@ def get_extensions(**kwargs):
         name = extension.name.split(".")[-1]
         if name in dependencies:
             extension.depends.extend(dependencies[name])
-        print(name)
-        print("-> {}".format(extension.sources))
-        print("=> {}".format(extension.depends))
     return extensions

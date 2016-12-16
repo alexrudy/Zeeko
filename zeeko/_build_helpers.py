@@ -24,8 +24,8 @@ def get_zmq_include_path():
         includes = zmq.get_includes()
     except ImportError as e:
         includes = []
-    if os.path.exists(pjoin(HERE, 'include')):
-        return includes + [ pjoin(HERE, 'include') ]
+        if os.path.exists(pjoin(HERE, 'include')):
+            includes += [ pjoin(HERE, 'include') ]
     return includes
 
 def get_zmq_library_path():
