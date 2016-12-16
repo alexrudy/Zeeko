@@ -122,7 +122,7 @@ def recv_array(socket, flags=0, copy=True, track=False):
     msg = socket.recv(flags=flags, copy=copy, track=track)
     try:
         buf = buffer(msg)
-    except NameError:
+    except NameError: #pragma: py3
         buf = memoryview(msg)
     A = np.frombuffer(buf, dtype=md['dtype'])
     return A.reshape(md['shape'])

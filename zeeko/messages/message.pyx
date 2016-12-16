@@ -17,7 +17,7 @@ from .carray cimport copy_named_array, send_named_array, receive_named_array
 from .carray cimport carray_named, carray_message_info
 
 # Utilities
-from .utils cimport check_rc
+from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
 from .. import ZEEKO_PROTOCOL_VERSION
 
@@ -230,10 +230,11 @@ cdef class ArrayMessage:
     
     cdef int tick(self) nogil except -1:
         """Tick the framecount up one, and set the send time."""
-        cdef int rc
+        cdef int rc = 0
         cdef carray_message_info * info
     
         info = <carray_message_info *>libzmq.zmq_msg_data(&self._message.array.info)
+        check_ptr(info)
         info.framecount = info.framecount + 1
         info.timestamp = current_time()
         return rc
