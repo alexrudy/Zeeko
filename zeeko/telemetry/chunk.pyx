@@ -116,13 +116,13 @@ cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index) n
             raise IndexError("Trying to append beyond end of chunk. {:d} > {:d}".format(index, chunk.chunksize))
     if size > chunk.stride:
         with gil:
-            raise IndexError("Trying to append outside of stride. {:d} > {:d}".format(size, chunk.stride))
+            raise IndexError("Trying to append an array larger than the stride. {:d} > {:d}".format(size, chunk.stride))
     
     
     data = libzmq.zmq_msg_data(&chunk.data)
     memcpy(&data[index * chunk.stride], libzmq.zmq_msg_data(&array.array.data), size)
     mask = <DINT_t *>libzmq.zmq_msg_data(&chunk.mask)
-    mask[index] = <DINT_t>index
+    mask[index] = <DINT_t>(index + 1)
     return 0
     
 cdef int chunk_close(array_chunk * chunk) nogil except -1:
@@ -204,13 +204,14 @@ cdef class Chunk:
     def __cinit__(self):
         chunk_init(&self._chunk)
     
-    def __init__(self, str name, data, mask):
-        cdef int stride = np.prod(data.shape[:-1])
-        cdef int chunksize = data.shape[-1]
+    def __init__(self, str name, np.ndarray data, mask):
+        cdef int stride = np.prod((<object>data).shape[1:])
+        cdef int chunksize = data.shape[0]
         cdef int rc = 0
         
-        #Re-initialize and replace the chunk array object.
-        self._chunk.stride = stride
+        #Initialize the chunk structure.
+        self._chunk.chunksize = chunksize
+        self._chunk.stride = data.dtype.itemsize * stride
         self._data_frame = Frame(data=np.asanyarray(data))
         rc = libzmq.zmq_msg_copy(&self._chunk.data, &self._data_frame.zmq_msg)
         check_rc(rc)
@@ -301,13 +302,20 @@ cdef class Chunk:
             
     property lastindex:
         def __get__(self):
-            return np.argmax(self.mask) + 1
+            return np.argmax(self.mask)
         
     def send(self, Socket socket, int flags=0):
         cdef void * handle = socket.handle
         with nogil:
             rc = chunk_send(&self._chunk, handle, flags)
         check_rc(rc)
+    
+    def append(self, array):
+        """Append a numpy array to the chunk."""
+        cdef size_t index = self.lastindex + 1
+        msg = ArrayMessage(self.name, array)
+        with nogil:
+            chunk_append(&self._chunk, &msg._message, index)
         
     cdef int extend(self, g) except -1:
         """Extend an existing H5PY dataset with the new chunk.

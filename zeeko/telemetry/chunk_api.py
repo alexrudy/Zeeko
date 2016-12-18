@@ -21,6 +21,11 @@ class PyChunk(object):
         self.mask = mask
         self.name = str(name)
         
+    def __repr__(self):
+        return "<{0:s} ({1:s})x({2:d}) at {3:d}>".format(
+            self.__class__.__name__, "x".join(["{0:d}".format(s) for s in self.shape]),
+            self.chunksize, self.lastindex)
+        
     @property
     def chunksize(self):
         """Size of this chunk."""
@@ -39,7 +44,7 @@ class PyChunk(object):
     @property
     def lastindex(self):
         """The last filled-in index."""
-        return np.argmax(self.mask) + 1
+        return np.argmax(self.mask)
         
     @property
     def md(self):
@@ -58,9 +63,9 @@ class PyChunk(object):
     
     def append(self, data):
         """Append data to the chunk"""
-        index = np.argmax(self.mask) + 1
-        self.mask[index] = index
-        self.array[...,index] = data
+        index = self.lastindex + 1
+        self.mask[index] = index + 1
+        self.array[index,...] = data
     
     def send(self, socket, flags=0):
         """Send this chunk over a ZMQ socket."""

@@ -27,5 +27,5 @@ def chunk_array(shape, dtype, chunksize, lastindex):
 def chunk_mask(chunksize, lastindex):
     """docstring for mask"""
     mask = np.zeros((chunksize,), dtype=np.int32)
-    mask[:lastindex] = np.arange(lastindex) + 1.0
+    mask[:lastindex] = np.arange(lastindex) + 1
     return mask

@@ -24,7 +24,7 @@ def assert_chunk_allclose(chunka, chunkb):
     np.testing.assert_allclose(chunka.mask, chunkb.mask)
     assert chunka.metadata == chunkb.metadata
     assert chunka.chunksize == chunkb.chunksize
-    
+    assert chunka.lastindex == chunkb.lastindex
 
 def test_chunk_message(chunk_cls, name, chunk_array, chunk_mask, lastindex):
     """Test generating an array message."""
@@ -32,7 +32,11 @@ def test_chunk_message(chunk_cls, name, chunk_array, chunk_mask, lastindex):
     meta = chunk.md
     assert tuple(meta['shape']) == chunk_array.shape[1:]
     assert meta['dtype'] == chunk_array.dtype.str
-    assert lastindex == chunk.lastindex
+    assert (lastindex - 1) == chunk.lastindex
+    assert np.max(chunk.mask) == lastindex
+    assert np.argmax(chunk.mask) == chunk.lastindex
+    assert np.may_share_memory(chunk.array, chunk_array)
+    assert np.may_share_memory(chunk.mask, chunk_mask)
     
 def test_chunk_roundtrip(req, rep, chunk):
     """Test that an array can go round-trip."""
@@ -42,3 +46,13 @@ def test_chunk_roundtrip(req, rep, chunk):
     rep_chunk.send(rep)
     req_chunk = chunk_api.PyChunk.recv(req)
     assert_chunk_allclose(chunk, req_chunk)
+    
+def test_chunk_append(chunk, lastindex, array):
+    """Append to a chunk."""
+    assert (lastindex - 1) == chunk.lastindex
+    chunk.append(array)
+    assert lastindex == chunk.lastindex
+    assert np.max(chunk.mask) == lastindex + 1
+    assert np.argmax(chunk.mask) == chunk.lastindex
+    np.testing.assert_allclose(chunk.array[chunk.lastindex], array)
+    
