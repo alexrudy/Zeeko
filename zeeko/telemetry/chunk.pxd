@@ -29,10 +29,10 @@ cdef class Chunk:
     cdef array_chunk _chunk
     cdef tuple _shape
     cdef object _dtype
+    cdef str _name
     cdef Frame _data_frame
     cdef Frame _mask_frame
     
-    cdef int extend(self, d) except -1
     cdef int write(self, g) except -1
     
     @staticmethod

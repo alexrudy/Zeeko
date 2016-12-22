@@ -97,6 +97,11 @@ def try_term(context):
 
 class Socket(zmq.Socket):
     
+    def can_recv(self):
+        """Return self, but check that we can recv."""
+        assert_canrecv(self)
+        return self
+    
     def recv(self, *args, **kwargs):
         """Do everything for receive, but possibly timeout."""
         assert_canrecv(self, kwargs.pop('timeout', 5000))

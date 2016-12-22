@@ -73,6 +73,10 @@ class PyChunk(object):
         socket.send_json(self.md, flags=flags|zmq.SNDMORE)
         socket.send(self.array, flags=flags|zmq.SNDMORE)
         socket.send(self.mask, flags=flags)
+        
+    def write(self, g):
+        """Write to a group"""
+        io.write(self, g)
     
     @classmethod
     def recv(cls, socket, flags=0):

@@ -12,6 +12,7 @@ cimport zmq.backend.cython.libzmq as libzmq
 from zmq.utils.buffers cimport viewfromobject_r
 from zmq.backend.cython.message cimport Frame
 from .. import ZEEKO_PROTOCOL_VERSION
+from . import io
 
 cdef int chunk_init(array_chunk * chunk) nogil except -1:
     """
@@ -209,6 +210,10 @@ cdef class Chunk:
         cdef int chunksize = data.shape[0]
         cdef int rc = 0
         
+        #Initialize name
+        self._name = str(name)
+        self._construct_name()
+        
         #Initialize the chunk structure.
         self._chunk.chunksize = chunksize
         self._chunk.stride = data.dtype.itemsize * stride
@@ -222,6 +227,15 @@ cdef class Chunk:
         
         self._construct_metadata(np.asarray(data))
         
+    def _construct_name(self):
+        cdef int rc
+        cdef char[:] name = bytearray(self._name)
+    
+        rc = libzmq.zmq_msg_close(&self._chunk.name)
+        check_rc(rc)
+    
+        rc = zmq_msg_from_str(&self._chunk.name, name)
+        check_rc(rc)
         
     def _construct_metadata(self, np.ndarray data):
         """Construct the metadata message."""
@@ -316,44 +330,6 @@ cdef class Chunk:
         msg = ArrayMessage(self.name, array)
         with nogil:
             chunk_append(&self._chunk, &msg._message, index)
-        
-    cdef int extend(self, g) except -1:
-        """Extend an existing H5PY dataset with the new chunk.
-    
-        :param d: h5py Dataset object to extend.
-        :param int chunk: The chunk number to write.
-        :param int index: The ending index in the chunk to write.
-    
-        """
-    
-        cdef:
-            int dstart = 0
-            int dstop = 0
-            int cstart = 0
-            int cstop = 0
-            int ndim = 0
-        
-        d = g['data']
-        m = g['mask']
-        
-        cstop = np.argmax(self.mask) + 1
-        
-        if self.stride != 0:
-            
-            
-            dstart = d.shape[0]
-            dstop = dstart + cstop
-            d.resize(dstart+self.chunksize, axis=0)
-            d[dstart:dstop] = self.array[0:cstop,...]
-            d[dstop:dstart+self.chunksize] = 0.0
-            m.resize(dstart+self.chunksize, axis=0)
-            m[dstart:dstop] = 1.0
-            m[dstop:] = 0.0
-        
-        else:
-            dstart = g.attrs['index']
-        g.attrs['index'] = dstart + self.chunksize
-        return 0
     
     cdef int write(self, g) except -1:
         """
@@ -361,32 +337,7 @@ cdef class Chunk:
     
         Note that empty datasets will be created as a group.
         """
-        cdef int cstop = np.argmax(self.mask) + 1
-        if self.name in g:
-            d = g[self.name]
-            self.extend(d)
-        elif self.stride != 0:
-            g_sub = g.create_group(self.name)
-            d = g_sub.create_dataset("data", 
-                shape=(self.chunksize,) + self.shape, 
-                maxshape=(None,) + self.shape, 
-                chunks=(self.chunksize,) + self.shape, 
-                dtype=self.dtype,
-                fillvalue=0.0)
-            m = g_sub.create_dataset("mask",
-                shape=(self.chunksize,),
-                maxshape=(None,),
-                chunks=(self.chunksize,),
-                dtype=np.int32,
-                fillvalue=0)
-            d[0:cstop,...] = self.array[0:cstop,...]
-            m[0:cstop] = 1.0
-            m[cstop:] = 0.0
-            g_sub.attrs['index'] = self.chunksize
-        else:
-            d = g.create_group(self.name)
-            d.attrs['index'] = self.chunksize
-        return 0
+        io.write(self, g)
     
 
     
