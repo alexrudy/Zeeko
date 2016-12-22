@@ -32,10 +32,13 @@ cdef class Recorder(Client):
         self.offset = -1
         self._n_arrays = 0
         self._chunkcount = 0
+        if not int(chunksize) >= 0:
+            raise ValueError("Chunksize must be non-negative.")
         self.chunksize = chunksize
         ctx = ctx or zmq.Context.instance()
+        if not isinstance(ctx, zmq.Context):
+            raise ValueError("Recorder requires a zmq.Context-like object")
         self.writer_address = writer_address
-        self._writer = ctx.socket(zmq.PUSH)
         super(Recorder, self).__init__(ctx, address)
     
     def __dealloc__(self):
@@ -157,6 +160,10 @@ cdef class Recorder(Client):
         self._release_arrays()
         self.offset = -1
         return 0
+        
+    def _py_pre_run(self):
+        self._writer = self.context.socket(zmq.PUSH)
+        super(Recorder, self)._py_pre_run()
         
     def _py_pre_work(self):
         super(Recorder, self)._py_pre_work()
