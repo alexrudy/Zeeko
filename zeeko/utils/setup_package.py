@@ -16,6 +16,7 @@ h = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".h")
 
 dependencies = {
     'condition' : [pxd("condition"), pxd("pthread"), pxd("clock"), h("mclock")],
+    'lock'      : [pxd("lock"), pxd("pthread"), pxd("clock"), h("mclock")],
     'stopwatch' : [pxd("clock"), h("mclock")]
 }
 
