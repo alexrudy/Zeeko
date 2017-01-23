@@ -7,11 +7,10 @@ from ..loop import IOLoop
 from zeeko.conftest import assert_canrecv
 
 @pytest.fixture
-def loop(address, context):
-    l = IOLoop(context, address)
+def loop(context):
+    l = IOLoop(context)
     yield l
-    if l.is_alive():
-        l.stop()
+    l.cancel()
 
 def test_loop_attrs(loop, address, context):
     """Test loop attributes."""

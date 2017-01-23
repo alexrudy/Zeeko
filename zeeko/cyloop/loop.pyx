@@ -17,20 +17,29 @@ import warnings
 import struct as s
 
 STATE = {
-    'RUN': 1,
-    'PAUSE': 2,
-    'STOP': 3,
-    'INIT': 4,
+    b'RUN': 1,
+    b'PAUSE': 2,
+    b'STOP': 3,
+    b'INIT': 4,
 }
 
 cdef class SocketInfo:
     """Information about a socket and it's callbacks."""
     
     def __cinit__(self, Socket socket, int events):
+        self.socket = socket # Retain reference.
         self.info.handle = socket.handle
         self.info.events = events
-        self.info.callback = NULL
-        self.info.data = NULL
+        
+    def check(self):
+        """Check this socketinfo"""
+        assert self.info.handle is not NULL, "Socket handle is null."
+        assert self.info.events, "Events must be some integer flag."
+        assert self.info.callback is not NULL, "Callback must be set."
+        
+    def _close(self):
+        """Close this socketinfo."""
+        self.socket.close(linger=0)
     
 
 class _RunningLoopContext(object):
@@ -48,13 +57,12 @@ class _RunningLoopContext(object):
 cdef class IOLoop:
     """An I/O loop, using ZMQ's poller internally."""
     
-    def __cinit__(self):
+    def __cinit__(self, ctx):
         self._socketinfos = NULL
         self._pollitems = <libzmq.zmq_pollitem_t *>calloc(1, sizeof(libzmq.zmq_pollitem_t *))
         self._n_pollitems = 1
     
-    def __init__(self, ctx, address):
-        
+    def __init__(self, ctx):
         self._state = INIT
         self.timeout = 10
         
@@ -78,13 +86,18 @@ cdef class IOLoop:
         
     def _add_socketinfo(self, SocketInfo sinfo):
         """Add a socket info object to the underlying structures."""
+        sinfo.check()
         self._sockets.append(sinfo)
         with self._lock:
+            
             self._socketinfos = <socketinfo **>realloc(self._socketinfos, sizeof(socketinfo *) * len(self._sockets))
             self._socketinfos[len(self._sockets) - 1] = &sinfo.info
+            
             self._pollitems = <libzmq.zmq_pollitem_t *>realloc(self._pollitems, (len(self._sockets) + 1) * sizeof(libzmq.zmq_pollitem_t *))
-            self._pollitems[len(self._sockets)].socket = sinfo.info.handle
-            self._pollitems[len(self._sockets)].events = sinfo.info.events
+            self.pollitems = &self._pollitems[1]
+            
+            self.pollitems[len(self._sockets) - 1].socket = sinfo.info.handle
+            self.pollitems[len(self._sockets) - 1].events = sinfo.info.events
             self._n_pollitems = len(self._sockets) + 1
     
     def _close(self):
@@ -100,6 +113,8 @@ cdef class IOLoop:
                 pass
             else:
                 self.log.warning("Exception in Worker disconnect: {!r}".format(e))
+        for si in self._sockets:
+            si._close()
         try:
             self._internal.close(linger=0)
             self._notify.close(linger=0)
@@ -122,13 +137,22 @@ cdef class IOLoop:
             self._ready.wait(timeout=1.0)
     
     def start(self):
-        self._signal_state("RUN")
+        self._signal_state(b"RUN")
     
     def pause(self):
-        self._signal_state("PAUSE")
+        self._signal_state(b"PAUSE")
 
     def stop(self, timeout=None, join=True):
-        self._signal_state("STOP")
+        self._signal_state(b"STOP")
+        if self.thread.is_alive() and join:
+            self.thread.join(timeout=timeout)
+    
+    def cancel(self, timeout=None, join=True):
+        """Cancels the loop operations."""
+        try:
+            self._signal_state(b"STOP")
+        except ValueError:
+            pass
         if self.thread.is_alive() and join:
             self.thread.join(timeout=timeout)
     
@@ -150,16 +174,13 @@ cdef class IOLoop:
         try:
             while True:
                 self._notify.send("notify:{:s}".format(self.state), zmq.NOBLOCK)
-                if self._state == RUN:
-                    with nogil:
+                with nogil:
+                    if self._state == RUN:
                         self._run()
-        
-                elif self._state == PAUSE:
-                    with nogil:
+                    elif self._state == PAUSE:
                         self._pause()
-        
-                elif self._state == STOP:
-                    break
+                    elif self._state == STOP:
+                        break
         finally:
             self._notify.send("notify:{:s}".format(self.state), zmq.NOBLOCK)
             self._close()
@@ -167,12 +188,16 @@ cdef class IOLoop:
     cdef int _pause(self) nogil except -1:
         cdef int sentinel
         while True:
-            rc = libzmq.zmq_poll(self._pollitems, 1, self.timeout)
-            check_rc(rc)
-            if (self._pollitems[0].revents & libzmq.ZMQ_POLLIN):
-                rc = zmq_recv_sentinel(self._pollitems[0].socket, &sentinel, 0)
-                self._state = sentinel
-                return 0
+            self._lock._acquire()
+            try:
+                rc = libzmq.zmq_poll(self._pollitems, 1, self.timeout)
+                check_rc(rc)
+                if (self._pollitems[0].revents & libzmq.ZMQ_POLLIN):
+                    rc = zmq_recv_sentinel(self._pollitems[0].socket, &sentinel, 0)
+                    self._state = sentinel
+                    return 0
+            finally:
+                self._lock._release()
         
     
     cdef int _wait(self, double waittime) nogil except -1:
@@ -199,22 +224,31 @@ cdef class IOLoop:
 
     cdef int _run(self) nogil except -1:
         cdef int sentinel
+        cdef socketinfo * s
+        cdef libzmq.zmq_pollitem_t * p
         cdef size_t i
         
         while True:
-            rc = libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.timeout)
-            check_rc(rc)
+            self._lock._acquire()
+            try:
+                rc = libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.timeout)
+                check_rc(rc)
+            finally:
+                self._lock._release()
             if (self._pollitems[0].revents & libzmq.ZMQ_POLLIN):
                 rc = zmq_recv_sentinel(self._pollitems[0].socket, &sentinel, 0)
                 self._state = sentinel
                 return 0
-            for i in range(self._n_pollitems):
-                if (self._pollitems[i + 1].revents & libzmq.ZMQ_POLLIN):
-                    if self._socketinfos[i].callback is not NULL:
-                        self._socketinfos[i].callback(self._pollitems[i + 1].socket,
-                                                      self._pollitems[i + 1].revents,
-                                                      self._socketinfos[i].data)
-            
+            self._lock._acquire()
+            try:
+                for i in range(self._n_pollitems - 1):
+                    if (self.pollitems[i].revents != 0 and self._socketinfos[i] is not NULL):
+                        p = &self.pollitems[i]
+                        s = self._socketinfos[i]
+                        if s.callback is not NULL:
+                            s.callback(p.socket, p.revents, s.data)
+            finally:
+                self._lock._release()
         
     
     property state:
@@ -238,5 +272,5 @@ cdef class IOLoop:
         """Wait on the underlying thread, listening for a state change."""
         socket = self.context.socket(zmq.SUB)
         socket.connect(self._internal_address_notify)
-        socket.subscribe("notify")
+        socket.subscribe(b"notify")
         return socket

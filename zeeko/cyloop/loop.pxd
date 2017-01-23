@@ -12,6 +12,7 @@ ctypedef struct socketinfo:
     short events
     cyloop_callback callback
     void * data
+    double scheduled
     
 cdef class SocketInfo:
     
@@ -31,7 +32,9 @@ cdef class IOLoop:
     cdef list _sockets
     
     cdef socketinfo ** _socketinfos
+    
     cdef libzmq.zmq_pollitem_t * _pollitems
+    cdef libzmq.zmq_pollitem_t * pollitems
     cdef int _n_pollitems
     
     cdef public long timeout
