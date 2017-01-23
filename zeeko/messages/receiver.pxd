@@ -24,7 +24,7 @@ ctypedef struct msg_event:
 cdef class Receiver:
     cdef int _n_messages
     cdef unsigned int _framecount
-    cdef double last_message
+    cdef readonly double last_message
     cdef int _n_events
     cdef msg_event * _events
     cdef carray_named ** _messages
