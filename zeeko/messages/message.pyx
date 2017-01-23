@@ -3,7 +3,7 @@ from libc.stdlib cimport free, malloc
 from libc.string cimport memcpy
 
 # External cimports
-from cpython.string cimport PyString_FromStringAndSize
+from cpython.bytes cimport PyBytes_FromStringAndSize
 cimport numpy as np
 import numpy as np
 
@@ -34,7 +34,7 @@ cdef int zmq_msg_from_str(libzmq.zmq_msg_t * zmsg, char[:] src):
 
 cdef str zmq_msg_to_str(libzmq.zmq_msg_t * msg):
     """Construct a string from a ZMQ message."""
-    return PyString_FromStringAndSize(<char *>libzmq.zmq_msg_data(msg), <Py_ssize_t>libzmq.zmq_msg_size(msg))
+    return str(PyBytes_FromStringAndSize(<char *>libzmq.zmq_msg_data(msg), <Py_ssize_t>libzmq.zmq_msg_size(msg)))
 
 cdef class ArrayMessage:
     """A single array which is sent or received over a streaming socket.
