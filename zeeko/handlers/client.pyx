@@ -8,11 +8,11 @@ import zmq
 from ..cyloop.loop cimport SocketInfo, socketinfo
 from ..messages.receiver cimport Receiver
 
-cdef int client_callback(void * handle, short events, void * data) nogil:
-    cdef int rc, flags = 0
-    rc = (<Receiver>data)._receive(handle, flags, NULL)
-    with gil:
-        print("Got it!")
+cdef int client_callback(void * handle, short events, void * data, void * interrupt_handle) nogil:
+    cdef int rc = 0
+    cdef int flags = 0
+    if (events & libzmq.ZMQ_POLLIN):
+        rc = (<Receiver>data)._receive(handle, flags, NULL)
     return rc
 
 cdef class Client(SocketInfo):

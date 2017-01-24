@@ -62,6 +62,6 @@ def test_client_run(ioloop, client, Publisher, push):
         time.sleep(0.1)
     finally:
         ioloop.stop()
-    # assert c.counter == 3 * len(Publisher)
+    assert client.receiver.framecount != 0
     print(client.receiver.last_message)
     assert len(client.receiver) == 3

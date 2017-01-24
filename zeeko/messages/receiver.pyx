@@ -290,6 +290,10 @@ cdef class Receiver:
     def __repr__(self):
         return "<Receiver frame={:d} keys=[{:s}]>".format(self._framecount, ",".join(self.keys()))
     
+    property framecount:
+        def __get__(self):
+            return int(self._framecount)
+    
     def __getitem__(self, key):
         """Get a single message"""
         if isinstance(key, int):
