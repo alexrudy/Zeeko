@@ -35,3 +35,14 @@ cdef class Client(SocketInfo):
     def subscribe(self, str key):
         """Subscribe to a channel"""
         self.subscriptions.append(key)
+    
+    def _start(self):
+        """Start the socket with subscriptions"""
+        if self.socket.type == zmq.SUB:
+            if len(self.subscriptions):
+                for s in self.subscriptions:
+                    if not isinstance(s, bytes):
+                        s = s.encode("utf-8")
+                    self.socket.subscribe(s)
+            else:
+                self.socket.subscribe("")

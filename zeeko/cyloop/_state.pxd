@@ -8,6 +8,7 @@ cdef enum zeeko_state:
     PAUSE=2
     STOP=3
     INIT=4
+    START=5
     
 cdef inline int zmq_recv_sentinel(void * socket, int * dest, int flags) nogil except -1:
     return zmq_recv_sized_message(socket, dest, sizeof(int), flags)

@@ -4,6 +4,7 @@ STATE = {
     b'PAUSE': 2,
     b'STOP': 3,
     b'INIT': 4,
+    b'START': 5,
 }
 
 class StateError(Exception):

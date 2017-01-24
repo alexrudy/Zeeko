@@ -31,8 +31,9 @@ cdef class SocketInfo:
         assert self.info.events, "Events must be some integer flag."
         assert self.info.callback is not NULL, "Callback must be set."
         
-    def _at_loopstart(self):
+    def _start(self):
         """Python function run as the loop starts."""
+        pass
         
     def _close(self):
         """Close this socketinfo."""
@@ -174,12 +175,17 @@ cdef class IOLoop:
         self._internal = self.context.socket(zmq.PULL)
         self._internal.bind(self._internal_address_interrupt)
         
+        self._pollitems[0].socket = self._internal.handle
+        self._pollitems[0].events = libzmq.ZMQ_POLLIN
+        
         self._interrupt = self.context.socket(zmq.PUSH)
         self._interrupt.connect(self._internal_address_interrupt)
         self._interrupt_handle = <void *>self._interrupt.handle
         
-        self._pollitems[0].socket = self._internal.handle
-        self._pollitems[0].events = libzmq.ZMQ_POLLIN
+        self._state = START
+        
+        for sinfo in self._sockets:
+            sinfo._start()
         
         self._notify = self.context.socket(zmq.PUB)
         self._notify.bind(self._internal_address_notify)

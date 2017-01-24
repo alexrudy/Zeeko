@@ -51,7 +51,7 @@ def test_client_add_to_loop(ioloop, client):
         ioloop.stop()
     
 def test_client_run(ioloop, client, Publisher, push):
-    """Test a client."""    
+    """Test a client in the IOLoop."""    
     ioloop._add_socketinfo(client)
     ioloop.start()
     try:
@@ -59,6 +59,23 @@ def test_client_run(ioloop, client, Publisher, push):
         Publisher.publish(push)
         Publisher.publish(push)
         Publisher.publish(push)
+        time.sleep(0.1)
+    finally:
+        ioloop.stop()
+    assert client.receiver.framecount != 0
+    print(client.receiver.last_message)
+    assert len(client.receiver) == 3
+    
+def test_client_pubsub(ioloop, address, context, Publisher, pub):
+    """docstring for test_client_pubsub"""
+    client = Client.at_address(address, context, kind=zmq.SUB)
+    ioloop._add_socketinfo(client)
+    ioloop.start()
+    try:
+        time.sleep(0.01)
+        Publisher.publish(pub)
+        Publisher.publish(pub)
+        Publisher.publish(pub)
         time.sleep(0.1)
     finally:
         ioloop.stop()
