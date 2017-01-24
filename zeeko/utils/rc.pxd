@@ -7,32 +7,32 @@ cdef inline int check_zmq_rc(int rc) nogil except -1:
         with gil:
             from zmq.error import _check_rc
             _check_rc(rc)
-    return 0
+    return rc
 
-cdef inline int check_zmq_ptr(void * ptr) nogil except -1:
+cdef inline void * check_zmq_ptr(void * ptr) nogil except NULL:
     if ptr == NULL:
         with gil:
             from zmq.error import ZMQError
             raise ZMQError()
-    return 0
+    return ptr
     
-cdef inline int check_generic_ptr(void *ptr) nogil except -1:
+cdef inline void * check_generic_ptr(void *ptr) nogil except NULL:
     if ptr == NULL:
         with gil:
             PyErr_SetFromErrno(OSError)
-            return -1
-    return 0
+            return NULL
+    return ptr
 
-cdef inline int check_memory_ptr(void * ptr) nogil except -1:
+cdef inline void * check_memory_ptr(void * ptr) nogil except NULL:
     if ptr == NULL:
         with gil:
             raise MemoryError()
-    return 0
+    return ptr
 
 cdef inline int check_generic_rc(int rc) nogil except -1:
     if rc == -1:
         with gil:
             PyErr_SetFromErrno(OSError)
             return -1
-    return 0
+    return rc
 

@@ -1,16 +1,14 @@
 # Message tools for working with ZMQ
 cimport zmq.backend.cython.libzmq as libzmq
-from .rc cimport check_zmq_rc
-from libc.stdlib cimport free, malloc, realloc
-from libc.string cimport memcpy
+from .rc cimport check_zmq_rc, check_memory_ptr
 
-cdef inline int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1:
-    cdef int rc = 0
-    cdef libzmq.zmq_msg_t zmessage
-    rc = check_zmq_rc(libzmq.zmq_msg_init(&zmessage))
-    try:
-        rc = check_zmq_rc(libzmq.zmq_msg_recv(&zmessage, socket, flags))
-        memcpy(dest, libzmq.zmq_msg_data(&zmessage), size)
-    finally:
-        rc = check_zmq_rc(libzmq.zmq_msg_close(&zmessage))
-    return rc
+
+cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1
+cdef int zmq_init_recv_msg_t(void * socket, int flags, libzmq.zmq_msg_t * zmessage) nogil except -1
+cdef libzmq.zmq_msg_t * zmq_recv_new_msg_t(void * socket, int flags) nogil except NULL
+
+cdef inline int zmq_recv_more(void * socket) nogil except -1:
+    cdef int rc, value
+    cdef size_t optsize = sizeof(int)
+    rc = check_zmq_rc(libzmq.zmq_getsockopt(socket, libzmq.ZMQ_RCVMORE, &value, &optsize))
+    return value
