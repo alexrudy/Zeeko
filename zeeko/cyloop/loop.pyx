@@ -57,7 +57,7 @@ cdef class IOLoop:
     
     def __cinit__(self, ctx):
         self._socketinfos = NULL
-        self._pollitems = <libzmq.zmq_pollitem_t *>calloc(1, sizeof(libzmq.zmq_pollitem_t *))
+        self._pollitems = <libzmq.zmq_pollitem_t *>calloc(1, sizeof(libzmq.zmq_pollitem_t))
         check_memory_ptr(self._pollitems)
         self._n_pollitems = 1
     
@@ -78,9 +78,9 @@ cdef class IOLoop:
         self._sockets = []
         
     def __dealloc__(self):
-        if self._socketinfos is not NULL:
+        if self._socketinfos != NULL:
             free(self._socketinfos)
-        if self._pollitems is not NULL:
+        if self._pollitems != NULL:
             free(self._pollitems)
         
     def _add_socketinfo(self, SocketInfo sinfo):
@@ -95,7 +95,7 @@ cdef class IOLoop:
             check_memory_ptr(self._socketinfos)
             self._socketinfos[len(self._sockets) - 1] = &sinfo.info
             
-            self._pollitems = <libzmq.zmq_pollitem_t *>realloc(self._pollitems, (len(self._sockets) + 1) * sizeof(libzmq.zmq_pollitem_t *))
+            self._pollitems = <libzmq.zmq_pollitem_t *>realloc(self._pollitems, (len(self._sockets) + 1) * sizeof(libzmq.zmq_pollitem_t))
             check_memory_ptr(self._pollitems)
             
             self.pollitems = &self._pollitems[1]
