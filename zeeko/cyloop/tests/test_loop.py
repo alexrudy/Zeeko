@@ -4,6 +4,7 @@ import pytest
 import time
 import functools
 from ..loop import IOLoop
+from .._state import StateError
 from zeeko.conftest import assert_canrecv
 
 @pytest.fixture
@@ -57,7 +58,7 @@ def test_loop_multistop(loop):
     loop.start()
     loop.stop()
     
-    with pytest.raises(ValueError):
+    with pytest.raises(StateError):
         loop.stop()
     
 

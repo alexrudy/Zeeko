@@ -3,9 +3,9 @@ from zmq.backend.cython.socket cimport Socket
 from zmq.backend.cython.context cimport Context
 from ..utils.lock cimport Lock
 from ..utils.condition cimport Event
-from .state cimport *
+from ._state cimport *
 
-ctypedef int (*cyloop_callback)(void * handle, short events, void * data) nogil
+ctypedef int (*cyloop_callback)(void * handle, short events, void * data, void * interrupt_handle) nogil
 
 ctypedef struct socketinfo:
     void * handle
@@ -24,6 +24,8 @@ cdef class IOLoop:
     cdef readonly Context context
     
     cdef Socket _internal
+    cdef Socket _interrupt
+    cdef void * _interrupt_handle
     cdef Socket _notify
     
     cdef str _internal_address_interrupt

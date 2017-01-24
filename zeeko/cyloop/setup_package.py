@@ -19,6 +19,7 @@ mutils = pxd("..","messages","utils")
 
 dependencies = {
     'loop' : [clock, lock, event, mutils, pxd("state")],
+    '_state': [ pxd("..","messages","receiver") ],
 }
 
 
