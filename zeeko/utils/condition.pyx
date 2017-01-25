@@ -63,7 +63,7 @@ cdef int event_init(event * src) nogil except -1:
 cdef int event_destroy(event * src) nogil except -1:
     """Destroy an event structure"""
     cdef int rc, refcount
-    if src.mutex is NULL:
+    if src.mutex == NULL:
         # Things are so boggled, we can't handle this case.
         return -2
     rc = pthread.pthread_mutex_lock(src.mutex)
