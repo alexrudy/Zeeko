@@ -11,7 +11,6 @@ ctypedef struct socketinfo:
     short events
     cyloop_callback callback
     void * data
-    double scheduled
     
 cdef class SocketInfo:
     
@@ -36,6 +35,7 @@ cdef class IOLoop:
     cdef int _n_pollitems
     
     cdef public long timeout
+    cdef public double mintime
     cdef int _state
     
     cdef object log
@@ -48,4 +48,4 @@ cdef class IOLoop:
     cdef int _run(self) nogil except -1
     cdef int _wait(self, double waittime) nogil except -1
     cdef int _check_pollitems(self, int n) except -1
-    
+    cdef int _collect_sentinel(self) nogil except -1

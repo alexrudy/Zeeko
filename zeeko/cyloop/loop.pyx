@@ -73,6 +73,7 @@ cdef class IOLoop:
     def __init__(self, ctx):
         self._state = INIT
         self.timeout = 10
+        self.mintime = 10
         
         self.thread = threading.Thread(target=self._work)
         self._ready = Event()
@@ -215,22 +216,24 @@ cdef class IOLoop:
             self._close()
             self._done.set()
     
+    cdef int _collect_sentinel(self) nogil except -1:
+        cdef int rc, sentinel = 0
+        if (self._pollitems[0].revents & libzmq.ZMQ_POLLIN):
+            rc = zmq_recv_sentinel(self._pollitems[0].socket, &sentinel, 0)
+            self._state = sentinel
+            return 1
+        return 0
+    
     cdef int _pause(self) nogil except -1:
-        cdef int sentinel
-        while True:
-            self._lock._acquire()
-            try:
-                rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.timeout))
-                if (self._pollitems[0].revents & libzmq.ZMQ_POLLIN):
-                    rc = zmq_recv_sentinel(self._pollitems[0].socket, &sentinel, 0)
-                    self._state = sentinel
-                    return 0
-            finally:
-                self._lock._release()
+        self._lock._acquire()
+        try:
+            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.timeout))
+            return self._collect_sentinel()
+        finally:
+            self._lock._release()
         
     
     cdef int _wait(self, double waittime) nogil except -1:
-        cdef int sentinel
         cdef long timeout
         cdef timespec wait_ts
     
@@ -244,30 +247,29 @@ cdef class IOLoop:
         timeout = <long>waittime
         if waittime > 0:
             rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, timeout))
-            if (self._pollitems[0].revents & libzmq.ZMQ_POLLIN):
-                rc = zmq_recv_sentinel(self._pollitems[0].socket, &sentinel, 0)
-                self._state = sentinel
-                return 1
+            return self._collect_sentinel()
         return 0
 
     cdef int _run(self) nogil except -1:
-        cdef int sentinel
         cdef socketinfo * s
         cdef libzmq.zmq_pollitem_t * p
         cdef size_t i
         cdef int rc = 0
+        cdef double start = current_time()
+        cdef double duration = 0.0
         self._lock._acquire()
         try:
             rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.timeout))
-            if (self._pollitems[0].revents & libzmq.ZMQ_POLLIN):
-                rc = zmq_recv_sentinel(self._pollitems[0].socket, &sentinel, 0)
-                self._state = sentinel
-            else:
+            if self._collect_sentinel() != 1:
                 for i in range(1, self._n_pollitems):
                     p = &self._pollitems[i]
                     s = self._socketinfos[i-1]
                     if ((s.events & p.revents) or (not s.events)) and s.callback != NULL:
                         rc = s.callback(p.socket, p.revents, s.data, self._interrupt_handle)
+            
+            duration = current_time() - start
+            if duration < self.mintime:
+                self._wait(self.mintime - duration)
         finally:
             self._lock._release()
         
