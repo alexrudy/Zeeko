@@ -223,7 +223,7 @@ cdef class IOLoop:
     cdef int _pause(self) nogil except -1:
         self._lock._acquire()
         try:
-            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout()))
+            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout(1)))
             self.throttle.mark()
             return self._state.sentinel(&self._pollitems[0])
         finally:
@@ -234,7 +234,7 @@ cdef class IOLoop:
         cdef int rc = 0
         self._lock._acquire()
         try:
-            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.throttle.get_timeout()))
+            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.throttle.get_timeout(1)))
             if self._state.sentinel(&self._pollitems[0]) != 1:
                 for i in range(1, self._n_pollitems):
                     rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)            
