@@ -226,6 +226,7 @@ cdef class Receiver:
         else:
             j = self._n_events
             self._events = <msg_event *>realloc(<void *>self._events, sizeof(msg_event) * (j + 1))
+            self._events[j].evt._refcount = NULL
             self._events[j].evt.cond = NULL
             self._events[j].evt.mutex = NULL
             self._events[j].evt._setting = NULL

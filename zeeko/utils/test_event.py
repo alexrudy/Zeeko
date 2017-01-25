@@ -18,7 +18,10 @@ def test_event_signal():
 def test_event_copy():
     """Test copy event."""
     evt = Event()
+    assert evt._reference_count == 0
     evt2 = evt.copy()
     assert not evt2.is_set()
     evt.set()
     assert evt2.is_set()
+    assert evt._reference_count == 1
+    assert evt2._reference_count == 1

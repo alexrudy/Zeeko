@@ -1,7 +1,7 @@
 from . cimport pthread
 
 ctypedef struct event:
-    bint _own_pthread
+    int * _refcount
     bint * _setting
     pthread.pthread_cond_t * cond
     pthread.pthread_mutex_t * mutex
@@ -9,10 +9,11 @@ ctypedef struct event:
 cdef int event_trigger(event * src) nogil except -1    
 cdef int event_init(event * src) nogil except -1
 cdef int event_destroy(event * src) nogil except -1
+cdef int event_clear(event * src) nogil except -1
 
 cdef class Event:
     cdef bint * _setting
-    cdef bint _own_pthread
+    cdef int * _refcount
     cdef pthread.pthread_mutex_t * mutex
     cdef pthread.pthread_cond_t * cond
     
