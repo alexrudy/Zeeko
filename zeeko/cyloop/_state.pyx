@@ -1,7 +1,7 @@
 
 from zmq.backend.cython.socket cimport Socket
 from ..utils.condition cimport Event, event, event_trigger, event_init, event_clear, event_destroy
-from ..utils.rc cimport check_memory_ptr
+from ..utils.rc cimport check_memory_ptr, check_zmq_rc
 from libc.stdlib cimport free, calloc
 
 import struct as s
@@ -41,10 +41,12 @@ cdef class StateMachine:
             rc = event_init(&self._deselect_events[i])
         
     
-    def __init__(self, long state=INIT):
-        with nogil:
-            self.set(state)
+    def __init__(self, state=INIT):
+        self._set(state)
         
+    
+    def __iter__(self):
+        return iter(self._name_to_long)
     
     def __dealloc__(self):
         if self._select_events != NULL:
@@ -77,7 +79,7 @@ cdef class StateMachine:
         return Event._from_event(&self._deselect_events[i])
         
     def __repr__(self):
-        return "<State:{0:s}>".format(self.name)
+        return "StateMachine('{0:s}')".format(self.name)
         
     property name:
         
@@ -98,14 +100,28 @@ cdef class StateMachine:
         try:
             i = self._event_index(self._state)
             rc = event_trigger(&self._deselect_events[i])
-            # rc = event_clear(&self._select_events[i])
+            rc = event_clear(&self._select_events[i])
             self._state = state
             i = self._event_index(state)
-            # rc = event_trigger(&self._select_events[i])
+            rc = event_trigger(&self._select_events[i])
             rc = event_clear(&self._deselect_events[i])
         finally:
             self._lock._release()
         return 0
+    
+    def _check(self, state):
+        """Check against a specific state."""
+        cdef long s = self._convert(state)
+        cdef bint r
+        with nogil:
+            r = self.check(s)
+        return r
+        
+    def _set(self, state):
+        """Set the state machine to a specific state."""
+        cdef long s = self._convert(state)
+        with nogil:
+            self.set(s)
     
     cdef bint check(self, long state) nogil:
         cdef bint rc
@@ -126,18 +142,32 @@ cdef class StateMachine:
             value = self.name_to_state(state)
         return value
         
+    def _get_state(self):
+        with self._lock:
+            rv = self._state
+        return rv
+        
     def ensure(self, state):
         state = self._convert(state)
-        with self._lock:
-            if state != self._state:
-                raise StateError("Expected state {0} got {1}".format(self.state_to_name(state), self.name))
+        if state != self._get_state():
+            raise StateError("Expected state {0} got {1}".format(self.state_to_name(state), self.name))
         
     def guard(self, state):
         state = self._convert(state)
-        with self._lock:
-            if state == self._state:
-                raise StateError("Expected state to not be {0}".format(self.state_to_name(state)))
+        if state == self._get_state():
+            raise StateError("Expected state to not be {0}".format(self.state_to_name(state)))
              
+    
+    def recv(self, Socket socket, long timeout = -1):
+        """Recieve a sentinel on the given socket."""
+        cdef libzmq.zmq_pollitem_t pollitem
+        cdef int rc = 0
+        pollitem.socket = socket.handle
+        pollitem.events = libzmq.ZMQ_POLLIN
+        pollitem.fd = 0
+        with nogil:
+            rc = check_zmq_rc(libzmq.zmq_poll(&pollitem, 1, timeout))
+            self.sentinel(&pollitem)
     
     cdef int sentinel(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1:
         cdef int rc, value = 0
