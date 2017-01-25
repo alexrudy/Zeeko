@@ -20,6 +20,11 @@ cdef class SocketInfo:
     def _close(self):
         """Close this socketinfo."""
         self.socket.close(linger=0)
+        
+    def close(self):
+        """Safely close this socket wrapper"""
+        if not self.socket.closed:
+            self.socket.close()
     
     cdef int bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1:
         cdef int rc = 0

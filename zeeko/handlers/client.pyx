@@ -9,14 +9,18 @@ import zmq
 from ..utils.rc cimport check_zmq_rc
 from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_more
 from ..utils.msg import internal_address
+from ..utils.clock cimport current_time
+
 from .base cimport SocketInfo
+from .snail cimport Snail
 from ..messages.receiver cimport Receiver
 
 cdef int client_callback(void * handle, short events, void * data, void * interrupt_handle) nogil except -1:
     cdef int rc = 0
     cdef int flags = 0
     if (events & libzmq.ZMQ_POLLIN):
-        rc = (<Receiver>data)._receive(handle, flags, NULL)
+        rc = (<Client>data).receiver._receive(handle, flags, NULL)
+        rc = (<Client>data).snail._check(interrupt_handle, (<Client>data).receiver.last_message)
     return rc
     
 cdef int client_setsockopt(void * handle, short events, void * data, void * interrupt_handle) nogil except -1:
@@ -54,6 +58,7 @@ cdef class _ClientSubscriber(SocketInfo):
     def _set_client_socket(self, Socket client_socket):
         self.data = client_socket.handle
 
+
 cdef class Client(SocketInfo):
     
     cdef Context context
@@ -62,24 +67,27 @@ cdef class Client(SocketInfo):
     cdef _ClientSubscriber subscriber
     cdef str subscription_address
     cdef readonly Receiver receiver
+    cdef readonly Snail snail
     
     def __cinit__(self):
         
         # Initialize basic client functions
         self.receiver = Receiver()
         self.callback = client_callback
-        self.data = <void *>self.receiver
+        self.data = <void *>self
         
         # Subscription management.
         self.subscriptions = set()
         self.subscription_address = internal_address(self, 'client', 'subscriptions')
         self.autosubscribe = True
+        
+        # Delay management
+        self.snail = Snail()
     
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
         # Retain the context here for future use.
         self.context = self.socket.context
-        
     
     @classmethod
     def at_address(cls, str address, Context ctx, int kind = zmq.SUB):
