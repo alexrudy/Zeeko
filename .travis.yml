@@ -10,7 +10,7 @@ env:
         # to repeat them for all configurations.
         - ASTROPY_VERSION=stable
         - NUMPY_VERSION=stable
-        - CONDA_DEPENDENCIES='Cython jinja2 six setuptools'
+        - CONDA_DEPENDENCIES='Cython jinja2 six setuptools h5py'
         - SETUP_CMD='test'
         - MAIN_CMD='python setup.py'
         - PIP_DEPENDENCIES='pytest-catchlog pytest>=3.0.0'
