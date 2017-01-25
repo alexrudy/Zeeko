@@ -35,23 +35,23 @@ def test_loop_context(loop):
 
 def test_loop_states(loop):
     """Test worker states."""
-    assert loop.state == "INIT"
+    assert loop.state.ensure("INIT")
     assert not loop.is_alive()
     loop.start()
     assert loop.is_alive()
     time.sleep(0.01)
-    assert loop.state == "RUN"
+    assert loop.state.ensure("RUN")
     loop.pause()
     time.sleep(0.01)
-    assert loop.state == "PAUSE"
+    assert loop.state.ensure("PAUSE")
     loop.start()
     time.sleep(0.01)
-    assert loop.state == "RUN"
+    assert loop.state.ensure("RUN")
     assert loop.is_alive()
     loop.stop()
     time.sleep(0.01)
     assert not loop.is_alive()
-    assert loop.state == "STOP"
+    assert loop.state.ensure("STOP")
 
 def test_loop_multistop(loop):
     """Test loop multistop"""

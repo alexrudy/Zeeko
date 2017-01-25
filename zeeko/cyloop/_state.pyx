@@ -151,11 +151,13 @@ cdef class StateMachine:
         state = self._convert(state)
         if state != self._get_state():
             raise StateError("Expected state {0} got {1}".format(self.state_to_name(state), self.name))
+        return True
         
     def guard(self, state):
         state = self._convert(state)
         if state == self._get_state():
             raise StateError("Expected state to not be {0}".format(self.state_to_name(state)))
+        return True
              
     
     def recv(self, Socket socket, long timeout = -1):

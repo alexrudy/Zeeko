@@ -25,8 +25,8 @@ cdef class IOLoop:
     
     cdef public long timeout
     cdef public double mintime
-    cdef StateMachine _state
-    cdef Throttle throttle
+    cdef readonly StateMachine state
+    cdef readonly Throttle throttle
     
     cdef object log
     

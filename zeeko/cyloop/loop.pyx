@@ -39,7 +39,7 @@ cdef class IOLoop:
         self.throttle = Throttle()
     
     def __init__(self, ctx):
-        self._state = StateMachine()        
+        self.state = StateMachine()        
         self.thread = threading.Thread(target=self._work)
         self._lock = Lock()
         
@@ -58,7 +58,7 @@ cdef class IOLoop:
         
     def _add_socketinfo(self, SocketInfo sinfo):
         """Add a socket info object to the underlying structures."""
-        if not self._state.check(INIT):
+        if not self.state.check(INIT):
             raise StateError("Can't add sockets after INIT.")
         sinfo.check()
         self._sockets.append(sinfo)
@@ -104,16 +104,20 @@ cdef class IOLoop:
     def _signal_state(self, state):
         """Signal a state change."""
         self._assert_not_done()
-        self._state.signal(state, self._internal_address_interrupt, self.context)
+        self.state.signal(state, self._internal_address_interrupt, self.context)
     
     def _assert_not_done(self):
-        self._state.guard(STOP)
-        if self._state.check(INIT):
+        self.state.guard(STOP)
+        if self.state.check(INIT):
             self.thread.start()
-            self._state.deselected(START).wait(timeout=1.0)
+            self.state.deselected(START).wait(timeout=1.0)
     
     def start(self):
         self._signal_state(b"RUN")
+        
+    def resume(self):
+        self.state.guard(INIT)
+        self.start()
     
     def pause(self):
         self._signal_state(b"PAUSE")
@@ -138,7 +142,7 @@ cdef class IOLoop:
     
     def _work(self):
         """Thread Worker Function"""
-        self._state.set(START)
+        self.state.set(START)
         self._internal = self.context.socket(zmq.PULL)
         self._internal.bind(self._internal_address_interrupt)
         
@@ -157,15 +161,15 @@ cdef class IOLoop:
                 sinfo._start()
         
         self.throttle.reset()
-        self._state.set(PAUSE)
+        self.state.set(PAUSE)
         try:
             with nogil:
                 while True:
-                    if self._state.check(RUN):
+                    if self.state.check(RUN):
                         self._run()
-                    elif self._state.check(PAUSE):
+                    elif self.state.check(PAUSE):
                         self._pause()
-                    elif self._state.check(STOP):
+                    elif self.state.check(STOP):
                         break
         finally:
             self._close()
@@ -175,7 +179,7 @@ cdef class IOLoop:
         try:
             rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout(1)))
             self.throttle.mark()
-            return self._state.sentinel(&self._pollitems[0])
+            return self.state.sentinel(&self._pollitems[0])
         finally:
             self._lock._release()
 
@@ -185,7 +189,7 @@ cdef class IOLoop:
         self._lock._acquire()
         try:
             rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.throttle.get_timeout(1)))
-            if self._state.sentinel(&self._pollitems[0]) != 1:
+            if self.state.sentinel(&self._pollitems[0]) != 1:
                 for i in range(1, self._n_pollitems):
                     rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)            
                 self.throttle.mark()
@@ -205,10 +209,6 @@ cdef class IOLoop:
                     raise ValueError("Socket mismatch for item {0:d}, expected handle {1:s}, got {2:s}".format(i,
                             address, address_of((<Socket>self._sockets[i - 1].socket).handle)))
         return 0
-    
-    property state:
-        def __get__(self):
-            return self._state.name
             
     def is_alive(self):
         return self.thread.is_alive()
