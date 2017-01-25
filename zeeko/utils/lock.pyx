@@ -147,9 +147,9 @@ cdef class Lock:
     cdef int _acquire(self) nogil except -1:
         cdef int rc
         
+        rc = pthread_mutex_acquire(self.mutex)
         rc = pthread_mutex_acquire(self._internal)
         try:
-            rc = pthread_mutex_acquire(self.mutex)
             self._owned[0] = 1
         finally:
             rc = pthread_mutex_release(self._internal)
@@ -166,9 +166,9 @@ cdef class Lock:
         rc = pthread_mutex_acquire(self._internal)
         try:
             self._owned[0] = 0
-            rc = pthread_mutex_release(self.mutex)
         finally:
             rc = pthread_mutex_release(self._internal)
+        rc = pthread_mutex_release(self.mutex)
         return rc
         
     def release(self):
