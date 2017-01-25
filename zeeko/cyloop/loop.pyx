@@ -20,6 +20,51 @@ from ._state import StateError, STATE
 cdef inline str address_of(void * ptr):
     return hex(<size_t>ptr)
 
+cdef class Throttle:
+    """A class for tracking and maintaining a scheduled rate limit."""
+    
+    def __cinit__(self):
+        self._last_event = 0.0
+        self.period = 0.01
+        self._wait_time = 0.0
+        self.gain = 0.2
+        self.leak = 0.9999
+        self.timeout = 0.01
+        self.active = False
+    
+    cdef int reset(self) nogil:
+        self._wait_time = 0.0
+        self._last_event = current_time()
+        return 0
+        
+    cdef int mark(self) nogil except -1:
+        cdef double now = current_time()
+        cdef double error = 0.0
+        cdef double overhead = 0.0
+        overhead = now - self._last_event
+        error = (self.period - overhead)
+        self._wait_time = (self._wait_time + (self.gain * error)) * self.leak
+        self._last_event = now
+        return 0
+        
+    cdef long get_timeout(self) nogil:
+        cdef double now = current_time()
+        cdef double next_event = self._last_event + self._wait_time
+        cdef double wait_time = (next_event - now)
+        cdef timespec wait_ts
+        if not self.active:
+            return <long>(self.timeout * 1e3)
+        if wait_time < 0.0:
+            return 0
+        elif wait_time < 1.0:
+            wait_ts.tv_nsec = <int>(wait_time * 1e6)
+            wait_ts.tv_sec = 0
+            nanosleep(&wait_ts, NULL)
+            return 0
+        else:
+            return <long>(wait_time * 1e3)
+
+
 cdef class SocketInfo:
     """Information about a socket and it's callbacks."""
     
@@ -90,12 +135,10 @@ cdef class IOLoop:
         self._pollitems = <libzmq.zmq_pollitem_t *>calloc(1, sizeof(libzmq.zmq_pollitem_t))
         check_memory_ptr(self._pollitems)
         self._n_pollitems = 1
+        self.throttle = Throttle()
     
     def __init__(self, ctx):
-        self._state = StateMachine()
-        self.timeout = 10
-        self.mintime = 10
-        
+        self._state = StateMachine()        
         self.thread = threading.Thread(target=self._work)
         self._lock = Lock()
         
@@ -212,6 +255,7 @@ cdef class IOLoop:
             for sinfo in self._sockets:
                 sinfo._start()
         
+        self.throttle.reset()
         self._state.set(PAUSE)
         try:
             with nogil:
@@ -228,28 +272,11 @@ cdef class IOLoop:
     cdef int _pause(self) nogil except -1:
         self._lock._acquire()
         try:
-            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.timeout))
+            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout()))
+            self.throttle.mark()
             return self._state.sentinel(&self._pollitems[0])
         finally:
             self._lock._release()
-        
-    
-    cdef int _wait(self, double waittime) nogil except -1:
-        cdef long timeout
-        cdef timespec wait_ts
-    
-        if waittime < 1.0:
-            # waiting less than one ms, don't poll.
-            wait_ts.tv_nsec = <int>(waittime * 1e6)
-            wait_ts.tv_sec = 0
-            nanosleep(&wait_ts, NULL)
-            return 0
-    
-        timeout = <long>waittime
-        if waittime > 0:
-            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, timeout))
-            return self._state.sentinel(&self._pollitems[0])
-        return 0
 
     cdef int _run(self) nogil except -1:
         cdef size_t i
@@ -258,13 +285,11 @@ cdef class IOLoop:
         cdef double duration = 0.0
         self._lock._acquire()
         try:
-            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.timeout))
+            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.throttle.get_timeout()))
             if self._state.sentinel(&self._pollitems[0]) != 1:
                 for i in range(1, self._n_pollitems):
                     rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)            
-            duration = current_time() - start
-            if duration < self.mintime:
-                self._wait(self.mintime - duration)
+                self.throttle.mark()
         finally:
             self._lock._release()
         return rc

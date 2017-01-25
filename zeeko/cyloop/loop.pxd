@@ -21,6 +21,20 @@ cdef class SocketInfo:
     
     cdef int bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1
     cdef int fire(self, libzmq.zmq_pollitem_t * pollitem, void * interrupt) nogil except -1
+    
+cdef class Throttle:
+    
+    cdef bint active
+    cdef double _last_event
+    cdef readonly double period
+    cdef public double timeout
+    cdef double _wait_time
+    cdef public double gain
+    cdef public double leak
+    
+    cdef int reset(self) nogil
+    cdef int mark(self) nogil except -1
+    cdef long get_timeout(self) nogil
 
 cdef class IOLoop:
     cdef object thread
@@ -42,6 +56,7 @@ cdef class IOLoop:
     cdef public long timeout
     cdef public double mintime
     cdef StateMachine _state
+    cdef Throttle throttle
     
     cdef object log
     
@@ -49,5 +64,4 @@ cdef class IOLoop:
     
     cdef int _pause(self) nogil except -1
     cdef int _run(self) nogil except -1
-    cdef int _wait(self, double waittime) nogil except -1
     cdef int _check_pollitems(self, int n) except -1
