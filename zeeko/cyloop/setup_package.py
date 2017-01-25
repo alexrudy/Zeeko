@@ -12,15 +12,18 @@ pjoin = os.path.join
 pyx = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pyx")
 pxd = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pxd")
 
+rc = pxd("..", "utils", "rc")
+msg = pxd("..","utils","msg")
 clock = pxd("..","utils","clock")
 lock = pxd("..","utils","lock")
-event = pxd("..","utils","event")
-mutils = pxd("..","messages","utils")
+event = pxd("..","utils","condition")
+
+base = pxd("..", "handlers", "base")
 
 dependencies = {
-    'loop' : [clock, lock, event, mutils, pxd("_state"), pxd("throttle")],
-    '_state': [ pxd("..","messages","receiver") ],
-    'throttle' : [clock],
+    'loop' : [clock, lock,  pxd("_state"), pxd("throttle"), base],
+    '_state': [ lock, event, rc, msg],
+    'throttle' : [clock, rc],
 }
 
 

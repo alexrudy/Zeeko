@@ -9,7 +9,7 @@ import zmq
 from ..utils.rc cimport check_zmq_rc
 from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_more
 from ..utils.msg import internal_address
-from ..cyloop.loop cimport SocketInfo, socketinfo
+from .base cimport SocketInfo
 from ..messages.receiver cimport Receiver
 
 cdef int client_callback(void * handle, short events, void * data, void * interrupt_handle) nogil except -1:
