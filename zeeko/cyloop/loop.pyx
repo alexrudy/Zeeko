@@ -3,10 +3,6 @@ from ..utils.rc cimport check_zmq_rc, check_zmq_ptr, check_memory_ptr, check_gen
 cimport zmq.backend.cython.libzmq as libzmq
 from libc.stdlib cimport free, malloc, realloc, calloc
 from libc.string cimport memcpy
-from libc.stdio cimport printf
-from posix.time cimport timespec, nanosleep
-
-from ..utils.clock cimport current_time
 from ..utils.lock cimport Lock
 from ..utils.condition cimport Event
 
@@ -236,8 +232,6 @@ cdef class IOLoop:
     cdef int _run(self) nogil except -1:
         cdef size_t i
         cdef int rc = 0
-        cdef double start = current_time()
-        cdef double duration = 0.0
         self._lock._acquire()
         try:
             rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.throttle.get_timeout()))
