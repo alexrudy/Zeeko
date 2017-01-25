@@ -8,7 +8,6 @@ from ._state cimport *
 ctypedef int (*cyloop_callback)(void * handle, short events, void * data, void * interrupt_handle) nogil except -1
 
 ctypedef struct socketinfo:
-    short events
     cyloop_callback callback
     void * data
     
@@ -16,6 +15,12 @@ cdef class SocketInfo:
     
     cdef socketinfo info
     cdef readonly Socket socket
+    cdef readonly int events
+    cdef cyloop_callback callback
+    cdef void * data
+    
+    cdef int bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1
+    cdef int fire(self, libzmq.zmq_pollitem_t * pollitem, void * interrupt) nogil except -1
 
 cdef class IOLoop:
     cdef object thread
@@ -29,7 +34,7 @@ cdef class IOLoop:
     
     cdef list _sockets
     
-    cdef socketinfo ** _socketinfos
+    cdef void ** _socketinfos
     
     cdef libzmq.zmq_pollitem_t * _pollitems
     cdef int _n_pollitems

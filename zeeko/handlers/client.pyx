@@ -48,9 +48,11 @@ def assert_socket_is_sub(socket, msg="Socket is not a ZMQ_SUB socket."):
 cdef class _ClientSubscriber(SocketInfo):
     """A minimal class to handle subscriptions within the I/O Loop for client sockets."""
     
+    def __cinit__(self):
+        self.callback = client_setsockopt
+    
     def _set_client_socket(self, Socket client_socket):
-        self.info.callback = client_setsockopt
-        self.info.data = client_socket.handle
+        self.data = client_socket.handle
 
 cdef class Client(SocketInfo):
     
@@ -65,8 +67,8 @@ cdef class Client(SocketInfo):
         
         # Initialize basic client functions
         self.receiver = Receiver()
-        self.info.callback = client_callback
-        self.info.data = <void *>self.receiver
+        self.callback = client_callback
+        self.data = <void *>self.receiver
         
         # Subscription management.
         self.subscriptions = set()

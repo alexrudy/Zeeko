@@ -25,13 +25,13 @@ cdef class SocketInfo:
     
     def __cinit__(self, Socket socket, int events):
         self.socket = socket # Retain reference.
-        self.info.events = events
+        self.events = events
         
     def check(self):
         """Check this socketinfo"""
         assert isinstance(self.socket, zmq.Socket), "Socket is None"
         assert self.socket.handle != NULL, "Socket handle is null"
-        assert self.info.callback != NULL, "Callback must be set."
+        assert self.callback != NULL, "Callback must be set."
         
     def _start(self):
         """Python function run as the loop starts."""
@@ -41,12 +41,33 @@ cdef class SocketInfo:
         """Close this socketinfo."""
         self.socket.close(linger=0)
     
-    def _callback(self, Socket socket, int events, Socket interrupt_socket):
+    cdef int bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1:
+        cdef int rc = 0
+        pollitem.events = self.events
+        pollitem.socket = self.socket.handle
+        pollitem.fd = 0
+        pollitem.revents = 0
+        return rc
+        
+    cdef int fire(self, libzmq.zmq_pollitem_t * pollitem, void * interrupt) nogil except -1:
+        cdef int rc = 0
+        if pollitem.socket != self.socket.handle:
+            with gil:
+                raise ValueError("Poll socket does not match socket owned by this object.")
+        if ((self.events & pollitem.revents) or (not self.events)):
+            return self.callback(self.socket.handle, pollitem.revents, self.data, interrupt)
+        else:
+            return -2
+    
+    def __call__(self, Socket socket, int events, Socket interrupt_socket):
         """Run the callback from python"""
-        cdef void * handle = socket.handle
-        cdef void * interrupt_handle = interrupt_socket.handle
+        cdef libzmq.zmq_pollitem_t pollitem
         cdef int rc 
-        rc = self.info.callback(handle, events, self.info.data, interrupt_handle)
+        
+        pollitem.socket = socket.handle
+        pollitem.revents = events
+        pollitem.events = self.events
+        rc = self.fire(&pollitem, interrupt_socket.handle)
         return rc
 
 class _RunningLoopContext(object):
@@ -99,15 +120,12 @@ cdef class IOLoop:
         self._sockets.append(sinfo)
         with self._lock:
             
-            self._socketinfos = <socketinfo **>check_memory_ptr(realloc(self._socketinfos, sizeof(socketinfo *) * len(self._sockets)))
-            self._socketinfos[len(self._sockets) - 1] = &sinfo.info
+            self._socketinfos = <void **>check_memory_ptr(realloc(self._socketinfos, sizeof(socketinfo *) * len(self._sockets)))
+            self._socketinfos[len(self._sockets) - 1] = <void *>sinfo
             
             self._pollitems = <libzmq.zmq_pollitem_t *>realloc(self._pollitems, (len(self._sockets) + 1) * sizeof(libzmq.zmq_pollitem_t))
             check_memory_ptr(self._pollitems)
-            
-            assert sinfo.socket.handle != NULL, "Socket handle is null!"
-            self._pollitems[len(self._sockets)].socket = sinfo.socket.handle
-            self._pollitems[len(self._sockets)].events = sinfo.info.events
+            sinfo.bind(&self._pollitems[len(self._sockets)])
             # address = address_of(self._pollitems[len(self._sockets)].socket)
             # print("{:d}) {:s} connected".format(len(self._sockets), address))
             self._n_pollitems = len(self._sockets) + 1
@@ -234,8 +252,6 @@ cdef class IOLoop:
         return 0
 
     cdef int _run(self) nogil except -1:
-        cdef socketinfo * s
-        cdef libzmq.zmq_pollitem_t * p
         cdef size_t i
         cdef int rc = 0
         cdef double start = current_time()
@@ -245,17 +261,13 @@ cdef class IOLoop:
             rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.timeout))
             if self._state.sentinel(&self._pollitems[0]) != 1:
                 for i in range(1, self._n_pollitems):
-                    p = &self._pollitems[i]
-                    s = self._socketinfos[i-1]
-                    if ((s.events & p.revents) or (not s.events)) and s.callback != NULL:
-                        rc = s.callback(p.socket, p.revents, s.data, self._interrupt_handle)
-            
+                    rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)            
             duration = current_time() - start
             if duration < self.mintime:
                 self._wait(self.mintime - duration)
         finally:
             self._lock._release()
-        
+        return rc
     
     cdef int _check_pollitems(self, int n) except -1:
         for i in range(n):

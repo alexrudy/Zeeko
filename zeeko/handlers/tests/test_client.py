@@ -60,11 +60,11 @@ def test_client_callback(ioloop, client, Publisher, push):
     """Test client without using the loop."""
     time.sleep(0.01)
     Publisher.publish(push)
-    client._callback(client.socket, client.socket.poll(timeout=100), ioloop._interrupt)
+    client(client.socket, client.socket.poll(timeout=100), ioloop._interrupt)
     Publisher.publish(push)
-    client._callback(client.socket, client.socket.poll(timeout=100), ioloop._interrupt)
+    client(client.socket, client.socket.poll(timeout=100), ioloop._interrupt)
     Publisher.publish(push)
-    client._callback(client.socket, client.socket.poll(timeout=100), ioloop._interrupt)
+    client(client.socket, client.socket.poll(timeout=100), ioloop._interrupt)
     time.sleep(0.1)
     print(client.receiver.last_message)
     assert client.receiver.framecount != 0
