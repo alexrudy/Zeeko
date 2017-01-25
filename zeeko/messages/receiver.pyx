@@ -9,12 +9,13 @@ from .carray cimport new_named_array, close_named_array, copy_named_array
 from .carray cimport receive_named_array
 
 from libc.stdlib cimport free, malloc, realloc
-from libc.string cimport memcpy
+from libc.string cimport memcpy, memset
 from cpython.string cimport PyString_FromStringAndSize
 from zmq.utils import jsonapi
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.utils.buffers cimport viewfromobject_r
 from .utils cimport check_rc, check_ptr
+from ..utils.condition cimport event_init, event_trigger, event_destroy
 
 cdef unsigned long hash_name(char * name, size_t length) nogil except -1:
     cdef unsigned long hashvalue = 5381
@@ -226,10 +227,7 @@ cdef class Receiver:
         else:
             j = self._n_events
             self._events = <msg_event *>realloc(<void *>self._events, sizeof(msg_event) * (j + 1))
-            self._events[j].evt._refcount = NULL
-            self._events[j].evt.cond = NULL
-            self._events[j].evt.mutex = NULL
-            self._events[j].evt._setting = NULL
+            memset(&self._events[j], 0, sizeof(msg_event))
             rc = event_init(&self._events[j].evt)
             self._events[j].hash = hashvalue
             self._n_events = j + 1

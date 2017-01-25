@@ -12,7 +12,7 @@ import zmq
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
 from ..utils cimport pthread
-from ..utils.condition cimport Event, event, event_init, event_trigger, event_destroy
+from ..utils.condition cimport Event, event
 
 cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1
 cdef int receive_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int * fc, int * nm, double * ts, int flags) nogil except -1
