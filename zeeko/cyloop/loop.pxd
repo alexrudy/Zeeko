@@ -40,8 +40,6 @@ cdef class IOLoop:
     
     cdef object log
     
-    cdef Event _ready # Ready event from threading.
-    cdef Event _done # Done event.
     cdef Lock _lock # Lock
     
     cdef int _pause(self) nogil except -1

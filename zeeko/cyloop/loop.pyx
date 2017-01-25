@@ -76,8 +76,6 @@ cdef class IOLoop:
         self.mintime = 10
         
         self.thread = threading.Thread(target=self._work)
-        self._ready = Event()
-        self._done = Event()
         self._lock = Lock()
         
         self.context = ctx or zmq.Context.instance()
@@ -150,7 +148,7 @@ cdef class IOLoop:
         self._state.guard(STOP)
         if self._state.check(INIT):
             self.thread.start()
-            self._ready.wait(timeout=1.0)
+            self._state.deselected(START).wait(timeout=1.0)
     
     def start(self):
         self._signal_state(b"RUN")
@@ -197,7 +195,6 @@ cdef class IOLoop:
                 sinfo._start()
         
         self._state.set(PAUSE)
-        self._ready.set()
         try:
             with nogil:
                 while True:
@@ -209,7 +206,6 @@ cdef class IOLoop:
                         break
         finally:
             self._close()
-            self._done.set()
     
     cdef int _pause(self) nogil except -1:
         self._lock._acquire()
