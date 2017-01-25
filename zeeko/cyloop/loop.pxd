@@ -4,6 +4,7 @@ from zmq.backend.cython.context cimport Context
 from ..utils.lock cimport Lock
 from ..utils.condition cimport Event
 from ._state cimport *
+from .throttle cimport Throttle
 
 ctypedef int (*cyloop_callback)(void * handle, short events, void * data, void * interrupt_handle) nogil except -1
 
@@ -21,20 +22,6 @@ cdef class SocketInfo:
     
     cdef int bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1
     cdef int fire(self, libzmq.zmq_pollitem_t * pollitem, void * interrupt) nogil except -1
-    
-cdef class Throttle:
-    
-    cdef bint active
-    cdef double _last_event
-    cdef readonly double period
-    cdef public double timeout
-    cdef double _wait_time
-    cdef public double gain
-    cdef public double leak
-    
-    cdef int reset(self) nogil
-    cdef int mark(self) nogil except -1
-    cdef long get_timeout(self) nogil
 
 cdef class IOLoop:
     cdef object thread

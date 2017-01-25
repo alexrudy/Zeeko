@@ -18,8 +18,9 @@ event = pxd("..","utils","event")
 mutils = pxd("..","messages","utils")
 
 dependencies = {
-    'loop' : [clock, lock, event, mutils, pxd("_state")],
+    'loop' : [clock, lock, event, mutils, pxd("_state"), pxd("throttle")],
     '_state': [ pxd("..","messages","receiver") ],
+    'throttle' : [clock],
 }
 
 
