@@ -24,7 +24,7 @@ def pub(context, address):
     socket.close(linger=0)
     
 @pytest.fixture
-def pull(context, address):
+def pull(context, address, push):
     """Pull socket."""
     socket = context.socket(zmq.PUSH)
     socket.connect(address)
@@ -32,7 +32,7 @@ def pull(context, address):
     socket.close(linger=0)
     
 @pytest.fixture
-def client(address, context):
+def client(address, context, push):
     """docstring for client"""
     return Client.at_address(address, context, kind=zmq.PULL)
 
@@ -41,9 +41,62 @@ def test_client_attributes(address, context):
     c = Client.at_address(address, context)
     #TODO include client addresses.
     
+def test_client_no_loop(ioloop, client, Publisher, push):
+    """Test client without using the loop."""
+    time.sleep(0.01)
+    Publisher.publish(push)
+    client.receiver.receive(client.socket)
+    Publisher.publish(push)
+    client.receiver.receive(client.socket)
+    Publisher.publish(push)
+    client.receiver.receive(client.socket)
+    time.sleep(0.1)
+    print(client.receiver.last_message)
+    assert client.receiver.framecount != 0
+    assert len(client.receiver) == 3
+    client._close()
+    
+def test_client_callback(ioloop, client, Publisher, push):
+    """Test client without using the loop."""
+    time.sleep(0.01)
+    Publisher.publish(push)
+    client._callback(client.socket, client.socket.poll(timeout=100), ioloop._interrupt)
+    Publisher.publish(push)
+    client._callback(client.socket, client.socket.poll(timeout=100), ioloop._interrupt)
+    Publisher.publish(push)
+    client._callback(client.socket, client.socket.poll(timeout=100), ioloop._interrupt)
+    time.sleep(0.1)
+    print(client.receiver.last_message)
+    assert client.receiver.framecount != 0
+    assert len(client.receiver) == 3
+    client._close()
+    
+def test_client_no_sub(ioloop, client, Publisher, push):
+    """docstring for test_client_no_sub"""
+    ioloop._add_socketinfo(client)
+    
+    Publisher.publish(push)
+    assert_canrecv(client.socket)
+    client.receiver.receive(client.socket)
+    
+    ioloop.start()
+    try:
+        time.sleep(0.01)
+        Publisher.publish(push)
+        time.sleep(0.1)
+        Publisher.publish(push)
+        time.sleep(0.1)
+        Publisher.publish(push)
+        time.sleep(0.1)
+    finally:
+        ioloop.stop()
+    print(client.receiver.last_message)
+    assert client.receiver.framecount != 0
+    assert len(client.receiver) == 3
+    
 def test_client_add_to_loop(ioloop, client):
     """Test client add to a loop."""
-    ioloop._add_socketinfo(client)
+    client.attach(ioloop)
     ioloop.start()
     try:
         time.sleep(0.01)
@@ -51,8 +104,8 @@ def test_client_add_to_loop(ioloop, client):
         ioloop.stop()
     
 def test_client_run(ioloop, client, Publisher, push):
-    """Test a client in the IOLoop."""    
-    ioloop._add_socketinfo(client)
+    """Test a client in the IOLoop."""
+    client.attach(ioloop)
     ioloop.start()
     try:
         time.sleep(0.01)
@@ -69,7 +122,7 @@ def test_client_run(ioloop, client, Publisher, push):
 def test_client_pubsub(ioloop, address, context, Publisher, pub):
     """docstring for test_client_pubsub"""
     client = Client.at_address(address, context, kind=zmq.SUB)
-    ioloop._add_socketinfo(client)
+    client.attach(ioloop)
     ioloop.start()
     try:
         time.sleep(0.01)
