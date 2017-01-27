@@ -126,6 +126,7 @@ def test_client_delay(ioloop, client, Publisher, push):
     client.attach(ioloop)
     client.snail.nlate_max = 2 * len(Publisher)
     client.snail.delay_max = 0.01
+    client.use_reconnections = False
     Publisher.publish(push)
     time.sleep(0.1)
     ioloop.start()
@@ -151,6 +152,35 @@ def test_client_delay(ioloop, client, Publisher, push):
         ioloop.state.selected("RUN").wait()
         time.sleep(0.1)
         assert client.snail.deaths == 1
+    finally:
+        ioloop.stop()
+    assert client.receiver.framecount != 0
+    print(client.receiver.last_message)
+    assert len(client.receiver) == 3
+    
+def test_client_reconnections(ioloop, client, Publisher, push):
+    """Ensure that reconnections prevent receiving during pauses."""
+    client.attach(ioloop)
+    client.snail.nlate_max = 2 * len(Publisher)
+    client.snail.delay_max = 0.01
+    client.use_reconnections = True
+    Publisher.publish(push)
+    time.sleep(0.1)
+    ioloop.start()
+    try:
+        ioloop.state.selected("RUN").wait()
+        time.sleep(0.01)
+        assert client.receiver.framecount == 0
+        ioloop.resume()
+        ioloop.state.selected("RUN").wait()
+        Publisher.publish(push)
+        Publisher.publish(push)
+        Publisher.publish(push)
+        time.sleep(0.01)
+        ioloop.resume()
+        ioloop.state.selected("RUN").wait()
+        time.sleep(0.1)
+        assert client.receiver.framecount == 4
     finally:
         ioloop.stop()
     assert client.receiver.framecount != 0

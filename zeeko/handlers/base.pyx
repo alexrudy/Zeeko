@@ -115,6 +115,14 @@ cdef class SocketInfo:
         """Safely close this socket wrapper"""
         if not self.socket.closed:
             self.socket.close()
+            
+    cdef int paused(self) nogil except -1:
+        """Function called when the loop has paused."""
+        return 0
+    
+    cdef int resumed(self) nogil except -1:
+        """Function called when the loop is resumed."""
+        return 0
     
     cdef int bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1:
         cdef int rc = 0

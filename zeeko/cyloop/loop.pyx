@@ -189,39 +189,59 @@ cdef class IOLoop:
     
     cdef int _pause(self) nogil except -1:
         cdef int rc = 0
+        cdef int i
+        
         self._lock._acquire()
         try:
-            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout()))
-            self.throttle.start()
-            rc = self.state.sentinel(&self._pollitems[0])
+            for i in range(1, self._n_pollitems):
+                rc = (<SocketInfo>self._socketinfos[i-1]).paused()
         finally:
-            self.throttle.mark()
             self._lock._release()
+        
+        while self.state.check(PAUSE):
+            self._lock._acquire()
+            try:
+                rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout()))
+                self.throttle.start()
+                rc = self.state.sentinel(&self._pollitems[0])
+            finally:
+                self.throttle.mark()
+                self._lock._release()
         return rc
 
     cdef int _run(self) nogil except -1:
         cdef size_t i
         cdef int rc = 0
         cdef double now = current_time()
+        
         self._lock._acquire()
         try:
-            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self._get_timeout()))
-            now = current_time()
-            self.throttle.start_at(now)
             for i in range(1, self._n_pollitems):
-                rc = (<SocketInfo>self._socketinfos[i-1]).throttle.start_at(now)
-            if self.state.sentinel(&self._pollitems[0]) != 1:
-                for i in range(1, self._n_pollitems):
-                    rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)
-            now = current_time()
-            self.throttle.mark_at(now)
-            for i in range(1, self._n_pollitems):
-                rc = (<SocketInfo>self._socketinfos[i-1]).throttle.mark_at(now)
+                rc = (<SocketInfo>self._socketinfos[i-1]).resumed()
         finally:
             self._lock._release()
+        
+        while self.state.check(RUN):
+            self._lock._acquire()
+            try:
+                rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self._get_timeout()))
+                now = current_time()
+                self.throttle.start_at(now)
+                for i in range(1, self._n_pollitems):
+                    rc = (<SocketInfo>self._socketinfos[i-1]).throttle.start_at(now)
+                if self.state.sentinel(&self._pollitems[0]) != 1:
+                    for i in range(1, self._n_pollitems):
+                        rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)
+                now = current_time()
+                self.throttle.mark_at(now)
+                for i in range(1, self._n_pollitems):
+                    rc = (<SocketInfo>self._socketinfos[i-1]).throttle.mark_at(now)
+            finally:
+                self._lock._release()
         return rc
     
     cdef int _check_pollitems(self, int n) except -1:
+        cdef int i
         for i in range(n):
             address = address_of(self._pollitems[i].socket)
             if self._pollitems[i].socket == NULL and self._pollitems[i].fd == 0:

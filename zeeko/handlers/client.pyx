@@ -27,6 +27,8 @@ cdef class Client(SocketInfo):
     
     cdef readonly Receiver receiver
     cdef readonly Snail snail
+    cdef str address
+    cdef public bint use_reconnections
     
     def __cinit__(self):
         
@@ -37,18 +39,57 @@ cdef class Client(SocketInfo):
         
         # Delay management
         self.snail = Snail()
+        self.address = ""
+        self.use_reconnections = False
     
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
         if self.socket.type == zmq.SUB:
             self.support_options()
-        
+    
+    def enable_reconnections(self, str address not None):
+        """Enable the reconnect/disconnect on pause."""
+        self.address = address
+        self.use_reconnections = True
     
     @classmethod
-    def at_address(cls, str address, Context ctx, int kind = zmq.SUB):
+    def at_address(cls, str address, Context ctx, int kind = zmq.SUB, enable_reconnections=True):
         socket = ctx.socket(kind)
         socket.connect(address)
-        return cls(socket, zmq.POLLIN)
+        obj = cls(socket, zmq.POLLIN)
+        if enable_reconnections:
+            obj.enable_reconnections(address)
+        return obj
+        
+    cdef int paused(self) nogil except -1:
+        """Function called when the loop has paused."""
+        if not self.use_reconnections:
+            return 0
+        with gil:
+            try:
+                self.socket.disconnect(self.address)
+            except zmq.ZMQError as e:
+                if e.errno == zmq.ENOTCONN or e.errno == zmq.EAGAIN:
+                    # Ignore errors that signal that we've already disconnected.
+                    pass
+                else:
+                    raise
+        return 0
+    
+    cdef int resumed(self) nogil except -1:
+        """Function called when the loop is resumed."""
+        if not self.use_reconnections:
+            return 0
+        with gil:
+            try:
+                self.socket.connect(self.address)
+            except zmq.ZMQError as e:
+                if e.errno == zmq.ENOTCONN or e.errno == zmq.EAGAIN:
+                    # Ignore errors that signal that we've already disconnected.
+                    pass
+                else:
+                    raise
+        return 0
         
     def subscribe(self, key):
         """Subscribe"""

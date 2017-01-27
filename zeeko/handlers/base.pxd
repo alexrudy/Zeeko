@@ -23,6 +23,9 @@ cdef class SocketInfo:
     # Spot for options management.
     cdef readonly object opt
     
+    
+    cdef int paused(self) nogil except -1    
+    cdef int resumed(self) nogil except -1
     cdef int bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1
     cdef int fire(self, libzmq.zmq_pollitem_t * pollitem, void * interrupt) nogil except -1
     
