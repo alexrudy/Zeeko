@@ -121,7 +121,7 @@ cdef class Publisher:
         return 0
         
     cdef int _update_messages(self) except -1:
-        """Function to update the messages array."""
+        """Update the internal array of message structures."""
         cdef int rc
         self.lock()
         try:
@@ -143,7 +143,7 @@ cdef class Publisher:
         return 0
         
     cdef int _publish(self, void * socket, int flags) nogil except -1:
-        """Inner-loop message sender."""
+        """Send all messages/arrays once via the provided socket."""
         cdef int i, rc
         self.lock()
         try:
