@@ -1,6 +1,7 @@
 # Inline implementations of important ZMQ problems
 cimport zmq.backend.cython.libzmq as libzmq
 from cpython.exc cimport PyErr_SetFromErrno
+from libc.stdlib cimport calloc as _calloc, malloc as _malloc, realloc as _realloc
 
 cdef inline int check_zmq_rc(int rc) nogil except -1:
     if rc == -1:
@@ -36,3 +37,11 @@ cdef inline int check_generic_rc(int rc) nogil except -1:
             return -1
     return rc
 
+cdef inline void * calloc(size_t count, size_t size) nogil except NULL:
+    return check_memory_ptr(_calloc(count, size))
+
+cdef inline void * malloc(size_t size) nogil except NULL:
+    return check_memory_ptr(_malloc(size))
+
+cdef inline void * realloc(void *ptr, size_t size) nogil except NULL:
+    return check_memory_ptr(_realloc(ptr, size))
