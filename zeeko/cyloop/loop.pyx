@@ -172,6 +172,8 @@ cdef class IOLoop:
                         self._pause()
                     elif self.state.check(STOP):
                         break
+        except Exception as e:
+            raise
         finally:
             self._close()
     

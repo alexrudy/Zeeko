@@ -102,6 +102,10 @@ cdef class SocketInfo:
         assert isinstance(self.socket, zmq.Socket), "Socket is None"
         assert self.socket.handle != NULL, "Socket handle is null"
         assert self.callback != NULL, "Callback must be set."
+    
+    def __repr__(self):
+        return "<{0:s} socket={1!r} events={2:s}>".format(self.__class__.__name__,
+                self.socket, bin(self.events)[2:])
         
     def _start(self):
         """Python function run as the loop starts."""

@@ -123,69 +123,79 @@ def context(request):
     request.addfinalizer(functools.partial(try_term, ctx))
     return ctx
     
-def socket_pair(context, left, right, address):
+def socket_pair(context, left, right):
     """Given a context, make a socket."""
     lsocket = context.socket(left)
     rsocket = context.socket(right)
-    lsocket.bind(address)
-    rsocket.connect(address)
     yield (lsocket, rsocket)
-    rsocket.close(linger=0)
-    lsocket.close(linger=0)
-
+    rsocket.close()
+    lsocket.close()
+    
 @pytest.fixture
 def address():
     """The ZMQ address for connections."""
     return "inproc://test"
 
 @pytest.fixture
-def reqrep(context, address):
+def reqrep(context):
     """Return a bound pair."""
-    for sockets in socket_pair(context, zmq.REQ, zmq.REP, address):
+    for sockets in socket_pair(context, zmq.REQ, zmq.REP):
         yield sockets
 
 @pytest.fixture
-def req(reqrep):
+def req(reqrep, address, rep):
     """The REQ socket."""
     req, rep = reqrep
+    req.connect(address)
     return req
     
 @pytest.fixture
-def rep(reqrep):
+def rep(reqrep, address):
     """The REQ socket."""
     req, rep = reqrep
+    rep.bind(address)
     return rep
 
 @pytest.fixture
-def pushpull(context, address):
+def pushpull(context):
     """Return a bound pair."""
-    for sockets in socket_pair(context, zmq.PUSH, zmq.PULL, address):
+    for sockets in socket_pair(context, zmq.PUSH, zmq.PULL):
         yield sockets
 
 @pytest.fixture
-def push(pushpull):
+def push(pushpull, address):
     """The reply socket."""
     push, pull = pushpull
+    push.bind(address)
     return push
 
 @pytest.fixture
-def pull(pushpull):
+def pull(pushpull, address, push):
     """The reply socket."""
     push, pull = pushpull
+    pull.connect(address)
     return pull
 
 @pytest.fixture
-def subpub(context, address):
+def subpub(context):
     """Return a bound pair."""
-    for sockets in socket_pair(context, zmq.SUB, zmq.PUB, address):
+    for sockets in socket_pair(context, zmq.SUB, zmq.PUB):
         yield sockets
 
 
 @pytest.fixture
-def pub(subpub):
+def pub(subpub, address):
     """The reply socket."""
     sub, pub = subpub
+    pub.bind(address)
     return pub
+    
+@pytest.fixture
+def sub(subpub, address, pub):
+    """The SUB socket."""
+    sub, pub = subpub
+    sub.connect(address)
+    return sub
 
 @pytest.fixture
 def shape():
@@ -206,6 +216,11 @@ def dtype(request):
 def array(shape, dtype):
     """An array to send over the wire"""
     return (np.random.rand(*shape)).astype(dtype)
+
+@pytest.fixture
+def arrays(name, n, shape):
+    """A fixture of named arrays to publish."""
+    return [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
 
 def assert_canrecv(socket, timeout=5000):
     """Check if a socket is ready to receive."""
