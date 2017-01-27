@@ -119,7 +119,7 @@ class Context(zmq.Context):
 @pytest.fixture
 def context(request):
     """The ZMQ context."""
-    ctx = Context()
+    ctx = Context(io_threads=0)
     request.addfinalizer(functools.partial(try_term, ctx))
     return ctx
     
