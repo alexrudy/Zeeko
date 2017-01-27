@@ -70,7 +70,7 @@ cdef int lock_init(lock * src) nogil except -1:
 
 cdef int lock_destroy(lock * src) nogil except -1:
     """Destroy an event structure"""
-    cdef int rc
+    cdef int rc = 0
     if src._own_pthread:
         if src.mutex is not NULL:
             pthread.pthread_mutex_destroy(src.mutex)
