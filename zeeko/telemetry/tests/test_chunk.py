@@ -67,11 +67,11 @@ def test_chunk_append(chunk, lastindex, array):
     
 def assert_h5py_allclose(group, chunk):
     """docstring for assert_h5py_allclose"""
-    assert group.name == chunk.name
+    assert group.name.endswith(chunk.name)
     assert "data" in group
     assert "mask" in group
     findex = chunk.chunksize
-    np.testing.assert_allclose(group['mask'][-findex:], chunk.mask)
+    np.testing.assert_allclose(group['mask'][-findex:], (chunk.mask != 0).astype(np.int))
     np.testing.assert_allclose(group['data'][-findex:,...], chunk.array)
     
 def test_chunk_write(chunk, lastindex, filename):
@@ -81,4 +81,5 @@ def test_chunk_write(chunk, lastindex, filename):
     with h5py.File(filename, 'r') as f:
         assert chunk.name in f
         g = f[chunk.name]
+        assert_h5py_allclose(g, chunk)
 

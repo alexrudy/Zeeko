@@ -54,7 +54,7 @@ def _extend_ndim(chunk, h5group, truncate=False, axis=0):
         cstop = chunk.chunksize
     
     _append_from_array(AxisSlicer(h5data, axis), AxisSlicer(chunk.array, axis), cstop, truncate=truncate, axis=0)
-    _append_from_array(h5mask, (chunk.mask != 0).astype(np.float), cstop, truncate=truncate, axis=0)
+    _append_from_array(h5mask, (chunk.mask != 0).astype(np.int), cstop, truncate=truncate, axis=0)
     
     return h5data.shape[0]
 
