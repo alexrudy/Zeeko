@@ -38,7 +38,7 @@ cdef class HashMap:
     def __getitem__(self, bytes key):
         """Get the index for a single name."""
         cdef size_t length = len(key)
-        return self.get(<char *>key, length)
+        return self.lookup(<char *>key, length)
         
     cdef int clear(self) nogil:
         if self.hashes != NULL:
@@ -56,6 +56,18 @@ cdef class HashMap:
         
     cdef void * reallocate(self, void * ptr, size_t sz) nogil except NULL:
         return realloc(ptr, sz * self.n)
+        
+    cdef int lookup(self, char * data, size_t length) nogil except -1:
+        cdef hashvalue value = hash_data(data, length)
+        cdef size_t i
+        for i in range(self.n):
+            if self.hashes[i].value == value:
+                return i
+        else:
+            with gil:
+                raise KeyError("Can't find a key with value {0}".format(
+                    PyBytes_FromStringAndSize(data, length).decode('utf-8', 'backslashreplace')
+                ))
         
     cdef int get(self, char * data, size_t length) nogil except -1:
         cdef hashvalue value = hash_data(data, length)

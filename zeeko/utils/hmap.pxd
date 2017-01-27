@@ -15,3 +15,4 @@ cdef class HashMap:
     cdef void * reallocate(self, void * ptr, size_t sz) nogil except NULL
     cdef int get(self, char * data, size_t length) nogil except -1
     cdef int insert(self, char * data, size_t length) nogil except -1
+    cdef int lookup(self, char * data, size_t length) nogil except -1

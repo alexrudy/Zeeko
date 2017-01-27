@@ -16,6 +16,10 @@ def items(n):
 def test_hmap(items):
     """docstring for test"""
     h = HashMap()
+    if len(items):
+        with pytest.raises(KeyError):
+            h[items[0]]
+    
     for item in items:
         h.add(item)
     assert len(h) == len(items)
