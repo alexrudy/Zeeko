@@ -174,11 +174,24 @@ cdef class IOLoop:
         finally:
             self._close()
     
+    cdef long _get_timeout(self) nogil:
+        """Compute the appropriate timeout."""
+        cdef int i
+        cdef long si_timeout = 0
+        cdef long timeout = self.throttle.get_timeout()
+        for i in range(1, self._n_pollitems):
+            if (<SocketInfo>self._socketinfos[i-1]).throttle.active:
+                si_timeout = (<SocketInfo>self._socketinfos[i-1]).throttle.get_timeout()
+                if si_timeout < timeout:
+                    timeout = si_timeout
+        return timeout
+    
     cdef int _pause(self) nogil except -1:
         self._lock._acquire()
         try:
-            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout(1)))
             self.throttle.mark()
+            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout()))
+            self.throttle.start()
             return self.state.sentinel(&self._pollitems[0])
         finally:
             self._lock._release()
@@ -188,11 +201,12 @@ cdef class IOLoop:
         cdef int rc = 0
         self._lock._acquire()
         try:
-            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self.throttle.get_timeout(1)))
+            self.throttle.mark()
+            rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self._get_timeout()))
+            self.throttle.start()
             if self.state.sentinel(&self._pollitems[0]) != 1:
                 for i in range(1, self._n_pollitems):
                     rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)            
-                self.throttle.mark()
         finally:
             self._lock._release()
         return rc

@@ -40,7 +40,6 @@ cdef class Client(SocketInfo):
     
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
-        # Retain the context here for future use.
         if self.socket.type == zmq.SUB:
             self.support_options()
         

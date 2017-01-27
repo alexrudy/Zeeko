@@ -1,5 +1,5 @@
 import pytest
-
+from pytest import approx
 from ..throttle import Throttle
 
 def test_throttle_init():
@@ -25,20 +25,20 @@ def test_active_throttle():
     t.active = True
     t.period = 1.0
     t._reset_at(0.0)
+    t._start_at(0.0)
     t._mark_at(1.0)
-    assert t._get_timeout_at(1.0) == 199
-    
-def test_integration_throttle():
-    """Test throttle with integration."""
+    assert t._get_timeout_at(1.0) == 0
+
+def test_integrator_throttle():
+    """Test the throttle integration over many iterations."""
     t = Throttle()
     t.active = True
     t.period = 1.0
-    t.c = 0.1
     t._reset_at(0.0)
-    t._mark_at(0.5)
-    assert t._get_timeout_at(0.5) == 180
-    
-    t._mark_at(1.5)
-    assert t._get_timeout_at(2.0) == 252
-
+    for i in range(1000):
+        t._start_at(0.0)
+        t._mark_at(0.5)
+        t._get_timeout_at(0.75)
+    assert t._delay == approx(0.5, rel=1e-3)
+    assert t._get_timeout_at(0.75) == 249
     

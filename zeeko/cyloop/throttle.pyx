@@ -1,5 +1,5 @@
 from posix.time cimport timespec, nanosleep
-from libc.math cimport floor
+from libc.math cimport floor, fmod
 from ..utils.clock cimport current_time
 
 cdef class Throttle:
@@ -16,8 +16,10 @@ cdef class Throttle:
     def __cinit__(self):
         self._last_event = 0.0
         self._next_event = 0.0
+        self._last_start = 0.0
+        self._delay = 0.0
+        
         self.period = 0.01
-        self._wait_time = 0.0
         self._gain = 0.2
         self._c = 1e-4
         self.timeout = 0.01
@@ -84,7 +86,7 @@ cdef class Throttle:
         
     cdef int reset_at(self, double last_event) nogil:
         """Reset the integrator at a specific time."""
-        self._wait_time = 0.0
+        self._delay = 0.0
         self._last_event = last_event
         return 0
     
@@ -96,56 +98,70 @@ cdef class Throttle:
             rc = self.mark_at(_now)
         return rc
     
-    cdef int mark_at(self, double now) nogil except -1:
+    cdef int mark_at(self, double now) nogil:
         """Mark the operation as done at a specific time., preparing for the next event time."""
+        cdef double delay_i = self.period - now + self._last_start
+        cdef double error = delay_i - self._delay
+        cdef double memory = self._delay + (self._gain * error)
+        self._delay = memory - (memory * self._c)
         self._next_event = now + self.period
         self._last_event = now
         return 0
         
-    cdef int mark(self) nogil except -1:
+    cdef int mark(self) nogil:
         """Mark the operation as done, preparing for the next event time."""
         cdef double now = current_time()
         return self.mark_at(now)
         
-    def _get_timeout_at(self, now, compute=True):
+    def _get_timeout_at(self, now, mark=False):
         """Get timeout from python."""
         cdef double _now = now
-        cdef bint _compute = compute
+        cdef bint _mark = mark
         cdef long timoeut
         with nogil:
-            timeout = self.get_timeout_at(_now, _compute)
+            timeout = self.get_timeout_at(_now, _mark)
         return timeout
         
-    cdef int _compute(self, double now) nogil:
-        cdef double error = 0.0
-        cdef double memory = 0.0
+    def _start_at(self, now=None):
+        cdef int rc
+        cdef double _now = now
+        with nogil:
+            rc = self.start_at(_now)
+        return rc
         
-        error = self._next_event - now
-        memory = self._wait_time + (self._gain * error)
-        self._wait_time =  memory - (memory * self._c)
-        return 0
+    cdef int start_at(self, double now) nogil:
+        """Start work. Can infer overhead here."""
+        self._last_start = now
+    
+    cdef int start(self) nogil:
+        return self.start_at(current_time())
         
-    cdef long get_timeout_at(self, double now, bint compute) nogil:
+    cdef bint should_fire(self) nogil:
+        cdef double now = current_time()
+        return (not self.active) or (now >= self._next_event)
+        
+    cdef long get_timeout_at(self, double now, bint mark) nogil:
         """Get a timeout at a specific time."""
         cdef double wait_time = 0.0
         cdef timespec wait_ts
-        if compute:
-            self._compute(now)
+        if mark:
+            self.mark_at(now)
         
+        wait_time = self._last_event + self._delay - now
         if not self.active:
             return <long>floor(self.timeout * 1e3)
-        if self._wait_time < 0.0:
+        if wait_time < 0.0:
             return 0
-        elif self._wait_time < 1e-3:
-            wait_ts.tv_nsec = <int>floor(self._wait_time * 1e6)
+        elif wait_time < 2e-3:
+            wait_ts.tv_nsec = <int>floor(fmod(wait_time  * 1e6, 1e3))
             wait_ts.tv_sec = 0
             nanosleep(&wait_ts, NULL)
-            return 0
+            return <long>floor(wait_time * 1e3)
         else:
-            return <long>floor(self._wait_time * 1e3)
+            return <long>floor(wait_time * 1e3)
     
-    cdef long get_timeout(self, bint compute) nogil:
+    cdef long get_timeout(self) nogil:
         """Return the ZMQ timeout duration in milliseconds"""
         cdef double now = current_time()
-        return self.get_timeout_at(now, compute)
+        return self.get_timeout_at(now, 0)
     

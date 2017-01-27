@@ -22,11 +22,12 @@ event = pxd("..","utils","condition")
 receiver = pxd("..","messages","receiver")
 publisher = pxd("..","messages","publisher")
 state = pxd("..", "cyloop", "_state")
+throttle = pxd("..", "cyloop", "throttle")
 
 dependencies = {
-    'base' : [],
+    'base' : [throttle],
     'snail' : [clock, state],
-    'client': [rc, msg, receiver, pxd('base'), pxd('snail')],
+    'client': [rc, msg, receiver, throttle, pxd('base'), pxd('snail')],
 }
 
 

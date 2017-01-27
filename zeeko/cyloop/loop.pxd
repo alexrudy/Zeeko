@@ -35,3 +35,4 @@ cdef class IOLoop:
     cdef int _pause(self) nogil except -1
     cdef int _run(self) nogil except -1
     cdef int _check_pollitems(self, int n) except -1
+    cdef long _get_timeout(self) nogil

@@ -95,6 +95,7 @@ cdef class SocketInfo:
         self.socket = socket # Retain reference.
         self.events = events
         self.opt = None
+        self.throttle = Throttle()
         
     def check(self):
         """Check this socketinfo"""
@@ -128,6 +129,8 @@ cdef class SocketInfo:
         if pollitem.socket != self.socket.handle:
             with gil:
                 raise ValueError("Poll socket does not match socket owned by this object.")
+        if not self.throttle.should_fire():
+            return -3
         if ((self.events & pollitem.revents) or (not self.events)):
             return self.callback(self.socket.handle, pollitem.revents, self.data, interrupt)
         else:
