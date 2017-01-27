@@ -21,6 +21,7 @@ cdef int chunk_init(array_chunk * chunk) nogil except -1:
     cdef int rc = 0
     chunk.chunksize = 0
     chunk.stride = 0
+    chunk.last_index = 0
     rc = libzmq.zmq_msg_init(&chunk.mask)
     check_rc(rc)
     
@@ -44,6 +45,7 @@ cdef int chunk_init_array(array_chunk * chunk, carray_named * array, size_t chun
     cdef size_t size = 0
     cdef void * src
     cdef void * dst
+    chunk.last_index = 0
     chunk.chunksize = chunksize
     rc = libzmq.zmq_msg_init_size(&chunk.mask, chunksize * sizeof(DINT_t))
     check_rc(rc)
@@ -71,6 +73,7 @@ cdef int chunk_init_array(array_chunk * chunk, carray_named * array, size_t chun
     dst = libzmq.zmq_msg_data(&chunk.name)
     memcpy(dst, src, size)
     
+    
     return rc
     
 cdef int chunk_copy(array_chunk * dest, array_chunk * src) nogil except -1:
@@ -80,6 +83,7 @@ cdef int chunk_copy(array_chunk * dest, array_chunk * src) nogil except -1:
     cdef int rc = 0
     dest.chunksize = src.chunksize
     dest.stride = src.stride
+    dest.last_index = src.last_index
     rc = libzmq.zmq_msg_copy(&dest.mask, &src.mask)
     check_rc(rc)
     rc = libzmq.zmq_msg_copy(&dest.data, &src.data)
@@ -124,6 +128,7 @@ cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index) n
     memcpy(&data[index * chunk.stride], libzmq.zmq_msg_data(&array.array.data), size)
     mask = <DINT_t *>libzmq.zmq_msg_data(&chunk.mask)
     mask[index] = <DINT_t>(index + 1)
+    chunk.last_index = index
     return 0
     
 cdef int chunk_close(array_chunk * chunk) nogil except -1:
@@ -226,6 +231,7 @@ cdef class Chunk:
         check_rc(rc)
         
         self._construct_metadata(np.asarray(data))
+        self._chunk.last_index = self.lastindex
         
     def _construct_name(self):
         cdef int rc

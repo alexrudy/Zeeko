@@ -11,6 +11,7 @@ ctypedef np.int32_t DINT_t
 ctypedef struct array_chunk:
     size_t chunksize
     size_t stride
+    size_t last_index
     libzmq.zmq_msg_t mask
     libzmq.zmq_msg_t data
     libzmq.zmq_msg_t metadata
