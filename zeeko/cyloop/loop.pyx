@@ -3,6 +3,7 @@ from libc.stdlib cimport free, malloc, realloc, calloc
 from libc.string cimport memcpy
 
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr, check_memory_ptr, check_generic_ptr
+from ..utils.clock cimport current_time
 from ..handlers.base cimport SocketInfo, socketinfo
 
 import threading
@@ -187,26 +188,35 @@ cdef class IOLoop:
         return timeout
     
     cdef int _pause(self) nogil except -1:
+        cdef int rc = 0
         self._lock._acquire()
         try:
-            self.throttle.mark()
             rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout()))
             self.throttle.start()
-            return self.state.sentinel(&self._pollitems[0])
+            rc = self.state.sentinel(&self._pollitems[0])
         finally:
+            self.throttle.mark()
             self._lock._release()
+        return rc
 
     cdef int _run(self) nogil except -1:
         cdef size_t i
         cdef int rc = 0
+        cdef double now = current_time()
         self._lock._acquire()
         try:
-            self.throttle.mark()
             rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, self._n_pollitems, self._get_timeout()))
-            self.throttle.start()
+            now = current_time()
+            self.throttle.start_at(now)
+            for i in range(1, self._n_pollitems):
+                rc = (<SocketInfo>self._socketinfos[i-1]).throttle.start_at(now)
             if self.state.sentinel(&self._pollitems[0]) != 1:
                 for i in range(1, self._n_pollitems):
-                    rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)            
+                    rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)
+            now = current_time()
+            self.throttle.mark_at(now)
+            for i in range(1, self._n_pollitems):
+                rc = (<SocketInfo>self._socketinfos[i-1]).throttle.mark_at(now)
         finally:
             self._lock._release()
         return rc
