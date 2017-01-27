@@ -24,6 +24,8 @@ def snail():
     
 def test_snail_check(snail, push, pull):
     """Test check snail."""
+    push.send("HELLO")
+    assert pull.recv() == "HELLO"
     snail.check(push, 1.0, 0.0)
     assert snail.delay == approx(1.0)
     assert snail.nlate == 0
