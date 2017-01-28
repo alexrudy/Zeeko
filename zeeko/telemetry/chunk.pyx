@@ -1,16 +1,25 @@
 
+# -----------------------------------------------------------------------------
+# Cython Imorts
 cimport numpy as np
-import numpy as np
 
 from libc.string cimport memcpy, memcmp, memset
-from zmq.backend.cython.socket cimport Socket
-from ..messages.utils cimport check_rc, check_ptr
-from ..messages.message cimport zmq_msg_to_str, zmq_msg_from_str, ArrayMessage
-from cpython.string cimport PyString_FromStringAndSize
-from zmq.utils import jsonapi
+
+# ZMQ Cython imports
 cimport zmq.backend.cython.libzmq as libzmq
-from zmq.utils.buffers cimport viewfromobject_r
+from zmq.backend.cython.socket cimport Socket
 from zmq.backend.cython.message cimport Frame
+from zmq.utils.buffers cimport viewfromobject_r
+
+from ..utils.rc cimport check_zmq_rc, check_zmq_ptr
+from ..utils.msg cimport zmq_msg_to_str, zmq_msg_from_str
+
+from ..messages.message cimport ArrayMessage
+
+# -----------------------------------------------------------------------------
+# Python Imorts
+import numpy as np
+from zmq.utils import jsonapi
 from .. import ZEEKO_PROTOCOL_VERSION
 from . import io
 
@@ -23,16 +32,16 @@ cdef int chunk_init(array_chunk * chunk) nogil except -1:
     chunk.stride = 0
     chunk.last_index = 0
     rc = libzmq.zmq_msg_init(&chunk.mask)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = libzmq.zmq_msg_init(&chunk.data)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = libzmq.zmq_msg_init(&chunk.metadata)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = libzmq.zmq_msg_init(&chunk.name)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     return rc
 
@@ -48,18 +57,18 @@ cdef int chunk_init_array(array_chunk * chunk, carray_named * array, size_t chun
     chunk.last_index = 0
     chunk.chunksize = chunksize
     rc = libzmq.zmq_msg_init_size(&chunk.mask, chunksize * sizeof(DINT_t))
-    check_rc(rc)
+    check_zmq_rc(rc)
     dst = libzmq.zmq_msg_data(&chunk.mask)
     memset(dst, 0, chunksize * sizeof(DINT_t))
     
     size = libzmq.zmq_msg_size(&array.array.data)
     chunk.stride = size
     rc = libzmq.zmq_msg_init_size(&chunk.data, chunksize * size)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     size = libzmq.zmq_msg_size(&array.array.metadata)
     rc = libzmq.zmq_msg_init_size(&chunk.metadata, size)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     src = libzmq.zmq_msg_data(&array.array.metadata)
     dst = libzmq.zmq_msg_data(&chunk.metadata)
@@ -67,7 +76,7 @@ cdef int chunk_init_array(array_chunk * chunk, carray_named * array, size_t chun
     
     size = libzmq.zmq_msg_size(&array.name)
     rc = libzmq.zmq_msg_init_size(&chunk.name, size)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     src = libzmq.zmq_msg_data(&array.name)
     dst = libzmq.zmq_msg_data(&chunk.name)
@@ -85,13 +94,13 @@ cdef int chunk_copy(array_chunk * dest, array_chunk * src) nogil except -1:
     dest.stride = src.stride
     dest.last_index = src.last_index
     rc = libzmq.zmq_msg_copy(&dest.mask, &src.mask)
-    check_rc(rc)
+    check_zmq_rc(rc)
     rc = libzmq.zmq_msg_copy(&dest.data, &src.data)
-    check_rc(rc)
+    check_zmq_rc(rc)
     rc = libzmq.zmq_msg_copy(&dest.metadata, &src.metadata)
-    check_rc(rc)
+    check_zmq_rc(rc)
     rc = libzmq.zmq_msg_copy(&dest.name, &src.name)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     return rc
 
@@ -136,14 +145,18 @@ cdef int chunk_close(array_chunk * chunk) nogil except -1:
     Close chunk messages, making the chunk ready for garbage collection.
     """
     cdef int rc = 0
-    rc = libzmq.zmq_msg_close(&chunk.data)
-    check_rc(rc)
-    rc = libzmq.zmq_msg_close(&chunk.mask)
-    check_rc(rc)
-    rc = libzmq.zmq_msg_close(&chunk.name)
-    check_rc(rc)
-    rc = libzmq.zmq_msg_close(&chunk.metadata)
-    check_rc(rc)
+    if &chunk.data is not NULL:
+        rc = libzmq.zmq_msg_close(&chunk.data)
+        check_zmq_rc(rc)
+    if &chunk.mask is not NULL:
+        rc = libzmq.zmq_msg_close(&chunk.mask)
+        check_zmq_rc(rc)
+    if &chunk.name is not NULL:
+        rc = libzmq.zmq_msg_close(&chunk.name)
+        check_zmq_rc(rc)
+    if &chunk.metadata is not NULL:
+        rc = libzmq.zmq_msg_close(&chunk.metadata)
+        check_zmq_rc(rc)
     return rc
 
 cdef int chunk_send(array_chunk * chunk, void * socket, int flags) nogil except -1:
@@ -155,28 +168,28 @@ cdef int chunk_send(array_chunk * chunk, void * socket, int flags) nogil except 
     cdef libzmq.zmq_msg_t zmessage, zmetadata, zname, zmask
     
     rc = libzmq.zmq_msg_init(&zname)
-    check_rc(rc)
+    check_zmq_rc(rc)
     libzmq.zmq_msg_copy(&zname, &chunk.name)
     rc = libzmq.zmq_msg_send(&zname, socket, flags|libzmq.ZMQ_SNDMORE)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = libzmq.zmq_msg_init(&zmetadata)
-    check_rc(rc)
+    check_zmq_rc(rc)
     libzmq.zmq_msg_copy(&zmetadata, &chunk.metadata)
     rc = libzmq.zmq_msg_send(&zmetadata, socket, flags|libzmq.ZMQ_SNDMORE)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = libzmq.zmq_msg_init(&zmessage)
-    check_rc(rc)
+    check_zmq_rc(rc)
     libzmq.zmq_msg_copy(&zmessage, &chunk.data)
     rc = libzmq.zmq_msg_send(&zmessage, socket, flags|libzmq.ZMQ_SNDMORE)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = libzmq.zmq_msg_init(&zmask)
-    check_rc(rc)
+    check_zmq_rc(rc)
     libzmq.zmq_msg_copy(&zmask, &chunk.mask)
     rc = libzmq.zmq_msg_send(&zmask, socket, flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
 
     return rc
 
@@ -189,19 +202,19 @@ cdef int chunk_recv(array_chunk * chunk, void * socket, int flags) nogil except 
     
     # Recieve the name message
     rc = libzmq.zmq_msg_recv(&chunk.name, socket, flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     # Recieve the metadata message
     rc = libzmq.zmq_msg_recv(&chunk.metadata, socket, flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
 
     # Recieve the array data.
     rc = libzmq.zmq_msg_recv(&chunk.data, socket, flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     # Recieve the mask
     rc = libzmq.zmq_msg_recv(&chunk.mask, socket, flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     return rc
 
@@ -224,11 +237,11 @@ cdef class Chunk:
         self._chunk.stride = data.dtype.itemsize * stride
         self._data_frame = Frame(data=np.asanyarray(data))
         rc = libzmq.zmq_msg_copy(&self._chunk.data, &self._data_frame.zmq_msg)
-        check_rc(rc)
+        check_zmq_rc(rc)
         
         self._mask_frame = Frame(data=np.asanyarray(mask))
         rc = libzmq.zmq_msg_copy(&self._chunk.mask, &self._mask_frame.zmq_msg)
-        check_rc(rc)
+        check_zmq_rc(rc)
         
         self._construct_metadata(np.asarray(data))
         self._chunk.last_index = self.lastindex
@@ -238,10 +251,10 @@ cdef class Chunk:
         cdef char[:] name = bytearray(self._name)
     
         rc = libzmq.zmq_msg_close(&self._chunk.name)
-        check_rc(rc)
+        check_zmq_rc(rc)
     
         rc = zmq_msg_from_str(&self._chunk.name, name)
-        check_rc(rc)
+        check_zmq_rc(rc)
         
     def _construct_metadata(self, np.ndarray data):
         """Construct the metadata message."""
@@ -252,10 +265,10 @@ cdef class Chunk:
         metadata = bytearray(jsonapi.dumps(dict(shape=A.shape[1:], dtype=A.dtype.str, version=ZEEKO_PROTOCOL_VERSION)))
         
         rc = libzmq.zmq_msg_close(&self._chunk.metadata)
-        check_rc(rc)
+        check_zmq_rc(rc)
         
         rc = zmq_msg_from_str(&self._chunk.metadata, metadata)
-        check_rc(rc)
+        check_zmq_rc(rc)
         self._parse_metadata()
         
     def __dealloc__(self):
@@ -266,6 +279,11 @@ cdef class Chunk:
     cdef Chunk from_chunk(array_chunk * chunk):
         cdef Chunk obj = Chunk.__new__(Chunk)
         chunk_copy(&obj._chunk, chunk)
+        return obj
+        
+    def copy(self):
+        cdef Chunk obj = Chunk.__new__(Chunk)
+        chunk_copy(&obj._chunk, &self._chunk)
         return obj
 
     property array:
@@ -323,12 +341,16 @@ cdef class Chunk:
     property lastindex:
         def __get__(self):
             return np.argmax(self.mask)
+            
+    property _lastindex:
+        def __get__(self):
+            return self._chunk.last_index
         
     def send(self, Socket socket, int flags=0):
         cdef void * handle = socket.handle
         with nogil:
             rc = chunk_send(&self._chunk, handle, flags)
-        check_rc(rc)
+        check_zmq_rc(rc)
     
     def append(self, array):
         """Append a numpy array to the chunk."""

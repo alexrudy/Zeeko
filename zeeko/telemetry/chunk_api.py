@@ -20,11 +20,17 @@ class PyChunk(object):
         self.array = array
         self.mask = mask
         self.name = str(name)
+        self._lastindex = np.argmax(self.mask)
         
     def __repr__(self):
         return "<{0:s} ({1:s})x({2:d}) at {3:d}>".format(
             self.__class__.__name__, "x".join(["{0:d}".format(s) for s in self.shape]),
             self.chunksize, self.lastindex)
+        
+    def copy(self):
+        """Copy this chunk"""
+        import copy
+        return copy.copy(self)
         
     @property
     def chunksize(self):
@@ -66,6 +72,7 @@ class PyChunk(object):
         index = self.lastindex + 1
         self.mask[index] = index + 1
         self.array[index,...] = data
+        self._lastindex = index
     
     def send(self, socket, flags=0):
         """Send this chunk over a ZMQ socket."""

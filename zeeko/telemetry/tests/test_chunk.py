@@ -32,6 +32,7 @@ def assert_chunk_allclose(chunka, chunkb):
     assert chunka.metadata == chunkb.metadata
     assert chunka.chunksize == chunkb.chunksize
     assert chunka.lastindex == chunkb.lastindex
+    assert chunka._lastindex == chunkb._lastindex
     assert chunka.name == chunkb.name
 
 def test_chunk_message(chunk_cls, name, chunk_array, chunk_mask, lastindex):
@@ -44,6 +45,7 @@ def test_chunk_message(chunk_cls, name, chunk_array, chunk_mask, lastindex):
     assert (lastindex - 1) == chunk.lastindex
     assert np.max(chunk.mask) == lastindex
     assert np.argmax(chunk.mask) == chunk.lastindex
+    assert chunk._lastindex == chunk.lastindex
     assert np.may_share_memory(chunk.array, chunk_array)
     assert np.may_share_memory(chunk.mask, chunk_mask)
     
@@ -82,4 +84,11 @@ def test_chunk_write(chunk, lastindex, filename):
         assert chunk.name in f
         g = f[chunk.name]
         assert_h5py_allclose(g, chunk)
+    
+def test_chunk_copy(chunk):
+    """Copy a chunk"""
+    ochunk = chunk.copy()
+    assert_chunk_allclose(chunk, ochunk)
+    assert np.may_share_memory(chunk.array, ochunk.array)
+    assert np.may_share_memory(chunk.mask, ochunk.mask)
 
