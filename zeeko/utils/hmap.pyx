@@ -31,7 +31,10 @@ cdef class HashMap:
         
     def add(self, bytes key):
         cdef size_t length = len(key)
-        return self.get(<char *>key, length)
+        cdef int rc = self.get(<char *>key, length)
+        if rc == -1:
+            rc = self.insert(<char *>key, length)
+        return rc
     
     def __repr__(self):
         return "HashMap({0!r})".format(self.keys())
@@ -71,14 +74,13 @@ cdef class HashMap:
                     PyBytes_FromStringAndSize(data, length).decode('utf-8', 'backslashreplace')
                 ))
         
-    cdef int get(self, char * data, size_t length) nogil except -1:
+    cdef int get(self, char * data, size_t length) nogil:
         cdef hashvalue value = hash_data(data, length)
         cdef size_t i
         for i in range(self.n):
             if self.hashes[i].value == value:
                 return i
-        else:
-            return self.insert(data, length)
+        return -1
         
     cdef int insert(self, char * data, size_t length) nogil except -1:
         cdef hashvalue value = hash_data(data, length)
