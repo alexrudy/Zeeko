@@ -9,6 +9,7 @@ import struct
 from .. import chunk_api
 from .. import chunk as chunk_capi
 from .. import io
+from .support import assert_chunk_allclose, assert_chunk_array_allclose
 
 @pytest.fixture(params=[chunk_api.PyChunk, chunk_capi.Chunk])
 def chunk_cls(request):
@@ -24,17 +25,6 @@ def chunk(chunk_cls, name, chunk_array, chunk_mask):
 def filename(tmpdir):
     """The filename"""
     return str(tmpdir.join("chunk.h5py"))
-    
-def assert_chunk_allclose(chunka, chunkb):
-    """Assert that two chunks are essentially the same."""
-    np.testing.assert_allclose(chunka.array, chunkb.array)
-    np.testing.assert_allclose(chunka.mask, chunkb.mask)
-    assert chunka.metadata == chunkb.metadata
-    assert chunka.chunksize == chunkb.chunksize
-    assert chunka.lastindex == chunkb.lastindex
-    assert chunka._lastindex == chunkb._lastindex
-    assert chunka.name == chunkb.name
-    assert repr(chunka).lstrip("<Py") == repr(chunkb).lstrip("<Py")
 
 def test_chunk_message(chunk_cls, name, chunk_array, chunk_mask, lastindex):
     """Test generating an array message."""
@@ -59,14 +49,11 @@ def test_chunk_roundtrip(req, rep, chunk):
     req_chunk = chunk_api.PyChunk.recv(req.can_recv())
     assert_chunk_allclose(chunk, req_chunk)
     
-def test_chunk_append(chunk, lastindex, array):
+def test_chunk_append(chunk, array, lastindex):
     """Append to a chunk."""
     assert (lastindex - 1) == chunk.lastindex
     chunk.append(array)
-    assert lastindex == chunk.lastindex
-    assert np.max(chunk.mask) == lastindex + 1
-    assert np.argmax(chunk.mask) == chunk.lastindex
-    np.testing.assert_allclose(chunk.array[chunk.lastindex], array)
+    np.testing.assert_allclose(chunk.array[lastindex], array)
     
 def assert_h5py_allclose(group, chunk):
     """docstring for assert_h5py_allclose"""

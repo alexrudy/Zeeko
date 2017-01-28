@@ -1,9 +1,12 @@
 import pytest
 import numpy as np
 import zmq
+import itertools
 
 from ..recorder import Recorder
 from ...messages import array as array_api
+from ...messages.publisher import Publisher
+from .support import assert_chunk_array_allclose
 from zeeko.conftest import assert_canrecv
 
 @pytest.fixture
@@ -39,31 +42,61 @@ def test_recorder_construction(chunksize):
 class TestRecorder(object):
     """Test case for recorders."""
     
+    _framecount = itertools.count()
+    
     pytestmark = pytest.mark.usefixtures("rnotify")
-
-    def test_once(self, push, pull, notify, rnotify, shape, name, n, chunksize):
-        """Test the receiver system."""
-        arrays = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
     
-        framecount = 5
-        array_api.send_array_packet(push, framecount, arrays)
+    @pytest.fixture
+    def recorder(self, push, pull, notify, chunksize):
+        """Return a receiver"""
+        self._pull = pull
+        self._notify = notify
+        return Recorder(chunksize)
     
-        rcv = Recorder(chunksize)
-        assert_canrecv(pull)
-        while pull.poll(timeout=1):
-            rcv.receive(pull, notify)
-        assert len(rcv) == n
-        for i in range(len(rcv)):
-            chunk = rcv["{:s}{:d}".format(name, i)]
+    @pytest.fixture
+    def framecount(self):
+        """Reutrn the framecount."""
+        return next(self._framecount)
+    
+    @pytest.fixture
+    def arrays(self, name, shape, n):
+        """Arrays to send over the socket."""
+        return [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
+    
+    @pytest.fixture
+    def publisher(self, push, arrays, framecount):
+        """Create a publisher."""
+        self._push = push
+        p = Publisher()
+        for name, array in arrays:
+            p[name] = array
+        p.framecount = framecount
+        return p
+    
+    def recv(self, recorder):
+        """Receive recorder."""
+        assert_canrecv(self._pull)
+        while self._pull.poll(timeout=1):
+            recorder.receive(self._pull, self._notify)
+    
+    def send(self, publisher):
+        """Publish"""
+        publisher.publish(self._push)
+    
+    def test_once(self, publisher, recorder):
+        """Test the receiver system with a single message."""
+        self.send(publisher)
+        self.recv(recorder)
+        assert len(recorder) == len(publisher)
+        for key in recorder.keys():
+            chunk = recorder[key]
             print(chunk)
-            print(np.allclose(chunk.array, 0.0))
-            np.testing.assert_allclose(chunk.array[0,...], arrays[i][1])
+            assert_chunk_array_allclose(chunk, publisher[key])
         
-
     def test_recorder_unbundled(self, push, pull, notify, shape, name, n, chunksize):
         """Test the receiver system."""
         arrays = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-    
+        
         for _name, array in arrays:
             array_api.send_named_array(push, _name, array)
     

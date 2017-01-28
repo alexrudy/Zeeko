@@ -98,6 +98,14 @@ cdef class Publisher:
     def __len__(self):
         return len(self._publishers)
     
+    property framecount:
+        def __get__(self):
+            return self._framecount
+        def __set__(self, int fc):
+            if fc < 0:
+                raise ValueError("Frame count must be positive")
+            self._framecount = fc
+    
     cdef int lock(self) nogil except -1:
         cdef int rc
         rc = pthread.pthread_mutex_lock(&self._mutex)
