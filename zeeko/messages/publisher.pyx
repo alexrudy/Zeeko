@@ -83,6 +83,9 @@ cdef class Publisher:
             rc = libzmq.zmq_msg_close(&self._infomessage)
             rc = pthread.pthread_mutex_destroy(&self._mutex)
     
+    def __repr__(self):
+        return "<Publisher frame={:d} keys=[{:s}]>".format(self._framecount, ",".join(self.keys()))
+    
     def __setitem__(self, key, value):
         try:
             pub = self._publishers[key]
