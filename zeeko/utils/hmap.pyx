@@ -18,6 +18,7 @@ cdef class HashMap:
     
     def __cinit__(self):
         self.n = 0
+        self.hashes = NULL
         
     def __dealloc__(self):
         self.clear()
@@ -46,6 +47,7 @@ cdef class HashMap:
                 if self.hashes[i].data != NULL:
                     free(self.hashes[i].data)
             free(self.hashes)
+        self.hashes = NULL
         self.n = 0
         return 0
         
