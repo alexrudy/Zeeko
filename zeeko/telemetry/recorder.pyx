@@ -108,6 +108,7 @@ cdef class Recorder:
         cdef int rc = 0
         cdef int i # Index in the message list.
         cdef long index
+        cdef bint valid_index, initial_index
         cdef carray_named message
         cdef carray_message_info * info
         cdef libzmq.zmq_msg_t notification
@@ -141,9 +142,12 @@ cdef class Recorder:
             rc = chunk_init_array(&self._chunks[i], &message, self.chunksize)
         
         # Save the message to the chunk array, initializing if necessary.
-        index = (<long>info.framecount - <long>self.offset)        
-        if (index > 0 and ((self._chunks[i].last_index < (<size_t>index))) or (self._chunks[i].last_index == 0 and index == 0)):
+        index = (<long>info.framecount - <long>self.offset)
+        valid_index = (index > 0 and ((self._chunks[i].last_index < (<size_t>index))))
+        initial_index = (self._chunks[i].last_index == 0 and index == 0)
+        if valid_index or initial_index:
             rc = chunk_append(&self._chunks[i], &message, <size_t>index)
+        
         # Handle the case where this is the last message we needed to be done.
         if self._check_for_completion() == 1:
             self._notify_completion(notify, notify_flags)
