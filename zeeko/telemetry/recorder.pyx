@@ -68,7 +68,6 @@ cdef class Recorder:
     
     def __getitem__(self, bytes key):
         i = self.map[key]
-        print("G{:d} from {!s}".format(i, key))
         return Chunk.from_chunk(&self._chunks[i])
         
     def keys(self):
@@ -81,12 +80,8 @@ cdef class Recorder:
     cdef int _release_arrays(self) nogil except -1:
         """Release ZMQ messages held for chunks."""
         cdef size_t i
-        with gil:
-            print("_release n={:d}".format(self.map.n))
         if self._chunks is not NULL:
             for i in range(self.map.n):
-                with gil:
-                    print("close={:d}".format(i))
                 chunk_close(&self._chunks[i])
             free(self._chunks)
             self._chunks = NULL
@@ -135,36 +130,22 @@ cdef class Recorder:
         elif self.offset > info.framecount:
             # Handle a framecounter which has cycled back to 0, or which
             # indicates that a message was received out of order.
-            with gil:
-                print((self.offset, info.framecount))
             self._notify_completion(notify, notify_flags)
             self.offset = info.framecount
         
         # Update the chunk array
         i = self.map.get(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
-        self._chunks = <array_chunk *>self.map.reallocate(self._chunks, sizeof(array_chunk))
-        if i == (self.map.n - 1):
-            with gil:
-                print("init={:d}".format(i))
+        if i == -1:
+            i = self.map.insert(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
+            self._chunks = <array_chunk *>self.map.reallocate(self._chunks, sizeof(array_chunk))
             rc = chunk_init_array(&self._chunks[i], &message, self.chunksize)
         
         # Save the message to the chunk array, initializing if necessary.
-        index = (<long>info.framecount - <long>self.offset)
-        with gil:
-            print("{0:d} ind={1:d} last={2:d} off={3:d} fc={4:d}".format(i, index, self._chunks[i].last_index, self.offset, info.framecount))
-        
+        index = (<long>info.framecount - <long>self.offset)        
         if (index > 0 and ((self._chunks[i].last_index < (<size_t>index))) or (self._chunks[i].last_index == 0 and index == 0)):
-            with gil:
-                print("{0:d} app={1:d}".format(i,index))
             rc = chunk_append(&self._chunks[i], &message, <size_t>index)
-            
         # Handle the case where this is the last message we needed to be done.
         if self._check_for_completion() == 1:
-            with gil:
-                print("C :fc={0:d},cs={1:d}".format(info.framecount, self.chunksize))
-                for i in range(self.map.n):
-                    print("C{:d}:li={:d}".format(i, self._chunks[i].last_index))
-                
             self._notify_completion(notify, notify_flags)
         
         return rc

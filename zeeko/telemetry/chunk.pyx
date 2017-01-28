@@ -59,7 +59,7 @@ cdef int chunk_init_array(array_chunk * chunk, carray_named * array, size_t chun
     rc = libzmq.zmq_msg_init_size(&chunk.mask, chunksize * sizeof(DINT_t))
     check_zmq_rc(rc)
     dst = libzmq.zmq_msg_data(&chunk.mask)
-    memset(dst, 0, chunksize * sizeof(DINT_t))
+    memset(dst, <DINT_t>0, chunksize * sizeof(DINT_t))
     
     size = libzmq.zmq_msg_size(&array.array.data)
     chunk.stride = size
