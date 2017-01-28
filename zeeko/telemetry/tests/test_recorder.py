@@ -72,6 +72,14 @@ class TestRecorder(object):
             p[name] = array
         p.framecount = framecount
         return p
+        
+    def publisher2(self, publisher):
+        """Update the publisher."""
+        p2 = Publisher()
+        p2.framecount = publisher.framecount
+        for key in publisher.keys():
+            p2[key] = np.random.randn(*publisher[key].shape)
+        return p2
     
     def recv(self, recorder):
         """Receive recorder."""
@@ -92,72 +100,34 @@ class TestRecorder(object):
             chunk = recorder[key]
             print(chunk)
             assert_chunk_array_allclose(chunk, publisher[key])
-        
-    def test_recorder_unbundled(self, push, pull, notify, shape, name, n, chunksize):
-        """Test the receiver system."""
-        arrays = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-        
-        for _name, array in arrays:
-            array_api.send_named_array(push, _name, array)
     
-        rcv = Recorder(chunksize)
-        for i in range(n):
-            assert_canrecv(pull)
-            rcv.receive(pull, notify)
-        assert len(rcv) == n
-        print(rcv.keys())
-        for i in range(len(rcv)):
-            key = "{:s}{:d}".format(name, i)
-            source = arrays[i][1]
-            target = rcv[key].array[0,...]
-            np.testing.assert_allclose(target, source)
-    
-    def test_receiver_multiple(self, push, pull, notify, shape, name, n, chunksize):
+    def test_multiple(self, publisher, recorder):
         """Test receive multiple messages."""
-        arrays = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-        arrays2 = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-    
-        framecount = 5
-        array_api.send_array_packet(push, framecount, arrays)
-        framecount = 6
-        array_api.send_array_packet(push, framecount, arrays2)
-    
-        rcv = Recorder(chunksize)
+        publisher2 = self.publisher2(publisher)
+        
         # event = rcv.event("{:s}{:d}".format(name, 0))
         # assert not event.is_set()
-        assert_canrecv(pull)
-        rcv.receive(pull, notify)
-        assert len(rcv) == n
-        # assert event.is_set()
-        for i in range(len(rcv)):
-            print(rcv["{:s}{:d}".format(name, i)])
-            np.testing.assert_allclose(rcv["{:s}{:d}".format(name, i)].array[0,...], arrays[i][1])
-        assert_canrecv(pull)
-        rcv.receive(pull, notify)
-        for i in range(len(rcv)):
-            print(rcv["{:s}{:d}".format(name, i)])
-            np.testing.assert_allclose(rcv["{:s}{:d}".format(name, i)].array[1,...], arrays2[i][1])
+        self.send(publisher)
+        self.send(publisher2)
+        self.recv(recorder)
+        self.recv(recorder)
+        assert len(recorder) == len(publisher)
+        for key in publisher.keys():
+            assert_chunk_array_allclose(recorder[key], publisher[key], 0)
+            assert_chunk_array_allclose(recorder[key], publisher2[key], 1)
     
-    def test_retain_multiple(self, push, pull, notify, shape, name, n, chunksize):
+    def test_retain_multiple(self, publisher, recorder):
         """Test retaining multiple references to a given array."""
-        arrays = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-        arrays2 = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-    
-        framecount = 5
-        array_api.send_array_packet(push, framecount, arrays)
-        framecount = 6
-        array_api.send_array_packet(push, framecount, arrays2)
-    
-        rcv = Recorder(chunksize)
-        assert_canrecv(pull)
-        rcv.receive(pull, notify)
-        assert len(rcv) == n
-        for i in range(len(rcv)):
-            np.testing.assert_allclose(rcv["{:s}{:d}".format(name, i)].array[0,...], arrays[i][1])
-        refd_array = rcv["{:s}{:d}".format(name, 1)].array
-        assert_canrecv(pull)
-        rcv.receive(pull, notify)
-        for i in range(len(rcv)):
-            np.testing.assert_allclose(rcv["{:s}{:d}".format(name, i)].array[1,...], arrays2[i][1])
-        refd_array2 = rcv["{:s}{:d}".format(name, 1)].array
-        np.testing.assert_allclose(refd_array, refd_array2)
+        publisher2 = self.publisher2(publisher)
+        
+        self.send(publisher)
+        self.send(publisher2)
+        self.recv(recorder)
+        arrays = {key:recorder[key] for key in recorder.keys()}
+        self.recv(recorder)
+        arrays2 = {key:recorder[key] for key in recorder.keys()}
+        assert len(recorder) == len(publisher)
+        for key in publisher.keys():
+            assert_chunk_allclose(arrays[key], arrays2[key])
+            assert_chunk_array_allclose(recorder[key], publisher[key], 0)
+            assert_chunk_array_allclose(recorder[key], publisher2[key], 1)

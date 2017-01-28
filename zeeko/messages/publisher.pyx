@@ -98,6 +98,9 @@ cdef class Publisher:
     def __len__(self):
         return len(self._publishers)
     
+    def keys(self):
+        return self._publishers.keys()
+    
     property framecount:
         def __get__(self):
             return self._framecount
