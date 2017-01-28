@@ -9,7 +9,7 @@ import struct
 from .. import chunk_api
 from .. import chunk as chunk_capi
 from .. import io
-from .support import assert_chunk_allclose, assert_chunk_array_allclose
+from .conftest import assert_chunk_allclose, assert_chunk_array_allclose
 
 @pytest.fixture(params=[chunk_api.PyChunk, chunk_capi.Chunk])
 def chunk_cls(request):

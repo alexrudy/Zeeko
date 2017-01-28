@@ -6,7 +6,7 @@ import itertools
 from ..recorder import Recorder
 from ...messages import array as array_api
 from ...messages.publisher import Publisher
-from .support import assert_chunk_array_allclose
+from .conftest import assert_chunk_array_allclose, assert_chunk_allclose
 from zeeko.conftest import assert_canrecv
 
 @pytest.fixture
@@ -105,6 +105,7 @@ class TestRecorder(object):
         """Test receive multiple messages."""
         publisher2 = self.publisher2(publisher)
         
+        #TODO: Re-enable events?
         # event = rcv.event("{:s}{:d}".format(name, 0))
         # assert not event.is_set()
         self.send(publisher)
