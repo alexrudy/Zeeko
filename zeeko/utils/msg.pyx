@@ -1,6 +1,7 @@
 # Message tools for working with ZMQ
 cimport zmq.backend.cython.libzmq as libzmq
-from libc.stdlib cimport free, calloc, malloc, realloc
+from .rc cimport calloc, malloc, realloc
+from libc.stdlib cimport free
 from libc.string cimport memcpy
 
 from cpython cimport PyBytes_FromStringAndSize
@@ -66,6 +67,19 @@ cdef object zmq_convert_sockopt(int option, libzmq.zmq_msg_t * message):
         memcpy(<void *>&optval_int_c, libzmq.zmq_msg_data(message), sz)
         result = optval_int_c
     return result
+    
+cdef int zmq_msg_from_str(libzmq.zmq_msg_t * zmsg, char[:] src):
+    """Construct a ZMQ message from a string."""
+    cdef int rc
+    cdef void * zmsg_data
+    rc = check_zmq_rc(libzmq.zmq_msg_init_size(zmsg, len(src)))
+    zmsg_data = libzmq.zmq_msg_data(zmsg)
+    memcpy(zmsg_data, &src[0], len(src))
+    return rc
+
+cdef str zmq_msg_to_str(libzmq.zmq_msg_t * msg):
+    """Construct a string from a ZMQ message."""
+    return str(PyBytes_FromStringAndSize(<char *>libzmq.zmq_msg_data(msg), <Py_ssize_t>libzmq.zmq_msg_size(msg)))
     
 def internal_address(self, *parts):
     """Construct an internal address for zmq."""
