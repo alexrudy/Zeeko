@@ -137,6 +137,11 @@ def address():
     return "inproc://test"
 
 @pytest.fixture
+def address2():
+    """The ZMQ address for connections."""
+    return "inproc://test-2"
+
+@pytest.fixture
 def reqrep(context):
     """Return a bound pair."""
     for sockets in socket_pair(context, zmq.REQ, zmq.REP):

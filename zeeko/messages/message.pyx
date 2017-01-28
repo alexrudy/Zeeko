@@ -21,6 +21,7 @@ from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
 from .. import ZEEKO_PROTOCOL_VERSION
 
+#TODO: Deprecate these
 cdef int zmq_msg_from_str(libzmq.zmq_msg_t * zmsg, char[:] src):
     """Construct a ZMQ message from a string."""
     cdef int rc
