@@ -96,6 +96,7 @@ cdef class SocketInfo:
         self.events = events
         self.opt = None
         self.throttle = Throttle()
+        self.data = <void *>self
         
     def check(self):
         """Check this socketinfo"""

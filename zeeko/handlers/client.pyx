@@ -35,7 +35,6 @@ cdef class Client(SocketInfo):
         # Initialize basic client functions
         self.receiver = Receiver()
         self.callback = client_callback
-        self.data = <void *>self
         
         # Delay management
         self.snail = Snail()
