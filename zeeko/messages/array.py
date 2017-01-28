@@ -14,6 +14,9 @@ import itertools
 
 from .. import ZEEKO_PROTOCOL_VERSION
 
+class zmq_ndarray(np.ndarray):
+    pass
+
 def generate_array_message(A):
     """
     Generate an array message from an array. The generated message is a list.
@@ -41,7 +44,7 @@ def unpack_info_packet(packet):
     """Unpack an informational packet."""
     return struct.unpack("Ld", packet)
 
-def send_array(socket, A, framecount=0, flags=0, copy=True, track=False):
+def send_array(socket, A, framecount=None, flags=0, copy=True, track=False):
     """Send a numpy array with metadata.
     
     Parameters
@@ -62,12 +65,14 @@ def send_array(socket, A, framecount=0, flags=0, copy=True, track=False):
         Track the message
     
     """
+    if framecount is None:
+        framecount = getattr(A, 'framecount', 0)
     metadata, _ = generate_array_message(A)
     socket.send(generate_info_packet(framecount), flags|zmq.SNDMORE)
     socket.send(metadata, flags|zmq.SNDMORE)
     return socket.send(A, flags, copy=copy, track=track)
     
-def send_named_array(socket, name, A, framecount=0, flags=0, copy=True, track=False):
+def send_named_array(socket, name, A, framecount=None, flags=0, copy=True, track=False):
     """Send an array in the named-array format.
     
     Parameters
@@ -125,7 +130,10 @@ def recv_array(socket, flags=0, copy=True, track=False):
     except NameError: #pragma: py3
         buf = memoryview(msg)
     A = np.frombuffer(buf, dtype=md['dtype'])
-    return A.reshape(md['shape'])
+    A = A.reshape(md['shape']).view(zmq_ndarray)
+    A.framecount = fc
+    A.timestamp = timestamp
+    return A
 
 def recv_named_array(socket, flags=0, copy=True, track=False):
     """Receive an array in the named-array format.
@@ -161,6 +169,6 @@ def recv_named_array(socket, flags=0, copy=True, track=False):
 def send_array_packet(socket, framecount, arrays, flags=0, copy=True, track=False):
     """Send a packet of arrays."""
     for name, array in arrays[:-1]:
-        send_named_array(socket, name, array, flags=flags|zmq.SNDMORE, copy=copy, track=track)
+        send_named_array(socket, name, array, framecount=framecount, flags=flags|zmq.SNDMORE, copy=copy, track=track)
     name, array = arrays[-1]
-    return send_named_array(socket, name, array, flags=flags, copy=copy, track=track)
+    return send_named_array(socket, name, array, framecount=framecount, flags=flags, copy=copy, track=track)

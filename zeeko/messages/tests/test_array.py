@@ -9,6 +9,11 @@ import struct
 from .. import array as array_api
 from ..message import ArrayMessage
 
+@pytest.fixture(params=[0,1,6])
+def framecount(request):
+    """The framecount to be sent as the message."""
+    return request.param
+
 def test_array_message(array):
     """Test generating an array message."""
     metadata, _ = array_api.generate_array_message(array)
@@ -16,13 +21,15 @@ def test_array_message(array):
     assert tuple(meta['shape']) == array.shape
     assert meta['dtype'] == array.dtype.str
     
-def test_array_roundtrip(req, rep, array):
+def test_array_roundtrip(req, rep, array, framecount):
     """Test that an array can go round-trip."""
-    array_api.send_array(req, array)
+    array_api.send_array(req, array, framecount=framecount)
     rep_array = array_api.recv_array(rep)
     np.testing.assert_allclose(array, rep_array)
+    assert rep_array.framecount == framecount
     array_api.send_array(rep, rep_array)
     req_array = array_api.recv_array(req)
+    assert req_array.framecount == framecount
     np.testing.assert_allclose(array, req_array)
     
 def test_named_array_roundtrip(req, rep, array, name):
