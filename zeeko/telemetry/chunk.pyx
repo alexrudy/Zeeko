@@ -274,6 +274,10 @@ cdef class Chunk:
     def __dealloc__(self):
         chunk_close(&self._chunk)
     
+    def __repr__(self):
+        return "<{0:s} ({1:s})x({2:d}) at {3:d}>".format(
+            self.__class__.__name__, "x".join(["{0:d}".format(s) for s in self.shape]),
+            self.chunksize, self.lastindex + 1) 
     
     @staticmethod
     cdef Chunk from_chunk(array_chunk * chunk):

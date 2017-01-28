@@ -34,6 +34,7 @@ def assert_chunk_allclose(chunka, chunkb):
     assert chunka.lastindex == chunkb.lastindex
     assert chunka._lastindex == chunkb._lastindex
     assert chunka.name == chunkb.name
+    assert repr(chunka).lstrip("<Py") == repr(chunkb).lstrip("<Py")
 
 def test_chunk_message(chunk_cls, name, chunk_array, chunk_mask, lastindex):
     """Test generating an array message."""
