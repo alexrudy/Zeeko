@@ -76,7 +76,7 @@ class TestRecorder(object):
     def publisher2(self, publisher):
         """Update the publisher."""
         p2 = Publisher()
-        p2.framecount = publisher.framecount
+        p2.framecount = publisher.framecount + 1
         for key in publisher.keys():
             p2[key] = np.random.randn(*publisher[key].shape)
         return p2
@@ -110,7 +110,6 @@ class TestRecorder(object):
         self.send(publisher)
         self.send(publisher2)
         self.recv(recorder)
-        self.recv(recorder)
         assert len(recorder) == len(publisher)
         for key in publisher.keys():
             assert_chunk_array_allclose(recorder[key], publisher[key], 0)
@@ -121,9 +120,9 @@ class TestRecorder(object):
         publisher2 = self.publisher2(publisher)
         
         self.send(publisher)
-        self.send(publisher2)
         self.recv(recorder)
         arrays = {key:recorder[key] for key in recorder.keys()}
+        self.send(publisher2)
         self.recv(recorder)
         arrays2 = {key:recorder[key] for key in recorder.keys()}
         assert len(recorder) == len(publisher)
