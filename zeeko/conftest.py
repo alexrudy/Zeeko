@@ -242,8 +242,8 @@ def recv(socket, method='', **kwargs):
 @pytest.fixture
 def ioloop(context):
     """A cython I/O loop."""
-    from .cyloop.loop import IOLoop
-    loop = IOLoop(context)
+    from .cyloop.loop import DebugIOLoop
+    loop = DebugIOLoop(context)
     yield loop
     loop.cancel()
 
