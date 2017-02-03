@@ -77,6 +77,7 @@ class TestServer(SocketInfoTestBase):
         with ioloop.running():
             ioloop.state.selected("RUN").wait()
             while pubinfo.publisher.framecount < 100 and (time.time() - start) < 1.1:
+                assert_canrecv(sub)
                 Receiver.receive(sub)
                 # time.sleep(0.01)
         stop = time.time()
@@ -96,6 +97,7 @@ class TestServer(SocketInfoTestBase):
             ioloop.state.selected("RUN").wait()
             for i in range(3):
                 if pull.poll(100) and c < 3 * len(arrays):
+                    assert_canrecv(pull)
                     Receiver.receive(pull)
                     c += 1
                 time.sleep(0.01)
