@@ -2,6 +2,8 @@
 Rate limiting and scheduling for the CyLoop event loop
 """
 
+cimport numpy as np
+
 cdef class Throttle:
     
     cdef public bint active
@@ -9,6 +11,10 @@ cdef class Throttle:
     cdef readonly double _last_start
     cdef readonly double _last_event
     cdef readonly double _next_event
+    cdef readonly double _adjustment
+    
+    cdef readonly np.ndarray record
+    cdef readonly int i
     
     cdef public double period
     cdef public double timeout

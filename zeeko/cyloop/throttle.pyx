@@ -1,3 +1,4 @@
+import numpy as np
 from posix.time cimport timespec, nanosleep
 from libc.math cimport floor, fmod
 from ..utils.clock cimport current_time
@@ -22,8 +23,12 @@ cdef class Throttle:
         self.period = 0.01
         self._gain = 0.2
         self._c = 1e-4
+        self._adjustment = 0.25e-3
         self.timeout = 0.01
         self.active = False
+        
+        self.record = np.zeros((1000,), dtype=np.float)
+        self.i = 0
         
     property frequency:
         """Frequency, in Hz."""
@@ -104,12 +109,17 @@ cdef class Throttle:
     
     cdef int mark_at(self, double now) nogil:
         """Mark the operation as done at a specific time., preparing for the next event time."""
-        cdef double delay_i = self.period - now + self._last_start
-        cdef double error = delay_i - self._delay
+        cdef double delay_i = now - self._last_event
+        #cdef double delay_i = self.period - now + self._last_event
+        cdef double error = self.period - delay_i# - self._delay
         cdef double memory = self._delay + (self._gain * error)
-        self._delay = memory - (memory * self._c)
+        self._delay = memory - (memory * self._c) #- self._adjustment
         self._next_event = now + self.period
         self._last_event = now
+        if self.i < self.record.shape[0]:
+            with gil:
+                self.record[self.i] = self._delay
+                self.i += 1
         return 0
         
     cdef int mark(self) nogil:
@@ -148,7 +158,7 @@ cdef class Throttle:
         
     cdef bint should_fire(self) nogil:
         cdef double now = current_time()
-        return (not self.active) or (now >= self._next_event)
+        return (not self.active) or (now >= self._delay + self._last_event)
         
     cdef long get_timeout_at(self, double now, bint mark) nogil:
         """Get a timeout at a specific time."""

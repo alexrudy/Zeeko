@@ -49,11 +49,16 @@ def test_integrator_throttle():
     t.active = True
     t.period = 1.0
     t._reset_at(0.0)
+    to = t._get_timeout_at(0.0)
+    ti = 0
     n = 1000
     for i in range(n):
-        t._start_at(i)
-        t._mark_at(0.5 + i)
-        t._get_timeout_at(0.75 + i)
-    assert t._delay == approx(0.5, rel=1e-3)
-    assert t._get_timeout_at(n - 0.25) == 249
+        t._start_at(ti)
+        ti += 0.5 + (to * 1e-3)
+        t._mark_at(ti)
+        to = t._get_timeout_at(ti)
+    print(t.record[-10:])
+    assert t._delay == approx(0.5, rel=1e-2)
+    assert t._get_timeout_at(ti) == 499
+    assert t._get_timeout_at(ti + 0.25) == 499 - 250
     
