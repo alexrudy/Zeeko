@@ -28,6 +28,7 @@ dependencies = {
     'base' : [throttle],
     'snail' : [clock, state],
     'client': [rc, msg, receiver, throttle, pxd('base'), pxd('snail')],
+    'server': [rc, msg, publisher, throttle, pxd('base'), pxd('snail')]
 }
 
 
