@@ -227,9 +227,9 @@ def arrays(name, n, shape):
     """A fixture of named arrays to publish."""
     return [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
 
-def assert_canrecv(socket, timeout=5000):
+def assert_canrecv(socket, timeout=100):
     """Check if a socket is ready to receive."""
-    if not socket.poll(timeout=5000):
+    if not socket.poll(timeout=timeout):
         pytest.fail("ZMQ Socket {!r} was not ready to receive.".format(socket))
     
 def recv(socket, method='', **kwargs):
