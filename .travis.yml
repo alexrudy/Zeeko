@@ -46,13 +46,13 @@ addons:
             - graphviz
             - texlive-latex-extra
             - dvipng
-            - libzmq3-dev
+            # - libzmq-dev
 
 install:
     # CI-Helpers
     - git clone git://github.com/astropy/ci-helpers.git
     - source ci-helpers/travis/setup_conda_$TRAVIS_OS_NAME.sh
-    - pip install --no-use-wheel pyzmq
+    - 'pip install --no-binary :all: pyzmq'
     
 script:
    - $MAIN_CMD $SETUP_CMD
