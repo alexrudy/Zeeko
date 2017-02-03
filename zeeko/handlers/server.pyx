@@ -32,5 +32,5 @@ cdef class Server(SocketInfo):
     def at_address(cls, str address, Context ctx, int kind = zmq.PUB):
         socket = ctx.socket(kind)
         socket.bind(address)
-        return cls(socket, zmq.POLLIN)
+        return cls(socket, zmq.POLLERR)
     

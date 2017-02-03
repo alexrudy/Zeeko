@@ -243,8 +243,6 @@ cdef class IOLoop:
                         rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)
                 now = current_time()
                 self.throttle.mark_at(now)
-                for i in range(1, self._n_pollitems):
-                    rc = (<SocketInfo>self._socketinfos[i-1]).throttle.mark_at(now)
             finally:
                 self._lock._release()
         return rc

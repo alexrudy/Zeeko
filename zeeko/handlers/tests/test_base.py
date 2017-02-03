@@ -20,7 +20,7 @@ class SocketInfoTestBase(object):
         """docstring for test_"""
         assert isinstance(socketinfo, self.cls)
         assert isinstance(socketinfo.socket, zmq.Socket)
-        assert socketinfo.events in [0, zmq.POLLIN, zmq.POLLOUT, zmq.POLLIN & zmq.POLLOUT]
+        assert socketinfo.events in [0, zmq.POLLIN, zmq.POLLOUT, zmq.POLLIN & zmq.POLLOUT, zmq.POLLERR]
         assert isinstance(socketinfo.throttle, Throttle)
     
     def test_repr(self, socketinfo):
