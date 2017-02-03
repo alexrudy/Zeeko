@@ -28,6 +28,20 @@ def test_active_throttle():
     t._start_at(0.0)
     t._mark_at(1.0)
     assert t._get_timeout_at(1.0) == 0
+    
+def test_active_throttle():
+    """Test an active throttle."""
+    t = Throttle()
+    t.active = True
+    t.period = 1.0
+    t._reset_at(0.0)
+    t._start_at(0.0)
+    t._mark_at(0.5)
+    assert t._get_timeout_at(0.5) == approx(500 * 0.2, rel=1e-2)
+    t._start_at(0.6)
+    t._mark_at(1.1)
+    assert t._get_timeout_at(1.1) == approx(180, rel=1e-2)
+    
 
 def test_integrator_throttle():
     """Test the throttle integration over many iterations."""
@@ -35,10 +49,11 @@ def test_integrator_throttle():
     t.active = True
     t.period = 1.0
     t._reset_at(0.0)
-    for i in range(1000):
-        t._start_at(0.0)
-        t._mark_at(0.5)
-        t._get_timeout_at(0.75)
+    n = 1000
+    for i in range(n):
+        t._start_at(i)
+        t._mark_at(0.5 + i)
+        t._get_timeout_at(0.75 + i)
     assert t._delay == approx(0.5, rel=1e-3)
-    assert t._get_timeout_at(0.75) == 249
+    assert t._get_timeout_at(n - 0.25) == 249
     

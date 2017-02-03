@@ -63,6 +63,10 @@ cdef class Throttle:
                 self._c = value
             else:
                 raise ValueError("C must be between 0.0 and 1.0.")
+        
+    property overhead:
+        def __get__(self):
+            return self.period - self._delay
     
     def __repr__(self):
         if self.active:
@@ -112,6 +116,12 @@ cdef class Throttle:
         """Mark the operation as done, preparing for the next event time."""
         cdef double now = current_time()
         return self.mark_at(now)
+        
+    def _get_timeout(self):
+        cdef long timoeut
+        with nogil:
+            timeout = self.get_timeout()
+        return timeout
         
     def _get_timeout_at(self, now, mark=False):
         """Get timeout from python."""

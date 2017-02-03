@@ -3,13 +3,13 @@
 import pytest
 import time
 import functools
-from ..loop import IOLoop
+from ..loop import IOLoop, DebugIOLoop
 from .._state import StateError
 from zeeko.conftest import assert_canrecv
 
 @pytest.fixture
 def loop(context):
-    l = IOLoop(context)
+    l = DebugIOLoop(context)
     yield l
     l.cancel()
 
@@ -61,4 +61,6 @@ def test_loop_multistop(loop):
     with pytest.raises(StateError):
         loop.stop()
     
-
+def test_loop_throttle(loop):
+    """Test the loop's throttle."""
+    assert loop.get_timeout() == 100
