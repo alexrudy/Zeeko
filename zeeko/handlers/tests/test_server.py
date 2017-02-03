@@ -14,7 +14,7 @@ class TestServer(SocketInfoTestBase):
     @pytest.fixture
     def socketinfo(self, pull, push, arrays):
         """Socket info"""
-        c = self.cls(push, zmq.POLLIN)
+        c = self.cls(push, 0)
         for k, v in arrays:
             c.publisher[k] = v
         yield c
@@ -28,12 +28,15 @@ class TestServer(SocketInfoTestBase):
         ioloop.start()
         c = 0
         try:
-            while pull.poll(100) and c < 3 * len(arrays):
+            ioloop.state.selected("RUN").wait()
+            while pull.poll(1000) and c < 3 * len(arrays):
                 Receiver.receive(pull)
                 c += 1
         finally:
             ioloop.stop()
-            
+        assert c > 0
+        assert 8 < ioloop.get_timeout() < 10
+        assert socketinfo.publisher.framecount >= c / len(arrays)
         
     def test_throttle(self, ioloop, socketinfo, arrays, pull, Receiver):
         """Test the throttle"""
@@ -43,6 +46,7 @@ class TestServer(SocketInfoTestBase):
         ioloop.start()
         c = 0
         try:
+            ioloop.state.selected("RUN").wait()
             for i in range(3):
                 if pull.poll(100) and c < 3 * len(arrays):
                     Receiver.receive(pull)
@@ -50,4 +54,5 @@ class TestServer(SocketInfoTestBase):
                 time.sleep(0.01)
         finally:
             ioloop.stop()
-        assert c <= 1
+        assert c <= len(arrays)
+        assert Receiver.framecount == 1

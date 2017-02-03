@@ -28,6 +28,7 @@ class _RunningLoopContext(object):
 
     def __exit__(self, *exc):
         self.ioloop.stop()
+        
 
 cdef class IOLoop:
     """An I/O loop, using ZMQ's poller internally."""
@@ -38,6 +39,7 @@ cdef class IOLoop:
         check_memory_ptr(self._pollitems)
         self._n_pollitems = 1
         self.throttle = Throttle()
+        self.throttle.timeout = 0.1
     
     def __init__(self, ctx):
         self.state = StateMachine()        
@@ -140,9 +142,9 @@ cdef class IOLoop:
     def running(self):
         """Produce a context manager to ensure the shutdown of this worker."""
         return _RunningLoopContext(self)
-    
-    def _work(self):
-        """Thread Worker Function"""
+        
+    def _start(self):
+        """Thread initialization function."""
         self.state.set(START)
         self._internal = self.context.socket(zmq.PULL)
         self._internal.bind(self._internal_address_interrupt)
@@ -163,6 +165,10 @@ cdef class IOLoop:
         
         self.throttle.reset()
         self.state.set(PAUSE)
+        
+    def _work(self):
+        """Thread Worker Function"""
+        self._start()
         try:
             with nogil:
                 while True:
@@ -181,10 +187,11 @@ cdef class IOLoop:
         """Compute the appropriate timeout."""
         cdef int i
         cdef long si_timeout = 0
-        cdef long timeout = self.throttle.get_timeout()
+        cdef double now = current_time()
+        cdef long timeout = self.throttle.get_timeout_at(now, 0)
         for i in range(1, self._n_pollitems):
             if (<SocketInfo>self._socketinfos[i-1]).throttle.active:
-                si_timeout = (<SocketInfo>self._socketinfos[i-1]).throttle.get_timeout()
+                si_timeout = (<SocketInfo>self._socketinfos[i-1]).throttle.get_timeout_at(now, 0)
                 if si_timeout < timeout:
                     timeout = si_timeout
         return timeout
@@ -259,3 +266,16 @@ cdef class IOLoop:
     def is_alive(self):
         return self.thread.is_alive()
     
+cdef class DebugIOLoop(IOLoop):
+    """Python method access to IOLoop functionality."""
+    
+    def run(self, once=True):
+        """Trigger the core run-loop for this IOLoop instance."""
+        if once:
+            self.state.signal(PAUSE, self._internal_address_interrupt, self.context)
+        self._run()
+    
+    def get_timeout(self):
+        """Check the timeout from Cython."""
+        return self._get_timeout()
+            
