@@ -66,10 +66,16 @@ def get_utils_extension_args():
     
 def _generate_cython_extensions(extension_args, directory, package_name):
     """Generate cython extensions"""
-    
+    extcls = Extension
     if sys.platform == 'darwin' and os.environ.get("SHADY_USE_ASAN","") == 'yes':
         extension_args['extra_compile_args'].extend(['-fsanitize=address', '-fno-omit-frame-pointer'])
         extension_args['extra_link_args'].extend(['-fsanitize=address'])
+    if 'test' in sys.argv and ('-c' in sys.argv or '--coverage' in sys.argv):
+        from Cython.Distutils import Extension as CyExtension
+        extcls = CyExtension
+        extension_args['cython_directives'] = [("linetrace", True)]
+        extension_args['define_macros'].append(("CYTHON_TRACE",1))
+        extension_args['define_macros'].append(("CYTHON_TRACE_NOGIL",1))
     
     for component in glob.iglob(os.path.join(directory, "*.pyx")):
         # Component name and full module name.
@@ -85,5 +91,5 @@ def _generate_cython_extensions(extension_args, directory, package_name):
         else:
             name = ".".join(package_name + [cname])
         # Extension object.
-        yield Extension(name, **cfg)
+        yield extcls(name, **cfg)
     
