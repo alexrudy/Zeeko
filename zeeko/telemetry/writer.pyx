@@ -33,13 +33,7 @@ cdef class Writer:
         self.counter = 0
         self.last_message = 0.0
         
-        # The following will be re-initialized by __init__
-        self.filename = ""
         self.file = None
-        
-            
-    def __init__(self, filename):
-        self.filename = filename
 
     def __dealloc__(self):
         self._release_arrays()
@@ -126,13 +120,4 @@ cdef class Writer:
         
         return rc
     
-    
-    def _setup_file(self):
-        if self.file is None:
-            self.file = h5py.File(self.filename)
-        
-    def _teardown_file(self):
-        if self.file is not None:
-            self.file.close()
-            self.file = None
     

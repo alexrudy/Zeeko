@@ -13,8 +13,7 @@ cdef class Writer:
     cdef readonly int chunksize
     cdef readonly double last_message
     
-    cdef str filename
-    cdef readonly object file
+    cdef public object file
     
     cdef int _release_arrays(self) nogil except -1
     cdef int _receive(self, void * socket, int flags, void * interrupt) nogil except -1

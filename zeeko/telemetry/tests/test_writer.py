@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import zmq
+import h5py
 import struct
 import itertools
 
@@ -58,10 +59,10 @@ class TestWriter(object):
         self._pull = pull
         self._push = push
         self._notify = notify
-        w = Writer(filename)
-        w._setup_file()
+        w = Writer()
+        w.file = h5py.File(filename)
         yield w
-        w._teardown_file()
+        w.file.close()
     
     @pytest.fixture
     def framecount(self):
