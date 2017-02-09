@@ -91,7 +91,7 @@ class SocketOptionError(Exception):
 cdef class SocketInfo:
     """Information about a socket and it's callbacks."""
     
-    def __cinit__(self, Socket socket, int events):
+    def __cinit__(self, Socket socket, int events, **kwargs):
         self.socket = socket # Retain reference.
         self.events = events
         self.opt = None

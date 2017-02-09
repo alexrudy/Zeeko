@@ -10,7 +10,7 @@ from .chunk cimport array_chunk
 cdef class Recorder:
     
     cdef HashMap map
-    cdef size_t counter
+    cdef readonly size_t counter
     cdef unsigned int _chunkcount
     cdef array_chunk * _chunks
     

@@ -76,10 +76,12 @@ cdef class Recorder:
             self.map.clear()
             self.offset = -1
     
-    def receive(self, Socket socket not None, Socket notify not None, int flags = 0):
+    def receive(self, Socket socket not None, Socket notify = None, int flags = 0):
         """Receive a full message"""
         cdef void * handle = socket.handle
-        cdef void * notify_handle = notify.handle
+        cdef void * notify_handle = NULL
+        if notify is not None:
+            notify_handle = notify.handle
         with nogil:
             self._receive(handle, flags, notify_handle, libzmq.ZMQ_NOBLOCK)
     
