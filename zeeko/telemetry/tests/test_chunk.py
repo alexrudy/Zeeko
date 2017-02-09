@@ -9,7 +9,7 @@ import struct
 from .. import chunk_api
 from .. import chunk as chunk_capi
 from .. import io
-from .conftest import assert_chunk_allclose, assert_chunk_array_allclose
+from .conftest import assert_chunk_allclose, assert_chunk_array_allclose, assert_h5py_allclose
 
 @pytest.fixture(params=[chunk_api.PyChunk, chunk_capi.Chunk])
 def chunk_cls(request):
@@ -54,16 +54,7 @@ def test_chunk_append(chunk, array, lastindex):
     assert (lastindex - 1) == chunk.lastindex
     chunk.append(array)
     np.testing.assert_allclose(chunk.array[lastindex], array)
-    
-def assert_h5py_allclose(group, chunk):
-    """docstring for assert_h5py_allclose"""
-    assert group.name.endswith(chunk.name)
-    assert "data" in group
-    assert "mask" in group
-    findex = chunk.chunksize
-    np.testing.assert_allclose(group['mask'][-findex:], (chunk.mask != 0).astype(np.int))
-    np.testing.assert_allclose(group['data'][-findex:,...], chunk.array)
-    
+
 def test_chunk_write(chunk, lastindex, filename):
     """Try writing a chunk to a new h5py file"""
     with h5py.File(filename, 'w') as f:

@@ -51,3 +51,12 @@ def assert_chunk_array_allclose(chunk, array, index=None):
     print(mask)
     assert mask[index] == index + 1
     np.testing.assert_allclose(chunk.array[index], array.array)
+
+def assert_h5py_allclose(group, chunk):
+    """Assert that an HDF5 group is close."""
+    assert group.name.endswith(chunk.name)
+    assert "data" in group
+    assert "mask" in group
+    findex = chunk.chunksize
+    np.testing.assert_allclose(group['mask'][-findex:], (chunk.mask != 0).astype(np.int))
+    np.testing.assert_allclose(group['data'][-findex:,...], chunk.array)
