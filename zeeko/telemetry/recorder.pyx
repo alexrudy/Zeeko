@@ -168,17 +168,18 @@ cdef class Recorder:
         # Increment the counter of chunks.
         self._chunkcount += 1
         
-        # Send the topic message.
-        rc = check_zmq_rc(libzmq.zmq_msg_init_size(&topic, 0))
-        try:
-            rc = check_zmq_rc(send_header(socket, &topic, self._chunkcount, self.map.n, flags|libzmq.ZMQ_SNDMORE))
-        finally:
-            rc = check_zmq_rc(libzmq.zmq_msg_close(&topic))
-        
-        # Send individual messages as a single packet.
-        for i in range(self.map.n - 1):
-            rc = chunk_send(&self._chunks[i], socket, flags|libzmq.ZMQ_SNDMORE)
-        rc = chunk_send(&self._chunks[self.map.n - 1], socket, flags)
+        if socket is not NULL:
+            # Send the topic message.
+            rc = check_zmq_rc(libzmq.zmq_msg_init_size(&topic, 0))
+            try:
+                rc = check_zmq_rc(send_header(socket, &topic, self._chunkcount, self.map.n, flags|libzmq.ZMQ_SNDMORE))
+            finally:
+                rc = check_zmq_rc(libzmq.zmq_msg_close(&topic))
+            
+            # Send individual messages as a single packet.
+            for i in range(self.map.n - 1):
+                rc = chunk_send(&self._chunks[i], socket, flags|libzmq.ZMQ_SNDMORE)
+            rc = chunk_send(&self._chunks[self.map.n - 1], socket, flags)
         
         # Release the memory held by the sent chunks
         self._release_arrays()
@@ -189,12 +190,13 @@ cdef class Recorder:
         cdef int i, rc
         cdef libzmq.zmq_msg_t topic
         
-        # Send a sentinel method to tell the writer this recorder is closed.
-        rc = check_zmq_rc(libzmq.zmq_msg_init_size(&topic, 0))
-        try:
-            rc = check_zmq_rc(send_header(socket, &topic, 0, 0, flags))
-        finally:
-            rc = check_zmq_rc(libzmq.zmq_msg_close(&topic))
+        if socket is not NULL:
+            # Send a sentinel method to tell the writer this recorder is closed.
+            rc = check_zmq_rc(libzmq.zmq_msg_init_size(&topic, 0))
+            try:
+                rc = check_zmq_rc(send_header(socket, &topic, 0, 0, flags))
+            finally:
+                rc = check_zmq_rc(libzmq.zmq_msg_close(&topic))
             
         # Release the memory held by arrays
         self._release_arrays()
