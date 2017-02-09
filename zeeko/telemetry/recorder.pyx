@@ -5,10 +5,8 @@
 cimport numpy as np
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
-from libc.string cimport memcpy
 from libc.stdlib cimport free
 
-from ..utils.rc cimport malloc, realloc
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr
 from ..utils.clock cimport current_time
 from ..utils.hmap cimport HashMap
@@ -19,7 +17,6 @@ from ..utils.hmap cimport HashMap
 from .chunk cimport Chunk, array_chunk, chunk_append, chunk_init_array, chunk_send, chunk_close
 from ..messages.publisher cimport send_header
 from ..messages.carray cimport carray_message_info, carray_named, new_named_array, receive_named_array
-from ..messages.receiver cimport Receiver
 
 
 # -----------------
@@ -31,15 +28,6 @@ import zmq
 # This class should match the API of the Receiver, but should return chunks
 # instead of single messages.
 cdef class Recorder:
-    
-    cdef HashMap map
-    cdef size_t counter
-    cdef unsigned int _chunkcount
-    cdef array_chunk * _chunks
-    
-    cdef long offset
-    cdef readonly int chunksize
-    cdef readonly double last_message
     
     def __cinit__(self):
         

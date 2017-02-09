@@ -4,12 +4,8 @@
 cimport numpy as np
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
-from libc.string cimport memcpy
 from libc.stdlib cimport free
-
-from ..utils.rc cimport malloc, realloc
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr
-from ..utils.clock cimport current_time
 from ..utils.hmap cimport HashMap
 
 # from ..handlers.client cimport Client
@@ -27,16 +23,6 @@ import zmq
 import h5py
 
 cdef class Writer:
-    
-    cdef HashMap map
-    cdef readonly size_t counter
-    cdef array_chunk * _chunks
-
-    cdef readonly int chunksize
-    cdef readonly double last_message
-    
-    cdef str filename
-    cdef readonly object file
     
     def __cinit__(self):
         
