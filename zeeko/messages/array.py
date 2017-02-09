@@ -165,10 +165,30 @@ def recv_named_array(socket, flags=0, copy=True, track=False):
     name = socket.recv(flags=flags, copy=copy, track=track)
     A = recv_array(socket, flags=flags, copy=copy, track=track)
     return (name, A)
-        
-def send_array_packet(socket, framecount, arrays, flags=0, copy=True, track=False):
+    
+
+def send_array_packet_header(socket, topic, narrays, framecount=0, timestamp=None, flags=0, copy=True):
+    """Send an array packet header which identifies the contents of the coming array messages."""
+    bflags = flags|zmq.SNDMORE
+    if topic is None:
+        topic = "{:d} Arrays".format(len(arrays))
+    if timestamp is None:
+        timestamp = time.time()
+    
+    m1 = socket.send(topic, flags=bflags, copy=copy, track=False)
+    m2 = socket.send(struct.pack("I", framecount), flags=bflags, copy=copy, track=False)
+    m3 = socket.send(struct.pack("i", narrays), flags=bflags, copy=copy, track=False)
+    m4 = socket.send(struct.pack("d", timestamp), flags=flags, copy=copy, track=False)
+    return [m1, m2, m3, m4]
+
+def send_array_packet(socket, framecount, arrays, flags=0, copy=True, track=False, header=False, bundle=True, topic=None):
     """Send a packet of arrays."""
+    bflags = flags|zmq.SNDMORE if bundle else flags
+    ms = []
+    if header:
+        ms.extend(send_array_packet_header(socket, topic, len(arrays), framecount=framecount, flags=flags, copy=copy, track=track))
     for name, array in arrays[:-1]:
-        send_named_array(socket, name, array, framecount=framecount, flags=flags|zmq.SNDMORE, copy=copy, track=track)
+        ms.append(send_named_array(socket, name, array, framecount=framecount, flags=bflags, copy=copy, track=track))
     name, array = arrays[-1]
-    return send_named_array(socket, name, array, framecount=framecount, flags=flags, copy=copy, track=track)
+    ms.append(send_named_array(socket, name, array, framecount=framecount, flags=flags, copy=copy, track=track))
+    return ms
