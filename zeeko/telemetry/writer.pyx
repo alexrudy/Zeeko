@@ -95,6 +95,9 @@ cdef class Writer:
         if nm == 0:
             zmq_send_sentinel(interrupt, PAUSE, 0)
             return -2
+        
+        if self.last_message < tm:
+            self.last_message = tm
             
         while value == 1:
             rc = self._receive_chunk(socket, flags, interrupt)
