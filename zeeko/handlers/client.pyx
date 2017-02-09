@@ -3,13 +3,7 @@ cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
 from zmq.backend.cython.context cimport Context
 
-import struct as s
 import zmq
-
-from ..utils.rc cimport check_zmq_rc
-from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_more
-from ..utils.msg import internal_address
-from ..utils.clock cimport current_time
 
 from .base cimport SocketInfo
 from .snail cimport Snail
