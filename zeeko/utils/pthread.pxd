@@ -42,8 +42,9 @@ cdef extern from "pthread.h" nogil:
     cdef int pthread_rwlock_unlock(pthread_rwlock_t *)
     cdef int pthread_rwlock_destroy(pthread_rwlock_t *)
     
-cdef inline void check_rc(int rc) nogil:
+cdef inline int check_rc(int rc) nogil:
     if rc != 0:
         with gil:
             message = bytes(strerror(rc))
             raise OSError("PThread Error: {0} ({1})".format(message, rc))
+    return rc
