@@ -17,6 +17,9 @@ STATE = {
 
 class StateError(Exception):
     """An error raised due to a state problem"""
+
+class StateTimeout(Exception):
+    """An error raised due to a state problem."""
     
 cdef class StateMachine:
     
@@ -187,11 +190,13 @@ cdef class StateMachine:
         signal.linger = 1000
         with signal:
             signal.connect(address)
-            signal.poll(timeout=100, flags=zmq.POLLOUT)
-            try:
-                signal.send(s.pack("i", self._convert(state)), zmq.NOBLOCK)
-            except zmq.Again:
-                # We swallow EAGAIN here, becasue it usually means that the
-                # socket would block.
-                pass
+            if signal.poll(timeout=100, flags=zmq.POLLOUT):
+                try:
+                    signal.send(s.pack("i", self._convert(state)), zmq.NOBLOCK)
+                except zmq.Again:
+                    # We swallow EAGAIN here, becasue it usually means that the
+                    # socket would block.
+                    pass
+            else:
+                raise StateTimeout("Can't connect sockets for ZMQ State notification.")
         
