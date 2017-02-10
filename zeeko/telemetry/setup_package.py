@@ -13,10 +13,7 @@ pjoin = os.path.join
 pyx = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pyx")
 pxd = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pxd")
 
-base = pxd("..","workers","base")
-state = pxd("..","workers","state")
 clock = pxd("..","utils","clock")
-client = [base, state, clock, pxd("..","workers","client")]
 mutils = pxd("..","messages","utils")
 
 receiver = [clock, mutils, pxd("..","messages","receiver")]
@@ -24,9 +21,9 @@ publisher = [clock, mutils, pxd("..","messages","publisher")]
 
 
 dependencies = {
-    'recorder' : client + receiver + publisher + [pxd('..',"messages","carray"), pxd("chunk"), pxd("..","utils","hmap")],
+    'recorder' : receiver + publisher + [pxd('..',"messages","carray"), pxd("chunk"), pxd("..","utils","hmap")],
     'chunk' :  [pxd("..","messages","utils"), pxd("..","messages","carray"),pxd("..","messages","message")],
-    'writer' : client + receiver + publisher + [pxd('..',"messages","carray"), pxd("chunk"), pxd("..","utils","hmap")],
+    'writer' : receiver + publisher + [pxd('..',"messages","carray"), pxd("chunk"), pxd("..","utils","hmap")],
     'handlers' : [pxd("recorder"), pxd("writer"), pxd("..", "handlers", "base"), pxd("..","handlers","snail")],
     
 }
