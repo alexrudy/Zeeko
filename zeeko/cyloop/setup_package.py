@@ -23,7 +23,7 @@ base = pxd("..", "handlers", "base")
 dependencies = {
     'loop' : [clock, lock,  pxd("_state"), pxd("throttle"), base],
     '_state': [ lock, event, rc, msg],
-    'throttle' : [clock, rc],
+    'throttle' : [clock, rc, event],
 }
 
 
