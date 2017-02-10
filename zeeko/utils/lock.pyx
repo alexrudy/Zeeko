@@ -6,36 +6,27 @@ from libc.string cimport memset
 from posix.types cimport time_t
 from .clock cimport current_utc_time, timespec
 
-# Internal pthread functions.
-cdef inline int pthread_mutex_release(pthread.pthread_mutex_t * mutex) nogil except -1:
-    """Release a mutex"""
-    return pthread.check_rc(pthread.pthread_mutex_unlock(mutex))
-    
-cdef inline int pthread_mutex_acquire(pthread.pthread_mutex_t * mutex) nogil except -1:
-    """Acquire a mutex"""
-    return pthread.check_rc(pthread.pthread_mutex_lock(mutex))
-
 cdef int lock_acquire(lock * src) nogil except -1:
     """Acquire the lock without holding the GIL."""
     cdef int rc
-    rc = pthread_mutex_acquire(src.mutex)
+    rc = pthread.mutex_lock(src.mutex)
     try:
         if src._owned[0]:
             pthread.pthread_cond_wait(src.condition, src.mutex)
         src._owned[0] = 1
     finally:
-        rc = pthread_mutex_release(src.mutex)
+        rc = pthread.mutex_unlock(src.mutex)
     return rc
     
 cdef int lock_release(lock * src) nogil except -1:
     """Release the lock."""
     cdef int rc
-    rc = pthread_mutex_acquire(src.mutex)
+    rc = pthread.mutex_lock(src.mutex)
     try:
         src._owned[0] = 0
         rc = pthread.check_rc(pthread.pthread_cond_signal(src.condition))
     finally:
-        rc = pthread_mutex_release(src.mutex)
+        rc = pthread.mutex_unlock(src.mutex)
     return rc
 
 cdef int lock_init(lock * src) nogil except -1:
@@ -45,7 +36,7 @@ cdef int lock_init(lock * src) nogil except -1:
     src._owned = <bint *>realloc(src._owned, sizeof(bint))
     src._owned[0] = 0
     src.mutex = <pthread.pthread_mutex_t *>realloc(src.mutex, sizeof(pthread.pthread_mutex_t))
-    rc = pthread.check_rc(pthread.pthread_mutex_init(src.mutex, NULL))
+    rc = pthread.mutex_init(src.mutex, NULL)
     src.condition = <pthread.pthread_cond_t *>realloc(src.condition, sizeof(pthread.pthread_cond_t))
     rc = pthread.check_rc(pthread.pthread_cond_init(src.condition, NULL))
     return rc
@@ -56,7 +47,7 @@ cdef int lock_destroy(lock * src) nogil except -1:
     cdef int rc = 0
     if src._own_pthread:
         if src.mutex is not NULL:
-            pthread.pthread_mutex_destroy(src.mutex)
+            pthread.mutex_destroy(src.mutex)
             free(src.mutex)
         if src.condition is not NULL:
             pthread.pthread_cond_destroy(src.condition)
@@ -104,11 +95,11 @@ cdef class Lock:
         def __get__(self):
             cdef bint _locked
             assert self._lock.mutex is not NULL, "mutex was not initialized."
-            rc = pthread_mutex_acquire(self._lock.mutex)
+            rc = pthread.mutex_lock(self._lock.mutex)
             try:
                 _locked = self._lock._owned[0]
             finally:
-                rc = pthread_mutex_release(self._lock.mutex)
+                rc = pthread.mutex_unlock(self._lock.mutex)
             return _locked
         
     def copy(self):
