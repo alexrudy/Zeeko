@@ -5,17 +5,16 @@ ctypedef struct event:
     bint * _setting
     pthread.pthread_cond_t * cond
     pthread.pthread_mutex_t * mutex
+    pthread.pthread_mutex_t * refmutex
 
 cdef int event_trigger(event * src) nogil except -1    
 cdef int event_init(event * src) nogil except -1
 cdef int event_destroy(event * src) nogil except -1
 cdef int event_clear(event * src) nogil except -1
+cdef int event_copy(event * dst, event * src) nogil except -1
 
 cdef class Event:
-    cdef bint * _setting
-    cdef int * _refcount
-    cdef pthread.pthread_mutex_t * mutex
-    cdef pthread.pthread_cond_t * cond
+    cdef event evt
     
     cdef void _destroy(self) nogil
     
