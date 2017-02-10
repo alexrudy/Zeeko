@@ -11,8 +11,7 @@ cdef int event_trigger(event * src) nogil except -1:
     """Trigger the event without holding the GIL."""
     cdef int rc
     
-    rc = pthread.pthread_mutex_lock(src.mutex)
-    pthread.check_rc(rc)
+    rc = pthread.check_rc(pthread.pthread_mutex_lock(src.mutex))
     try:
         src._setting[0] = True
         rc = pthread.pthread_cond_broadcast(src.cond)
@@ -221,9 +220,8 @@ cdef class Event:
             if not self.evt._setting[0]:
                 current_utc_time(&ts)
                 ts.tv_sec += <time_t>floor(seconds)
-                ts.tv_nsec += <long>floor(fmod(seconds,1)*1e9)
-                rc = pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
-                pthread.check_rc(rc)
+                ts.tv_nsec += <long>floor(fmod(seconds*1e9,1e9))
+                rc = pthread.check_rc(pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts))
         finally:
             rc = self.unlock()
         return rc
