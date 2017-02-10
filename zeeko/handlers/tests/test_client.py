@@ -59,100 +59,45 @@ class TestClient(SocketInfoTestBase):
     def test_attached(self, ioloop, socketinfo, Publisher, push):
         """Test explicitly without the options manager."""
         socketinfo.attach(ioloop)
-        ioloop.start()
-        try:
-            ioloop.state.selected("RUN").wait(timeout=1)
-            Publisher.publish(push)
-            Publisher.publish(push)
-            Publisher.publish(push)
-            time.sleep(0.1)
-        finally:
-            ioloop.stop()
-            ioloop.state.selected("STOP").wait(timeout=1)
+        nloop = 3
+        self.run_loop_safely(ioloop, functools.partial(Publisher.publish, push), nloop)
         assert socketinfo.receiver.framecount != 0
         print(socketinfo.receiver.last_message)
         assert len(socketinfo.receiver) == 3
     
     def test_suicidal_snail(self, ioloop, socketinfo, Publisher, push):
         """Test the suicidal snail pattern."""
-    
+        
         socketinfo.attach(ioloop)
-        socketinfo.snail.nlate_max = 2 * len(Publisher)
-        socketinfo.snail.delay_max = 0.01
         socketinfo.use_reconnections = False
-        Publisher.publish(push)
-        time.sleep(0.1)
-        ioloop.start()
-        try:
-            ioloop.state.selected("RUN").wait()
-            time.sleep(0.01)
-            assert socketinfo.receiver.framecount == 1
-            assert socketinfo.snail.nlate == len(Publisher)
-            ioloop.pause()
-            ioloop.state.selected("PAUSE").wait()
-            Publisher.publish(push)
-            time.sleep(0.01)
-            ioloop.resume()
-            ioloop.state.selected("RUN").wait()
-            assert socketinfo.snail.nlate == len(Publisher)
-            ioloop.pause()
-            ioloop.state.selected("PAUSE").wait()
-            Publisher.publish(push)
-            Publisher.publish(push)
-            Publisher.publish(push)
-            time.sleep(0.01)
-            ioloop.resume()
-            ioloop.state.selected("RUN").wait()
-            time.sleep(0.1)
-            assert socketinfo.snail.deaths == 1
-        finally:
-            ioloop.stop()
+        self.run_loop_snail_test(ioloop, socketinfo.snail, 
+                                 lambda : socketinfo.receiver.framecount, 
+                                 functools.partial(Publisher.publish, push),
+                                 n = 3, narrays = len(Publisher))
         assert socketinfo.receiver.framecount != 0
         print(socketinfo.receiver.last_message)
         assert len(socketinfo.receiver) == 3
     
-    def test_suicidal_snail_reconnections(self, ioloop, socketinfo, Publisher, push, address):
+    @pytest.mark.skip
+    def test_suicidal_snail_reconnections(self, ioloop, context, Publisher, pub, address):
         """Ensure that reconnections prevent receiving during pauses."""
+        socketinfo = self.cls.at_address(address, context, kind=zmq.SUB)
         socketinfo.attach(ioloop)
-        socketinfo.snail.nlate_max = 2 * len(Publisher)
-        socketinfo.snail.delay_max = 0.01
         socketinfo.enable_reconnections(address)
-        Publisher.publish(push)
-        time.sleep(0.1)
-        ioloop.start()
-        try:
-            ioloop.state.selected("RUN").wait()
-            time.sleep(0.01)
-            assert socketinfo.receiver.framecount == 0
-            ioloop.resume()
-            ioloop.state.selected("RUN").wait()
-            Publisher.publish(push)
-            Publisher.publish(push)
-            Publisher.publish(push)
-            time.sleep(0.01)
-            ioloop.resume()
-            ioloop.state.selected("RUN").wait()
-            time.sleep(0.1)
-            assert socketinfo.receiver.framecount == 4
-        finally:
-            ioloop.stop()
+        self.run_loop_snail_reconnect_test(ioloop, socketinfo.snail, 
+                                           lambda : socketinfo.receiver.framecount, 
+                                           functools.partial(Publisher.publish, pub),
+                                           n = 3, narrays = len(Publisher), force=True)
         assert socketinfo.receiver.framecount != 0
         print(socketinfo.receiver.last_message)
         assert len(socketinfo.receiver) == 3
-    
+            
     def test_pubsub(self, ioloop, address, context, Publisher, pub):
         """Test the pub/sub algorithm."""
         client = self.cls.at_address(address, context, kind=zmq.SUB)
         client.attach(ioloop)
-        ioloop.start()
-        try:
-            time.sleep(0.01)
-            Publisher.publish(pub)
-            Publisher.publish(pub)
-            Publisher.publish(pub)
-            time.sleep(0.1)
-        finally:
-            ioloop.stop()
+        nloop = 3
+        self.run_loop_safely(ioloop, functools.partial(Publisher.publish, pub), nloop)
         assert client.receiver.framecount != 0
         print(client.receiver.last_message)
-        assert len(client.receiver) == 3
+        assert len(client.receiver) == nloop

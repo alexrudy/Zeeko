@@ -19,15 +19,16 @@ cdef inline str address_of(void * ptr):
 
 class _RunningLoopContext(object):
 
-    def __init__(self, ioloop):
+    def __init__(self, ioloop, timeout=None):
         super(_RunningLoopContext, self).__init__()
         self.ioloop = ioloop
+        self.timeout = timeout
 
     def __enter__(self):
         self.ioloop.start()
 
     def __exit__(self, *exc):
-        self.ioloop.stop()
+        self.ioloop.stop(timeout=self.timeout)
         
 
 cdef class IOLoop:
@@ -107,13 +108,18 @@ cdef class IOLoop:
     def _signal_state(self, state):
         """Signal a state change."""
         self._assert_not_done()
+        self.log.debug("state.signal()")
         self.state.signal(state, self._internal_address_interrupt, self.context)
+        self.log.debug("state.signal() [DONE]")
     
     def _assert_not_done(self):
         self.state.guard(STOP)
         if self.state.check(INIT):
+            self.log.debug("thread.start()")
             self.thread.start()
+            self.log.debug("state.deselected(START).wait()")
             self.state.deselected(START).wait(timeout=1.0)
+            self.log.debug("state.deselected(START).wait() [DONE]")
     
     def start(self):
         self._signal_state(b"RUN")
@@ -128,9 +134,10 @@ cdef class IOLoop:
     def stop(self, timeout=None, join=True):
         self._signal_state(b"STOP")
         if self.thread.is_alive() and join:
+            self.log.debug("JOIN WITH TIMEOUT={0}".format(timeout))
             self.thread.join(timeout=timeout)
     
-    def cancel(self, timeout=None, join=True):
+    def cancel(self, timeout=1.0, join=True):
         """Cancels the loop operations."""
         try:
             self._signal_state(b"STOP")
@@ -139,9 +146,9 @@ cdef class IOLoop:
         if self.thread.is_alive() and join:
             self.thread.join(timeout=timeout)
     
-    def running(self):
+    def running(self, timeout=None):
         """Produce a context manager to ensure the shutdown of this worker."""
-        return _RunningLoopContext(self)
+        return _RunningLoopContext(self, timeout=timeout)
         
     def _start(self):
         """Thread initialization function."""

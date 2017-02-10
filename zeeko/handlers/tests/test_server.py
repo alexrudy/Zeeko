@@ -36,7 +36,7 @@ class TestServer(SocketInfoTestBase):
         socketinfo.throttle.frequency = 100
         socketinfo.throttle.active = True
         start = time.time()
-        with ioloop.running():
+        with ioloop.running(timeout=0.1):
             c = 0
             ioloop.state.selected("RUN").wait()
             while pull.poll(1000) and c < 3 * len(arrays):
@@ -51,57 +51,18 @@ class TestServer(SocketInfoTestBase):
         """Test that the server approximately handles a given framerate."""
         sub.subscribe("")
         pubinfo.attach(ioloop)
-        ioloop.throttle.frequency = 100
-        ioloop.throttle.active = True
-        start = time.time()
-        with ioloop.running():
-            ioloop.state.selected("RUN").wait()
-            while pubinfo.publisher.framecount < 100 and (time.time() - start) < 1.1:
-                assert_canrecv(sub)
-                Receiver.receive(sub)
-                # time.sleep(0.01)
-        stop = time.time()
-        assert pubinfo.publisher.framecount == approx(100, abs=5)
-        framerate = (pubinfo.publisher.framecount / (stop - start))
-        print(pubinfo.publisher.framecount, (stop-start))
-        assert framerate == approx(100, abs=5)
+        def callback():
+            assert_canrecv(sub)
+            Receiver.receive(sub)
+        self.run_loop_throttle_test(ioloop, ioloop.throttle, lambda : pubinfo.publisher.framecount, callback)
         
     @pytest.mark.xfail
     def test_server_framerate(self, ioloop, pubinfo, arrays, sub, Receiver):
         """Test that the server approximately handles a given framerate."""
         sub.subscribe("")
         pubinfo.attach(ioloop)
-        pubinfo.throttle.frequency = 100
-        pubinfo.throttle.active = True
-        start = time.time()
-        with ioloop.running():
-            ioloop.state.selected("RUN").wait()
-            while pubinfo.publisher.framecount < 100 and (time.time() - start) < 1.1:
-                assert_canrecv(sub)
-                Receiver.receive(sub)
-                # time.sleep(0.01)
-        stop = time.time()
-        assert pubinfo.publisher.framecount == approx(100, abs=5)
-        framerate = (pubinfo.publisher.framecount / (stop - start))
-        print(pubinfo.publisher.framecount, (stop-start))
-        assert framerate == approx(100, abs=5)
+        def callback():
+            assert_canrecv(sub)
+            Receiver.receive(sub)
+        self.run_loop_throttle_test(ioloop, pubinfo.throttle, lambda : pubinfo.publisher.framecount, callback)
         
-    def test_throttle(self, ioloop, socketinfo, arrays, pull, Receiver):
-        """Test the throttle"""
-        socketinfo.attach(ioloop)
-        socketinfo.throttle.period = 100
-        socketinfo.throttle.active = True
-        ioloop.start()
-        c = 0
-        try:
-            ioloop.state.selected("RUN").wait()
-            for i in range(3):
-                if pull.poll(100) and c < 3 * len(arrays):
-                    assert_canrecv(pull)
-                    Receiver.receive(pull)
-                    c += 1
-                time.sleep(0.01)
-        finally:
-            ioloop.stop()
-        assert c <= len(arrays)
-        assert Receiver.framecount == 1
