@@ -48,3 +48,15 @@ cdef inline int check_rc(int rc) nogil except -1:
             message = bytes(strerror(rc))
             raise OSError("PThread Error: {0} ({1})".format(message, rc))
     return rc
+
+cdef inline int mutex_init(pthread_mutex_t * mutex, pthread_mutexattr_t * mutexattr) nogil except -1:
+    return check_rc(pthread_mutex_init(mutex, mutexattr))
+
+cdef inline int mutex_lock(pthread_mutex_t * mutex) nogil except -1:
+    return check_rc(pthread_mutex_lock(mutex))
+
+cdef inline int mutex_unlock(pthread_mutex_t * mutex) nogil except -1:
+    return check_rc(pthread_mutex_unlock(mutex))
+
+cdef inline int mutex_destroy(pthread_mutex_t * mutex) nogil except -1:
+    return check_rc(pthread_mutex_destroy(mutex))

@@ -2,10 +2,14 @@ from . cimport pthread
 
 from libc.math cimport floor, fmod
 from libc.stdlib cimport free, malloc, realloc
+from libc cimport errno
 
 from posix.types cimport time_t
 from .clock cimport current_utc_time, timespec
 from .rc cimport check_generic_rc
+
+class TimeoutError(Exception):
+    pass
 
 cdef int event_trigger(event * src) nogil except -1:
     """Trigger the event without holding the GIL."""
@@ -221,7 +225,12 @@ cdef class Event:
                 current_utc_time(&ts)
                 ts.tv_sec += <time_t>floor(seconds)
                 ts.tv_nsec += <long>floor(fmod(seconds*1e9,1e9))
-                rc = pthread.check_rc(pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts))
+                rc = pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
+                if errno.ETIMEDOUT == rc:
+                    with gil:
+                        raise TimeoutError("Event.wait() timed out.")
+                else:
+                    pthread.check_rc(rc)
         finally:
             rc = self.unlock()
         return rc

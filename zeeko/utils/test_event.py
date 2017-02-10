@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from .condition import Event
+from .condition import Event, TimeoutError
 
 
 def test_event_init():
@@ -25,3 +25,12 @@ def test_event_copy():
     assert evt2.is_set()
     assert evt._reference_count == 1
     assert evt2._reference_count == 1
+    
+def test_event_wait():
+    """Test waiting for an event."""
+    evt = Event()
+    assert not evt.is_set()
+    with pytest.raises(TimeoutError):
+        evt.wait(timeout=0.1)
+    assert not evt.is_set()
+    
