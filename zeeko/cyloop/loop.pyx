@@ -31,35 +31,78 @@ class _RunningLoopContext(object):
         self.ioloop.stop(timeout=self.timeout)
         
 
-cdef class IOLoop:
-    """An I/O loop, using ZMQ's poller internally."""
+cdef class IOLoopWorker:
+    """The running part of the I/O loop."""
     
-    def __cinit__(self, ctx):
+    cdef object thread
+    cdef object log
+    cdef Socket _internal
+    cdef Context context
+    cdef readonly Socket _interrupt
+    cdef void * _interrupt_handle
+    
+    cdef str _internal_address_interrupt
+    cdef list _sockets
+    cdef void ** _socketinfos
+    
+    cdef libzmq.zmq_pollitem_t * _pollitems
+    cdef int _n_pollitems
+    
+    cdef readonly StateMachine state
+    cdef readonly Throttle throttle
+    cdef Lock _lock # Lock
+    
+    def __cinit__(self):
         self._socketinfos = NULL
         self._pollitems = <libzmq.zmq_pollitem_t *>calloc(1, sizeof(libzmq.zmq_pollitem_t))
         check_memory_ptr(self._pollitems)
         self._n_pollitems = 1
         self.throttle = Throttle()
         self.throttle.timeout = 0.1
-    
-    def __init__(self, ctx):
-        self.state = StateMachine()        
-        self.thread = threading.Thread(target=self._work)
-        self._lock = Lock()
         
+    def __init__(self, ctx, state):
+        self._sockets = []
+        self.state = state or StateMachine()        
+        self._lock = Lock()
         self.context = ctx or zmq.Context.instance()
         self.log = logging.getLogger(".".join([self.__class__.__module__,self.__class__.__name__]))
         self._internal_address_interrupt = "inproc://{:s}-interrupt".format(hex(id(self)))
-        
-        # Internal items for the I/O Loop
-        self._sockets = []
+        self.thread = threading.Thread(target=self._work)
         
     def __dealloc__(self):
         if self._socketinfos != NULL:
             free(self._socketinfos)
         if self._pollitems != NULL:
             free(self._pollitems)
+            
         
+    # Proxy certain threading.Thread methods
+    def is_alive(self):
+        return self.thread.is_alive()
+    
+    def join(self, timeout=None):
+        return self.thread.join(timeout=timeout)
+    
+    def start(self):
+        return self.thread.start()
+        
+    # Thread management functions
+    def _signal_state(self, state):
+        """Signal a state change."""
+        self._not_done()
+        self.log.debug("state.signal()")
+        self.state.signal(state, self._internal_address_interrupt, self.context)
+        self.log.debug("state.signal() [DONE]")
+    
+    def _not_done(self):
+        self.state.guard(STOP)
+        if self.state.check(INIT):
+            self.log.debug("thread.start()")
+            self.start()
+            self.log.debug("state.deselected(START).wait()")
+            self.state.deselected(START).wait(timeout=1.0)
+            self.log.debug("state.deselected(START).wait() [DONE]")
+    
     def _add_socketinfo(self, SocketInfo sinfo):
         """Add a socket info object to the underlying structures."""
         if not self.state.check(INIT):
@@ -67,24 +110,24 @@ cdef class IOLoop:
         sinfo.check()
         self._sockets.append(sinfo)
         with self._lock:
-            
+    
             self._socketinfos = <void **>check_memory_ptr(realloc(self._socketinfos, sizeof(socketinfo *) * len(self._sockets)))
             self._socketinfos[len(self._sockets) - 1] = <void *>sinfo
-            
+    
             self._pollitems = <libzmq.zmq_pollitem_t *>realloc(self._pollitems, (len(self._sockets) + 1) * sizeof(libzmq.zmq_pollitem_t))
             check_memory_ptr(self._pollitems)
             sinfo.bind(&self._pollitems[len(self._sockets)])
             # address = address_of(self._pollitems[len(self._sockets)].socket)
             # print("{:d}) {:s} connected".format(len(self._sockets), address))
             self._n_pollitems = len(self._sockets) + 1
-    
+
     def _remove_socketinfo(self, SocketInfo sinfo):
         """Remove a socektinfo object from the eventloop."""
         pass
     
     def _close(self):
         """Ensure that the IOLoop is done and closes down properly.
-        
+    
         This method should only be called from the internal worker thread.
         """
         try:
@@ -95,84 +138,40 @@ cdef class IOLoop:
                 pass
             else:
                 self.log.warning("Exception in Worker disconnect: {!r}".format(e))
-        
+    
         for si in self._sockets:
             si._close()
-        
+    
         for socket in (self._interrupt, self._internal):
             try:
                 socket.close(linger=0)
             except (zmq.ZMQError, zmq.Again) as e:
                 self.log.warning("Ignoring exception in worker shutdown: {!r}".format(e))
-    
-    def _signal_state(self, state):
-        """Signal a state change."""
-        self._assert_not_done()
-        self.log.debug("state.signal()")
-        self.state.signal(state, self._internal_address_interrupt, self.context)
-        self.log.debug("state.signal() [DONE]")
-    
-    def _assert_not_done(self):
-        self.state.guard(STOP)
-        if self.state.check(INIT):
-            self.log.debug("thread.start()")
-            self.thread.start()
-            self.log.debug("state.deselected(START).wait()")
-            self.state.deselected(START).wait(timeout=1.0)
-            self.log.debug("state.deselected(START).wait() [DONE]")
-    
-    def start(self):
-        self._signal_state(b"RUN")
-        
-    def resume(self):
-        self.state.guard(INIT)
-        self.start()
-    
-    def pause(self):
-        self._signal_state(b"PAUSE")
-
-    def stop(self, timeout=None, join=True):
-        self._signal_state(b"STOP")
-        if self.thread.is_alive() and join:
-            self.log.debug("JOIN WITH TIMEOUT={0}".format(timeout))
-            self.thread.join(timeout=timeout)
-    
-    def cancel(self, timeout=1.0, join=True):
-        """Cancels the loop operations."""
-        try:
-            self._signal_state(b"STOP")
-        except StateError:
-            pass
-        if self.thread.is_alive() and join:
-            self.thread.join(timeout=timeout)
-    
-    def running(self, timeout=None):
-        """Produce a context manager to ensure the shutdown of this worker."""
-        return _RunningLoopContext(self, timeout=timeout)
+            
         
     def _start(self):
         """Thread initialization function."""
         self.state.set(START)
         self._internal = self.context.socket(zmq.PULL)
         self._internal.bind(self._internal_address_interrupt)
-        
+
         with self._lock:
             self._pollitems[0].socket = self._internal.handle
             self._pollitems[0].events = libzmq.ZMQ_POLLIN
             rc = self._check_pollitems(self._n_pollitems)
-        
+
         self._interrupt = self.context.socket(zmq.PUSH)
         self._interrupt.connect(self._internal_address_interrupt)
         self._interrupt_handle = <void *>self._interrupt.handle
-        
-        
+
+
         with self._lock:
             for sinfo in self._sockets:
                 sinfo._start()
-        
+
         self.throttle.reset()
         self.state.set(PAUSE)
-        
+
     def _work(self):
         """Thread Worker Function"""
         self._start()
@@ -189,7 +188,7 @@ cdef class IOLoop:
             raise
         finally:
             self._close()
-    
+
     cdef long _get_timeout(self) nogil:
         """Compute the appropriate timeout."""
         cdef int i
@@ -202,18 +201,18 @@ cdef class IOLoop:
                 if si_timeout < timeout:
                     timeout = si_timeout
         return timeout
-    
+
     cdef int _pause(self) nogil except -1:
         cdef int rc = 0
         cdef int i
-        
+
         self._lock._acquire()
         try:
             for i in range(1, self._n_pollitems):
                 rc = (<SocketInfo>self._socketinfos[i-1]).paused()
         finally:
             self._lock._release()
-        
+
         while self.state.check(PAUSE):
             self._lock._acquire()
             try:
@@ -229,14 +228,14 @@ cdef class IOLoop:
         cdef size_t i
         cdef int rc = 0
         cdef double now = current_time()
-        
+
         self._lock._acquire()
         try:
             for i in range(1, self._n_pollitems):
                 rc = (<SocketInfo>self._socketinfos[i-1]).resumed()
         finally:
             self._lock._release()
-        
+
         while self.state.check(RUN):
             self._lock._acquire()
             try:
@@ -253,7 +252,7 @@ cdef class IOLoop:
             finally:
                 self._lock._release()
         return rc
-    
+
     cdef int _check_pollitems(self, int n) except -1:
         cdef int i
         for i in range(n):
@@ -267,20 +266,82 @@ cdef class IOLoop:
                     raise ValueError("Socket mismatch for item {0:d}, expected handle {1:s}, got {2:s}".format(i,
                             address, address_of((<Socket>self._sockets[i - 1].socket).handle)))
         return 0
-            
-    def is_alive(self):
-        return self.thread.is_alive()
+
+cdef class IOLoop:
+    """An I/O loop manager which relies on polling via ZMQ."""
     
+    def __init__(self, ctx):
+        self.state = StateMachine()        
+        self.workers = []
+        self.context = ctx or zmq.Context.instance()
+        self.log = logging.getLogger(".".join([self.__class__.__module__,self.__class__.__name__]))
+        self.add_worker()
+    
+    def add_worker(self):
+        """Add a new worker to this I/O Loop"""
+        self.workers.append(IOLoopWorker(self.context, self.state))
+        
+    def attach(self, socketinfo, index=0):
+        socketinfo.attach(self.workers[index])
+    
+    def configure_throttle(self, **kwargs):
+        for worker in self.workers:
+            worker.throttle.configure(**kwargs)
+    
+    def signal(self, str state):
+        for worker in self.workers:
+            worker._signal_state(state)
+    
+    def start(self):
+        self.signal(b"RUN")
+        
+    def resume(self):
+        self.state.guard(INIT)
+        self.signal(b"RUN")
+    
+    def pause(self):
+        self.signal(b"PAUSE")
+
+    def stop(self, timeout=None, join=True):
+        self.signal(b"STOP")
+        if join:
+            self.join(timeout=timeout)
+        
+    def join(self, timeout=None):
+        for worker in self.workers:
+            self.log.debug("JOIN WITH TIMEOUT={0}".format(timeout))
+            worker.join(timeout=timeout)
+    
+    def cancel(self, timeout=1.0, join=True):
+        """Cancels the loop operations."""
+        try:
+            self.signal(b"STOP")
+        except StateError:
+            pass
+        self.join(timeout=timeout)
+    
+    def is_alive(self):
+        """Are the workers alive?"""
+        return any(worker.is_alive() for worker in self.workers)
+    
+    def running(self, timeout=None):
+        """Produce a context manager to ensure the shutdown of this worker."""
+        return _RunningLoopContext(self, timeout=timeout)
+  
 cdef class DebugIOLoop(IOLoop):
     """Python method access to IOLoop functionality."""
     
     def run(self, once=True):
         """Trigger the core run-loop for this IOLoop instance."""
         if once:
-            self.state.signal(PAUSE, self._internal_address_interrupt, self.context)
-        self._run()
-    
-    def get_timeout(self):
-        """Check the timeout from Cython."""
-        return self._get_timeout()
+            self.signal(PAUSE)
+        for worker in self.workers:
+            (<IOLoopWorker>worker)._run()
             
+    def get_timeout(self):
+        return (<IOLoopWorker>self.worker)._get_timeout()
+        
+    property worker:
+        def __get__(self):
+            assert len(self.workers) == 1
+            return self.workers[0]

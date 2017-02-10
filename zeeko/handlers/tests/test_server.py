@@ -32,7 +32,7 @@ class TestServer(SocketInfoTestBase):
         
     def test_serve(self, ioloop, socketinfo, arrays, pull, Receiver):
         """Test running the server."""
-        socketinfo.attach(ioloop)
+        ioloop.attach(socketinfo)
         socketinfo.throttle.frequency = 100
         socketinfo.throttle.active = True
         start = time.time()
@@ -50,17 +50,17 @@ class TestServer(SocketInfoTestBase):
     def test_framerate(self, ioloop, pubinfo, arrays, sub, Receiver):
         """Test that the server approximately handles a given framerate."""
         sub.subscribe("")
-        pubinfo.attach(ioloop)
+        ioloop.attach(pubinfo)
         def callback():
             assert_canrecv(sub)
             Receiver.receive(sub)
-        self.run_loop_throttle_test(ioloop, ioloop.throttle, lambda : pubinfo.publisher.framecount, callback)
+        self.run_loop_throttle_test(ioloop, ioloop.worker.throttle, lambda : pubinfo.publisher.framecount, callback)
         
     @pytest.mark.xfail
     def test_server_framerate(self, ioloop, pubinfo, arrays, sub, Receiver):
         """Test that the server approximately handles a given framerate."""
         sub.subscribe("")
-        pubinfo.attach(ioloop)
+        ioloop.attach(pubinfo)
         def callback():
             assert_canrecv(sub)
             Receiver.receive(sub)

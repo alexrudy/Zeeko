@@ -41,15 +41,10 @@ class TestClient(SocketInfoTestBase):
     def test_callback(self, ioloop, socketinfo, Publisher, push):
         """Test client without using the loop."""
         time.sleep(0.01)
-        Publisher.publish(push)
-        assert_canrecv(socketinfo.socket)
-        socketinfo(socketinfo.socket, socketinfo.socket.poll(timeout=100), ioloop._interrupt)
-        Publisher.publish(push)
-        assert_canrecv(socketinfo.socket)
-        socketinfo(socketinfo.socket, socketinfo.socket.poll(timeout=100), ioloop._interrupt)
-        Publisher.publish(push)
-        assert_canrecv(socketinfo.socket)
-        socketinfo(socketinfo.socket, socketinfo.socket.poll(timeout=100), ioloop._interrupt)
+        for i in range(3):
+            Publisher.publish(push)
+            assert_canrecv(socketinfo.socket)
+            socketinfo(socketinfo.socket, socketinfo.socket.poll(timeout=100), ioloop.worker._interrupt)
         time.sleep(0.1)
         print(socketinfo.receiver.last_message)
         assert socketinfo.receiver.framecount != 0
@@ -58,7 +53,7 @@ class TestClient(SocketInfoTestBase):
         
     def test_attached(self, ioloop, socketinfo, Publisher, push):
         """Test explicitly without the options manager."""
-        socketinfo.attach(ioloop)
+        ioloop.attach(socketinfo)
         nloop = 3
         self.run_loop_safely(ioloop, functools.partial(Publisher.publish, push), nloop)
         assert socketinfo.receiver.framecount != 0
@@ -68,7 +63,7 @@ class TestClient(SocketInfoTestBase):
     def test_suicidal_snail(self, ioloop, socketinfo, Publisher, push):
         """Test the suicidal snail pattern."""
         
-        socketinfo.attach(ioloop)
+        ioloop.attach(socketinfo)
         socketinfo.use_reconnections = False
         self.run_loop_snail_test(ioloop, socketinfo.snail, 
                                  lambda : socketinfo.receiver.framecount, 
@@ -82,7 +77,7 @@ class TestClient(SocketInfoTestBase):
     def test_suicidal_snail_reconnections(self, ioloop, context, Publisher, pub, address):
         """Ensure that reconnections prevent receiving during pauses."""
         socketinfo = self.cls.at_address(address, context, kind=zmq.SUB)
-        socketinfo.attach(ioloop)
+        ioloop.attach(socketinfo)
         socketinfo.enable_reconnections(address)
         self.run_loop_snail_reconnect_test(ioloop, socketinfo.snail, 
                                            lambda : socketinfo.receiver.framecount, 
@@ -95,7 +90,7 @@ class TestClient(SocketInfoTestBase):
     def test_pubsub(self, ioloop, address, context, Publisher, pub):
         """Test the pub/sub algorithm."""
         client = self.cls.at_address(address, context, kind=zmq.SUB)
-        client.attach(ioloop)
+        ioloop.attach(client)
         nloop = 3
         self.run_loop_safely(ioloop, functools.partial(Publisher.publish, pub), nloop)
         assert client.receiver.framecount != 0

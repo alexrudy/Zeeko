@@ -40,7 +40,7 @@ class SocketInfoTestBase(object):
             ioloop.state.selected("STOP").wait(timeout=timeout)
         
     def run_loop_throttle_test(self, ioloop, throttle, counter_callback, callback, frequency=100, nevents=100, timeout=0.1):
-        """docstring for run_loop_throttle_test"""
+        """Test the throttle"""
         throttle.frequency = frequency
         throttle.active = True
         sw = Stopwatch()
@@ -151,7 +151,7 @@ class SocketInfoTestBase(object):
             
     def test_attach(self, ioloop, socketinfo):
         """Test client add to a loop."""
-        socketinfo.attach(ioloop)
+        ioloop.attach(socketinfo)
         ioloop.start()
         try:
             ioloop.state.selected("RUN").wait(timeout=0.1)
@@ -180,7 +180,7 @@ class TestSocketInfo(SocketInfoTestBase):
     def test_attach(self, ioloop, socketinfo):
         """Test attach this socket to an event loop."""
         with pytest.raises(AssertionError):
-            socketinfo.attach(ioloop)
+            ioloop.attach(socketinfo)
             
     def test_check(self, socketinfo):
         """Check the socket."""

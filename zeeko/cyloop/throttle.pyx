@@ -80,6 +80,23 @@ cdef class Throttle:
             reprstr = "timeout={0:.3f}s".format(self.timeout)
         return "<{0:s} {1:s}>".format(self.__class__.__name__, reprstr)
     
+    def configure(self, **kwargs):
+        """Configure the throttle."""
+        if "frequency" in kwargs:
+            self.frequency = kwargs.pop("frequency")
+        elif "period" in kwargs:
+            self.period = kwargs.pop("period")
+        if "gain" in kwargs:
+            self.gain = kwargs.pop("gain")
+        if "leak" in kwargs:
+            self.leak = kwargs.pop("leak")
+        elif "c" in kwargs:
+            self.c = kwargs.pop("c")
+        if "active" in kwargs:
+            self.active = kwargs.pop("active")
+        if "timeout" in kwargs:
+            self.timeout = kwargs.pop("timeout")
+    
     def _reset_at(self, last_event):
         """Reset integrator from python."""
         cdef double _last_event = last_event
