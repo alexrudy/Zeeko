@@ -46,4 +46,4 @@ cdef inline void check_rc(int rc) nogil:
     if rc != 0:
         with gil:
             message = bytes(strerror(rc))
-            raise RuntimeError("PThread Error {0} ({1})".format(message, rc))
+            raise OSError("PThread Error: {0} ({1})".format(message, rc))
