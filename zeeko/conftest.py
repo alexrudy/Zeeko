@@ -120,8 +120,8 @@ class Context(zmq.Context):
 def context(request):
     """The ZMQ context."""
     ctx = Context(io_threads=0)
-    request.addfinalizer(functools.partial(try_term, ctx))
-    return ctx
+    yield ctx
+    try_term(ctx)
     
 def socket_pair(context, left, right):
     """Given a context, make a socket."""
