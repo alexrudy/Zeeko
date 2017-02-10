@@ -184,7 +184,6 @@ cdef class StateMachine:
         
     def signal(self, state, address, context = None):
         """Signal a state change."""
-        self.guard(STOP)
         context = context or zmq.Context.instance()
         signal = context.socket(zmq.PUSH)
         signal.linger = 1000
