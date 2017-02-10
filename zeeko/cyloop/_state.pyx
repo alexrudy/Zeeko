@@ -189,10 +189,10 @@ cdef class StateMachine:
         signal = context.socket(zmq.PUSH)
         signal.linger = 1000
         with signal:
-            signal.connect(address)
+            signal.connect(address) # Should not block?
             if signal.poll(timeout=100, flags=zmq.POLLOUT):
                 try:
-                    signal.send(s.pack("i", self._convert(state)), zmq.NOBLOCK)
+                    signal.send(s.pack("i", self._convert(state)), flags=zmq.NOBLOCK)
                 except zmq.Again:
                     # We swallow EAGAIN here, becasue it usually means that the
                     # socket would block.
