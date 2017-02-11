@@ -1,7 +1,7 @@
 """Definitions from pthread"""
 
 from libc.string cimport strerror
-from libc.errno cimport errno
+from libc cimport errno
 from .clock cimport timespec
 
 cdef extern from "pthread.h" nogil:
@@ -43,12 +43,16 @@ cdef extern from "pthread.h" nogil:
     cdef int pthread_rwlock_destroy(pthread_rwlock_t *)
     
 cdef inline int check_rc(int rc) nogil except -1:
-    if rc != 0:
+    if rc == errno.ETIMEDOUT:
+        # Parent should handle timeouts.
+        return rc
+    elif rc != 0:
         with gil:
             message = bytes(strerror(rc))
             raise OSError("PThread Error: {0} ({1})".format(message, rc))
     return rc
 
+# Mutexes
 cdef inline int mutex_init(pthread_mutex_t * mutex, pthread_mutexattr_t * mutexattr) nogil except -1:
     return check_rc(pthread_mutex_init(mutex, mutexattr))
 
@@ -60,3 +64,22 @@ cdef inline int mutex_unlock(pthread_mutex_t * mutex) nogil except -1:
 
 cdef inline int mutex_destroy(pthread_mutex_t * mutex) nogil except -1:
     return check_rc(pthread_mutex_destroy(mutex))
+
+# Conditions
+cdef inline int cond_init(pthread_cond_t * cond, pthread_condattr_t * condattr) nogil except -1:
+    return check_rc(pthread_cond_init(cond, condattr))
+
+cdef inline int cond_destroy(pthread_cond_t * cond) nogil except -1:
+    return check_rc(pthread_cond_destroy(cond))
+
+cdef inline int cond_wait(pthread_cond_t * cond, pthread_mutex_t * mutex) nogil except -1:
+    return check_rc(pthread_cond_wait(cond, mutex))
+
+cdef inline int cond_timedwait(pthread_cond_t * cond, pthread_mutex_t * mutex, timespec * ts) nogil except -1:
+    return check_rc(pthread_cond_timedwait(cond, mutex, ts))
+
+cdef inline int cond_signal(pthread_cond_t * cond) nogil except -1:
+    return check_rc(pthread_cond_signal(cond))
+
+cdef inline int cond_broadcast(pthread_cond_t * cond) nogil except -1:
+    return check_rc(pthread_cond_broadcast(cond))

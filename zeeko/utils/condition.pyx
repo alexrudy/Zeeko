@@ -1,12 +1,13 @@
 from . cimport pthread
+from . cimport refcount
 
 from libc.math cimport floor, fmod
-from libc.stdlib cimport free, malloc, realloc
+from libc.stdlib cimport free
 from libc cimport errno
 
 from posix.types cimport time_t
 from .clock cimport current_utc_time, timespec
-from .rc cimport check_generic_rc
+from .rc cimport check_generic_rc, realloc, malloc
 
 class TimeoutError(Exception):
     pass
@@ -14,91 +15,67 @@ class TimeoutError(Exception):
 cdef int event_trigger(event * src) nogil except -1:
     """Trigger the event without holding the GIL."""
     cdef int rc
-    
-    rc = pthread.check_rc(pthread.pthread_mutex_lock(src.mutex))
+    rc = pthread.mutex_lock(src.mutex)
     try:
         src._setting[0] = True
-        rc = pthread.pthread_cond_broadcast(src.cond)
-        pthread.check_rc(rc)
+        rc = pthread.cond_broadcast(src.cond)
     finally:
-        rc = pthread.pthread_mutex_unlock(src.mutex)
-        pthread.check_rc(rc)
+        rc = pthread.mutex_unlock(src.mutex)
     return rc
     
 cdef int event_incref(event * src) nogil except -1:
-    cdef int rc, refcount
-    rc = pthread.pthread_mutex_lock(src.refmutex)
-    pthread.check_rc(rc)
-    refcount = src._refcount[0]
-    src._refcount[0] = refcount + 1
-    rc = pthread.pthread_mutex_unlock(src.refmutex)
-    pthread.check_rc(rc)
-    return rc
+    return refcount.refcount_increment(src.refcount)
 
 cdef int event_clear(event * src) nogil except -1:
     """Clear an event, without the GIL."""
-    rc = pthread.pthread_mutex_lock(src.mutex)
-    pthread.check_rc(rc)
+    rc = pthread.mutex_lock(src.mutex)
     try:
         src._setting[0] = False
     finally:
-        rc = pthread.pthread_mutex_unlock(src.mutex)
-        pthread.check_rc(rc)
+        rc = pthread.mutex_unlock(src.mutex)
     return rc
     
 cdef int event_init(event * src) nogil except -1:
     """Initialize an empty event without holding the GIL"""
     cdef int rc
-    src.refmutex = <pthread.pthread_mutex_t *>realloc(src.refmutex, sizeof(pthread.pthread_mutex_t))
-    rc = pthread.pthread_mutex_init(src.refmutex, NULL)
-    pthread.check_rc(rc)
+    src.refcount = <refcount.refcount_t *>realloc(src.refcount, sizeof(refcount.refcount_t))
+    rc = refcount.refcount_init(src.refcount)
     
     src.mutex = <pthread.pthread_mutex_t *>realloc(src.mutex, sizeof(pthread.pthread_mutex_t))
-    rc = pthread.pthread_mutex_init(src.mutex, NULL)
-    pthread.check_rc(rc)
+    rc = pthread.mutex_init(src.mutex, NULL)
     
     src.cond = <pthread.pthread_cond_t *>realloc(src.cond, sizeof(pthread.pthread_cond_t))
-    rc = pthread.pthread_cond_init(src.cond, NULL)
-    pthread.check_rc(rc)
+    rc = pthread.cond_init(src.cond, NULL)
     
     src._setting = <bint *>realloc(src._setting, sizeof(bint))
     src._setting[0] = False
-    src._refcount = <int *>realloc(src._refcount, sizeof(int))
-    src._refcount[0] = 0
     return rc
     
 cdef int event_destroy(event * src) nogil except -1:
     """Destroy an event structure"""
-    cdef int rc, refcount
-    if src.refmutex == NULL:
+    cdef int rc
+    if src.refcount is NULL:
         # Things are so boggled, we can't handle this case.
         return -2
-    rc = pthread.pthread_mutex_lock(src.refmutex)
-    pthread.check_rc(rc)
-    refcount = src._refcount[0]    
-    if refcount == 0:
-        rc = pthread.pthread_mutex_unlock(src.refmutex)
-        pthread.check_rc(rc)
-        pthread.pthread_mutex_destroy(src.refmutex)
-        free(src.refmutex)
+    rc = refcount.refcount_destroy(src.refcount)
+    if rc == 1:
+        free(src.refcount)
+        src.refcount = NULL 
         if src.mutex is not NULL:
-            pthread.check_rc(rc)
-            pthread.pthread_mutex_destroy(src.mutex)
-        
+            pthread.mutex_destroy(src.mutex)
+            free(src.mutex)
+            src.mutex = NULL
         if src.cond is not NULL:
-            pthread.pthread_cond_destroy(src.cond)
+            pthread.cond_destroy(src.cond)
             free(src.cond)
+            src.cond = NULL
         if src._setting is not NULL:
             free(src._setting)
-    else:
-        src._refcount[0] = refcount - 1
-        rc = pthread.pthread_mutex_unlock(src.refmutex)
-        pthread.check_rc(rc)
+            src._setting = NULL
     return 0
 
 cdef int event_copy(event * dst, event * src) nogil except -1:
-    dst.refmutex = src.refmutex
-    dst._refcount = src._refcount
+    dst.refcount = src.refcount
     dst._setting = src._setting
     dst.cond = src.cond
     dst.mutex = src.mutex
@@ -139,27 +116,14 @@ cdef class Event:
         return obj
     
     cdef int lock(self) nogil except -1:
-        cdef int rc
-        rc = pthread.pthread_mutex_lock(self.evt.mutex)
-        pthread.check_rc(rc)
-        return rc
+        return pthread.mutex_lock(self.evt.mutex)
 
     cdef int unlock(self) nogil except -1:
-        cdef int rc
-        rc = pthread.pthread_mutex_unlock(self.evt.mutex)
-        pthread.check_rc(rc)
-        return rc
+        return pthread.mutex_unlock(self.evt.mutex)
     
     property _reference_count:
         def __get__(self):
-            rc = pthread.pthread_mutex_lock(self.evt.refmutex)
-            pthread.check_rc(rc)
-            try:
-                refcount = self.evt._refcount[0]
-            finally:
-                rc = pthread.pthread_mutex_unlock(self.evt.refmutex)
-                pthread.check_rc(rc)
-            return refcount
+            return refcount.refcount_get(self.evt.refcount)
     
     def clear(self):
         """Clear the event"""
@@ -185,8 +149,7 @@ cdef class Event:
         rc = self.lock()
         try:
             self.evt._setting[0] = True
-            rc = pthread.pthread_cond_broadcast(self.evt.cond)
-            pthread.check_rc(rc)
+            rc = pthread.cond_broadcast(self.evt.cond)
         finally:
             rc = self.unlock()
         return rc
@@ -202,7 +165,6 @@ cdef class Event:
             to = <double>timeout
             with nogil:
                 rc = self._timedwait(to)
-            pthread.check_rc(rc)
         return bool(self._is_set())
         
     cdef int _wait(self) nogil except -1:
@@ -210,8 +172,7 @@ cdef class Event:
         rc = self.lock()
         try:
             if not self.evt._setting[0]:
-                rc = pthread.pthread_cond_wait(self.evt.cond, self.evt.mutex)
-                pthread.check_rc(rc)
+                rc = pthread.cond_wait(self.evt.cond, self.evt.mutex)
         finally:
             rc = self.unlock()
         return rc
@@ -225,12 +186,10 @@ cdef class Event:
                 current_utc_time(&ts)
                 ts.tv_sec += <time_t>floor(seconds)
                 ts.tv_nsec += <long>floor(fmod(seconds*1e9,1e9))
-                rc = pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
+                rc = pthread.cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
                 if errno.ETIMEDOUT == rc:
                     with gil:
                         raise TimeoutError("Event.wait() timed out.")
-                else:
-                    pthread.check_rc(rc)
         finally:
             rc = self.unlock()
         return rc
