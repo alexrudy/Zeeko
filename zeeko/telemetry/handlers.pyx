@@ -6,6 +6,7 @@ from zmq.backend.cython.context cimport Context
 import zmq
 import h5py
 import itertools
+from ..utils.msg import internal_address
 
 from ..handlers.base cimport SocketInfo
 from ..handlers.snail cimport Snail
@@ -67,7 +68,7 @@ cdef class RClient(SocketInfo):
     def enable_notifications(self, Context ctx, str address not None):
         self.notifications_address = address
         self.notify = ctx.socket(zmq.PUSH)
-        self.notify.connect(self.notifications_address)
+        self.notify.bind(self.notifications_address)
         self.notify_handle = self.notify.handle
     
     @classmethod
@@ -77,6 +78,7 @@ cdef class RClient(SocketInfo):
         obj = cls(socket, zmq.POLLIN, chunksize=chunksize)
         if enable_reconnections:
             obj.enable_reconnections(address)
+        obj.enable_notifications(ctx, internal_address(obj, 'notify'))
         return obj
         
     cdef int paused(self) nogil except -1:
@@ -116,6 +118,19 @@ cdef class RClient(SocketInfo):
     def unsubscribe(self, key):
         """Unsubscribe"""
         self.opt.unsubscribe(key)
+        
+    def _close(self):
+        """Close this socketinfo."""
+        self.socket.close(linger=0)
+        if self.notify is not None:
+            self.notify.close(linger=0)
+    
+    def close(self):
+        """Safely close this socket wrapper"""
+        if not self.socket.closed:
+            self.socket.close()
+        if self.notify is not None and not self.notify.closed:
+            self.notify.close()
     
 
 cdef class WClient(SocketInfo):
