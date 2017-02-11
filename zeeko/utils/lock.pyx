@@ -2,9 +2,9 @@ from . cimport pthread
 from .rc cimport malloc, realloc
 from libc.stdlib cimport free
 from libc.string cimport memset
+from .clock cimport current_utc_time, timespec
 
 from posix.types cimport time_t
-from .clock cimport current_utc_time, timespec
 
 cdef int lock_acquire(lock * src) nogil except -1:
     """Acquire the lock without holding the GIL."""
@@ -32,7 +32,9 @@ cdef int lock_release(lock * src) nogil except -1:
 cdef int lock_init(lock * src) nogil except -1:
     """Initialize the lock structure"""
     cdef int rc
-    src._own_pthread = True
+    src.refcount = <refcount.refcount_t *>realloc(src.refcount, sizeof(refcount.refcount_t))
+    rc = refcount.refcount_init(src.refcount)
+    
     src._owned = <bint *>realloc(src._owned, sizeof(bint))
     src._owned[0] = 0
     src.mutex = <pthread.pthread_mutex_t *>realloc(src.mutex, sizeof(pthread.pthread_mutex_t))
@@ -44,8 +46,12 @@ cdef int lock_init(lock * src) nogil except -1:
 
 cdef int lock_destroy(lock * src) nogil except -1:
     """Destroy an event structure"""
-    cdef int rc = 0
-    if src._own_pthread:
+    cdef int rc
+    if src.refcount is NULL:
+        # Things are so boggled, we can't handle this case.
+        return -2
+    rc = refcount.refcount_destroy(src.refcount)
+    if rc == 1:
         if src.mutex is not NULL:
             pthread.mutex_destroy(src.mutex)
             free(src.mutex)
@@ -54,7 +60,6 @@ cdef int lock_destroy(lock * src) nogil except -1:
             free(src.condition)
         if src._owned is not NULL:
             free(src._owned)
-        src._own_pthread = False
     return rc
 
 cdef class Lock:
@@ -76,19 +81,22 @@ cdef class Lock:
     
     cdef lock _get_lock(self) nogil:
         cdef lock lck
-        lck._own_pthread = False
+        lck.refcount = self._lock.refcount
         lck._owned = self._lock._owned
         lck.mutex = self._lock.mutex
         lck.condition = self._lock.condition
+        refcount.refcount_increment(lck.refcount)
         return lck
         
     @staticmethod
     cdef Lock _from_lock(lock * lck):
         cdef Lock obj = Lock()
         obj._destroy()
+        obj._lock.refcount = lck.refcount
         obj._lock.mutex = lck.mutex
         obj._lock._owned = lck._owned
         obj._lock.condition = lck.condition
+        refcount.refcount_increment(obj._lock.refcount)
         return obj
         
     property locked:

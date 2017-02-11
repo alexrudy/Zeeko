@@ -1,7 +1,8 @@
 from . cimport pthread
+from . cimport refcount
 
 ctypedef struct lock:
-    bint _own_pthread
+    refcount.refcount_t * refcount
     bint * _owned
     pthread.pthread_mutex_t * mutex
     pthread.pthread_cond_t * condition
