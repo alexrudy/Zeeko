@@ -6,7 +6,7 @@ from libc.stdlib cimport free
 from libc cimport errno
 
 from posix.types cimport time_t
-from .clock cimport current_utc_time, timespec
+from .clock cimport timespec, microseconds_to_ts
 from .rc cimport check_generic_rc, realloc, malloc
 
 class TimeoutError(Exception):
@@ -82,6 +82,18 @@ cdef int event_copy(event * dst, event * src) nogil except -1:
     event_incref(dst)
     return 0
 
+cdef int event_timedwait(event * src, int timeout) nogil except -1:
+    cdef timespec ts
+    pthread.mutex_lock(src.mutex)
+    ts = microseconds_to_ts(timeout)
+    pthread.cond_timedwait(src.cond, src.mutex, &ts)
+    return pthread.mutex_unlock(src.mutex)
+
+cdef int event_wait(event * src) nogil except -1:
+    pthread.mutex_lock(src.mutex)
+    pthread.cond_wait(src.cond, src.mutex)
+    return pthread.mutex_unlock(src.mutex)
+
 cdef class Event:
     """A cython implementation of a GIL-free Event object
     which should mimic the python event object."""
@@ -156,13 +168,13 @@ cdef class Event:
         
     def wait(self, timeout = None):
         """Wait for the event to get set."""
-        cdef double to
-        cdef int rc
+        cdef int to, rc
         if timeout is None:
             with nogil:
                 self._wait()
         else:
-            to = <double>timeout
+            to = <int>((<double>timeout) * 100000.0)
+            print("Timeout={:d}".format(to))
             with nogil:
                 rc = self._timedwait(to)
         return bool(self._is_set())
@@ -177,15 +189,13 @@ cdef class Event:
             rc = self.unlock()
         return rc
     
-    cdef int _timedwait(self, double seconds) nogil except -1:
+    cdef int _timedwait(self, int microseconds) nogil except -1:
         cdef int rc
         cdef timespec ts
         rc = self.lock()
         try:
             if not self.evt._setting[0]:
-                current_utc_time(&ts)
-                ts.tv_sec += <time_t>floor(seconds)
-                ts.tv_nsec += <long>floor(fmod(seconds*1e9,1e9))
+                ts = microseconds_to_ts(microseconds)
                 rc = pthread.cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
                 if errno.ETIMEDOUT == rc:
                     with gil:
