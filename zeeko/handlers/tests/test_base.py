@@ -29,15 +29,12 @@ class SocketInfoTestBase(object):
     
     def run_loop_safely(self, ioloop, callback, n, timeout=0.1):
         """Run the IOLoop safely."""
-        ioloop.start()
-        try:
+        with ioloop.running(timeout=timeout):
             ioloop.state.selected("RUN").wait(timeout=timeout)
             for i in range(n):
                 callback()
                 time.sleep(timeout)
-        finally:
-            ioloop.stop()
-            ioloop.state.selected("STOP").wait(timeout=timeout)
+        ioloop.state.selected("STOP").wait(timeout=timeout)
         
     def run_loop_throttle_test(self, ioloop, throttle, counter_callback, callback, frequency=100, nevents=100, timeout=0.1):
         """Test the throttle"""

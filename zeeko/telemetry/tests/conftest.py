@@ -17,6 +17,11 @@ def lastindex():
     return 512
     
 @pytest.fixture
+def filename(tmpdir):
+    """Filename for telemetry recording."""
+    return str(tmpdir.join("telemetry.hdf5"))
+    
+@pytest.fixture
 def chunk_array(shape, dtype, chunksize, lastindex):
     """Return an array appropriate for the chunksize."""
     data = (np.random.rand(*((chunksize,) + shape))).astype(dtype)

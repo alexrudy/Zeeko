@@ -220,4 +220,10 @@ cdef class WClient(SocketInfo):
                 else:
                     raise
         return 0
-
+    
+    def _close(self):
+        """Close this socketinfo."""
+        self.socket.close(linger=0)
+        if self.writer.file is not None: 
+            self.writer.file.close()
+            self.writer.file = None

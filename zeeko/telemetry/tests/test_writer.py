@@ -33,11 +33,6 @@ def n():
     return 3
     
 @pytest.fixture
-def filename(tmpdir):
-    """Filename for telemetry recording."""
-    return str(tmpdir.join("telemetry.hdf5"))
-    
-@pytest.fixture
 def chunks(n, name, chunk_array, chunk_mask):
     """Return a list of chunks"""
     return [chunk_api.PyChunk("{0:s}{1:d}".format(name, i), np.random.randn(*chunk_array.shape), chunk_mask) for i in range(n)]

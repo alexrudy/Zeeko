@@ -251,15 +251,24 @@ def ioloop(context):
 def n():
     """Number of arrays"""
     return 3
+    
+from .messages.publisher import Publisher as _Publisher
+
+class MockPublisher(_Publisher):
+    """docstring for MockPublisher"""
+    
+    def update(self):
+        """Update all keys to this publisher."""
+        for key in self.keys():
+            array = self[key]
+            array.array[...] = np.random.randn(*array.shape)
 
 @pytest.fixture
 def Publisher(name, n, shape):
     """Make an array publisher."""
-    from .messages.publisher import Publisher as _Publisher
-    publishers = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-    p = _Publisher([])
-    for name_, array_ in publishers:
-        p[name_] = array_
+    p = MockPublisher([])
+    for i in range(n):
+        p["{:s}{:d}".format(name, i)] = np.random.randn(*shape)
     return p
 
 @pytest.fixture

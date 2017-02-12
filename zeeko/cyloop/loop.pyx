@@ -4,6 +4,7 @@ from libc.string cimport memcpy
 
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr, check_memory_ptr, check_generic_ptr
 from ..utils.clock cimport current_time
+from ..utils.condition cimport Event
 from ..handlers.base cimport SocketInfo, socketinfo
 
 import threading
@@ -51,6 +52,7 @@ cdef class IOLoopWorker:
     cdef readonly StateMachine state
     cdef readonly Throttle throttle
     cdef Lock _lock # Lock
+    cdef Event _started
     
     def __cinit__(self):
         self._socketinfos = NULL
@@ -59,15 +61,16 @@ cdef class IOLoopWorker:
         self._n_pollitems = 1
         self.throttle = Throttle()
         self.throttle.timeout = 0.1
+        self._started = Event()
         
-    def __init__(self, ctx, state):
+    def __init__(self, ctx, state, index):
         self._sockets = []
         self.state = state or StateMachine()        
         self._lock = Lock()
         self.context = ctx or zmq.Context.instance()
         self.log = logging.getLogger(".".join([self.__class__.__module__,self.__class__.__name__]))
         self._internal_address_interrupt = "inproc://{:s}-interrupt".format(hex(id(self)))
-        self.thread = threading.Thread(target=self._work)
+        self.thread = threading.Thread(target=self._work, name='IOLoopWorker-{0:d}'.format(index))
         
     def __dealloc__(self):
         if self._socketinfos != NULL:
@@ -96,11 +99,11 @@ cdef class IOLoopWorker:
     
     def _not_done(self):
         self.state.guard(STOP)
-        if self.state.check(INIT):
+        if not self.is_alive():
             self.log.debug("thread.start()")
             self.start()
             self.log.debug("state.deselected(START).wait()")
-            self.state.deselected(START).wait(timeout=1.0)
+            self._started.wait(timeout=0.1)
             self.log.debug("state.deselected(START).wait() [DONE]")
     
     def _add_socketinfo(self, SocketInfo sinfo):
@@ -166,10 +169,11 @@ cdef class IOLoopWorker:
 
 
         with self._lock:
-            for sinfo in self._sockets:
-                sinfo._start()
+            for si in self._sockets:
+                si._start()
 
         self.throttle.reset()
+        self._started.set()
         self.state.set(PAUSE)
 
     def _work(self):
@@ -279,7 +283,7 @@ cdef class IOLoop:
     
     def add_worker(self):
         """Add a new worker to this I/O Loop"""
-        self.workers.append(IOLoopWorker(self.context, self.state))
+        self.workers.append(IOLoopWorker(self.context, self.state, len(self.workers)))
         
     def attach(self, socketinfo, index=0):
         socketinfo.attach(self.workers[index])
