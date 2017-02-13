@@ -21,6 +21,7 @@ from ..cyloop._state cimport zmq_send_sentinel, PAUSE
 
 import zmq
 import h5py
+import logging
 
 cdef class Writer:
     
@@ -34,6 +35,7 @@ cdef class Writer:
         self.last_message = 0.0
         
         self.file = None
+        self.log = logging.getLogger(".".join([__name__, self.__class__.__name__]))
 
     def __dealloc__(self):
         self._release_arrays()
@@ -117,6 +119,7 @@ cdef class Writer:
         with gil:
             pychunk = Chunk.from_chunk(&self._chunks[i])
             pychunk.write(self.file)
+            self.log.debug("Wrote chunk {0} to {1}".format(pychunk.name , self.file.name))
         
         return rc
     

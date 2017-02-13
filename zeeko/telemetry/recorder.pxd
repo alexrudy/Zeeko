@@ -18,6 +18,8 @@ cdef class Recorder:
     cdef readonly int chunksize
     cdef readonly double last_message
     
+    cdef object log
+    
     cdef int _release_arrays(self) nogil except -1
     cdef int _receive(self, void * socket, int flags, void * notify, int notify_flags) nogil except -1
     cdef int _receive_message(self, void * socket, int flags, void * notify, int notify_flags) nogil except -1

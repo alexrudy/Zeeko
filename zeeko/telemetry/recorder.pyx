@@ -23,6 +23,7 @@ from ..messages.carray cimport carray_message_info, carray_named, new_named_arra
 # Python imports
 
 import zmq
+import logging
 
 
 # This class should match the API of the Receiver, but should return chunks
@@ -41,6 +42,7 @@ cdef class Recorder:
         # Accounting objects
         self._chunkcount = 0
         self.chunksize = -1 # Will be re-initialized by __init__
+        self.log = logging.getLogger(".".join([__name__, self.__class__.__name__]))
         
     
     def __init__(self, chunksize):
@@ -147,6 +149,10 @@ cdef class Recorder:
     property complete:
         def __get__(self):
             return self._check_for_completion() == 1
+        
+    property chunkcount:
+        def __get__(self):
+            return self._chunkcount
     
     cdef int _check_for_completion(self) nogil except -1:
         """This method checks to see if the chunks have completed."""
@@ -182,6 +188,9 @@ cdef class Recorder:
             for i in range(self.map.n - 1):
                 rc = chunk_send(&self._chunks[i], socket, flags|libzmq.ZMQ_SNDMORE)
             rc = chunk_send(&self._chunks[self.map.n - 1], socket, flags)
+        
+        with gil:
+            self.log.debug("Sent chunks after completion")
         
         # Release the memory held by the sent chunks
         self._release_arrays()
