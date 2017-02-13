@@ -47,10 +47,13 @@ cdef inline int check_rc(int rc) nogil except -1:
         # Parent should handle timeouts.
         return rc
     elif rc != 0:
-        with gil:
-            message = bytes(strerror(rc))
-            raise OSError("PThread Error: {0} ({1})".format(message, rc))
+        raise_oserror(rc)
     return rc
+
+cdef inline int raise_oserror(int rc) nogil except -1:
+    with gil:
+       message = bytes(strerror(rc))
+       raise OSError("PThread Error: {0} ({1})".format(message, rc))
 
 # Mutexes
 cdef inline int mutex_init(pthread_mutex_t * mutex, pthread_mutexattr_t * mutexattr) nogil except -1:

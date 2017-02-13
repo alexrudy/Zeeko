@@ -143,7 +143,7 @@ cdef class Event:
             self._clear()
     
     cdef int _clear(self) nogil except -1:
-        cdef int rc
+        cdef int rc = 0
         rc = self.lock()
         try:
             self.evt._setting[0] = False
@@ -157,14 +157,14 @@ cdef class Event:
             self._set()
     
     cdef int _set(self) nogil except -1:
-        cdef int rc
-        rc = self.lock()
+        cdef int _rc, rc = 0
+        _rc = self.lock()
         try:
             self.evt._setting[0] = True
             rc = pthread.cond_broadcast(self.evt.cond)
         finally:
-            rc = self.unlock()
-        return rc
+            _rc = self.unlock()
+        return pthread.check_rc(rc)
         
     def wait(self, timeout = None):
         """Wait for the event to get set."""
@@ -174,35 +174,34 @@ cdef class Event:
                 self._wait()
         else:
             to = <int>((<double>timeout) * 100000.0)
-            print("Timeout={:d}".format(to))
             with nogil:
                 rc = self._timedwait(to)
         return bool(self._is_set())
         
     cdef int _wait(self) nogil except -1:
-        cdef int rc
-        rc = self.lock()
+        cdef int rc = 0, _rc
+        _rc = self.lock()
         try:
             if not self.evt._setting[0]:
-                rc = pthread.cond_wait(self.evt.cond, self.evt.mutex)
+                rc = pthread.pthread_cond_wait(self.evt.cond, self.evt.mutex)
         finally:
-            rc = self.unlock()
-        return rc
+            _rc = self.unlock()
+        return pthread.check_rc(rc)
     
     cdef int _timedwait(self, int microseconds) nogil except -1:
-        cdef int rc
+        cdef int rc = 0, _rc
         cdef timespec ts
-        rc = self.lock()
+        _rc = self.lock()
         try:
             if not self.evt._setting[0]:
                 ts = microseconds_to_ts(microseconds)
-                rc = pthread.cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
-                if errno.ETIMEDOUT == rc:
-                    with gil:
-                        raise TimeoutError("Event.wait() timed out.")
+                rc = pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
         finally:
-            rc = self.unlock()
-        return rc
+            _rc = self.unlock()
+        if errno.ETIMEDOUT == rc:
+           with gil:
+               raise TimeoutError("Event.wait() timed out.")
+        return pthread.check_rc(rc)
     
     def is_set(self):
         cdef int rc

@@ -69,7 +69,8 @@ cdef class Lock:
     def __cinit__(self):
         cdef int rc
         memset(&self._lock, 0, sizeof(lock))
-        rc = lock_init(&self._lock)
+        with nogil:
+            rc = lock_init(&self._lock)
         assert self._lock.mutex is not NULL, "mutex was not initialized."
         assert self._lock.condition is not NULL, "condition was not initialized."
     
@@ -81,33 +82,36 @@ cdef class Lock:
     
     cdef lock _get_lock(self) nogil:
         cdef lock lck
-        lck.refcount = self._lock.refcount
-        lck._owned = self._lock._owned
-        lck.mutex = self._lock.mutex
-        lck.condition = self._lock.condition
-        refcount.refcount_increment(lck.refcount)
+        with nogil:
+            lck.refcount = self._lock.refcount
+            lck._owned = self._lock._owned
+            lck.mutex = self._lock.mutex
+            lck.condition = self._lock.condition
+            refcount.refcount_increment(lck.refcount)
         return lck
         
     @staticmethod
     cdef Lock _from_lock(lock * lck):
         cdef Lock obj = Lock()
-        obj._destroy()
-        obj._lock.refcount = lck.refcount
-        obj._lock.mutex = lck.mutex
-        obj._lock._owned = lck._owned
-        obj._lock.condition = lck.condition
-        refcount.refcount_increment(obj._lock.refcount)
+        with nogil:
+            obj._destroy()
+            obj._lock.refcount = lck.refcount
+            obj._lock.mutex = lck.mutex
+            obj._lock._owned = lck._owned
+            obj._lock.condition = lck.condition
+            refcount.refcount_increment(obj._lock.refcount)
         return obj
         
     property locked:
         def __get__(self):
             cdef bint _locked
             assert self._lock.mutex is not NULL, "mutex was not initialized."
-            rc = pthread.mutex_lock(self._lock.mutex)
-            try:
-                _locked = self._lock._owned[0]
-            finally:
-                rc = pthread.mutex_unlock(self._lock.mutex)
+            with nogil:
+                rc = pthread.mutex_lock(self._lock.mutex)
+                try:
+                    _locked = self._lock._owned[0]
+                finally:
+                    rc = pthread.mutex_unlock(self._lock.mutex)
             return _locked
         
     def copy(self):
