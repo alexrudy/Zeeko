@@ -8,6 +8,7 @@ from astropy_helpers import setup_helpers
 
 
 HERE = os.path.dirname(__file__)
+PACKAGE = ".".join(__name__.split(".")[:-1])
 
 pjoin = os.path.join
 pyx = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pyx")
@@ -28,6 +29,9 @@ dependencies = {
     
 }
 
+def get_package_data():
+    """Return package data."""
+    return {PACKAGE:['*.pxd', '*.h']}
 
 def get_extensions(**kwargs):
     """Get the Cython extensions"""
