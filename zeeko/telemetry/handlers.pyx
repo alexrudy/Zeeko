@@ -72,13 +72,15 @@ cdef class RClient(SocketInfo):
         self.notify_handle = self.notify.handle
     
     @classmethod
-    def at_address(cls, str address, Context ctx, int kind = zmq.SUB, enable_reconnections=True, chunksize=1024):
+    def at_address(cls, str address, Context ctx, int kind = zmq.SUB, chunksize=1024
+                   enable_reconnections=True, enable_notifications=True):
         socket = ctx.socket(kind)
         socket.connect(address)
         obj = cls(socket, zmq.POLLIN, chunksize=chunksize)
         if enable_reconnections:
             obj.enable_reconnections(address)
-        obj.enable_notifications(ctx, internal_address(obj, 'notify'))
+        if enable_notifications:
+            obj.enable_notifications(ctx, internal_address(obj, 'notify'))
         return obj
         
     cdef int paused(self) nogil except -1:
