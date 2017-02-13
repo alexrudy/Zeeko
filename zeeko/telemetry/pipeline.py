@@ -11,13 +11,18 @@ from .handlers import RClient, WClient
 
 def create_pipeline(address, context=None, chunksize=1024, filename="telemetry.{0:d}.hdf5", kind=zmq.SUB):
     """Create a telemetry writing pipeline."""
-    context = context or zmq.Context.instance()
-    ioloop = IOLoop(context)
-    ioloop.add_worker()
-    record = RClient.at_address(address, context, kind=kind, chunksize=chunksize)
-    ioloop.attach(record, 0)
-    write = WClient.from_recorder(filename, record)
-    ioloop.attach(write, 1)
-    return ioloop
+    return PipelineIOLoop(address, context, chunksize, filename, kind)
 
+class PipelineIOLoop(IOLoop):
+    """Expose pipeline parts at IOLoop top level."""
+    def __init__(self, address, context=None, chunksize=1024, filename="telemetry.{0:d}.hdf5", kind=zmq.SUB):
+        context = context or zmq.Context.instance()
+        super(PipelineIOLoop, self).__init__(context)
+        self.add_worker()
+        self.record = RClient.at_address(address, context, kind=kind, chunksize=chunksize)
+        self.attach(self.record, 0)
+        self.write = WClient.from_recorder(filename, self.record)
+        self.attach(self.write, 1)
+        
     
+        
