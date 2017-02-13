@@ -72,7 +72,7 @@ cdef class RClient(SocketInfo):
         self.notify_handle = self.notify.handle
     
     @classmethod
-    def at_address(cls, str address, Context ctx, int kind = zmq.SUB, chunksize=1024
+    def at_address(cls, str address, Context ctx, int kind = zmq.SUB, chunksize=1024,
                    enable_reconnections=True, enable_notifications=True):
         socket = ctx.socket(kind)
         socket.connect(address)
