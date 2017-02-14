@@ -81,7 +81,7 @@ import numpy as np
 def pytest_report_header(config):
     import astropy.tests.pytest_plugins as astropy_pytest_plugins
     s = astropy_pytest_plugins.pytest_report_header(config)
-    s += 'libzmq: {:s}\n'.format(zmq.zmq_version())
+    s += 'libzmq: {0:s}\n'.format(zmq.zmq_version())
     return s
 
 def try_term(context):
@@ -225,17 +225,17 @@ def array(shape, dtype):
 @pytest.fixture
 def arrays(name, n, shape):
     """A fixture of named arrays to publish."""
-    return [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
+    return [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
 
 def assert_canrecv(socket, timeout=100):
     """Check if a socket is ready to receive."""
     if not socket.poll(timeout=timeout):
-        pytest.fail("ZMQ Socket {!r} was not ready to receive.".format(socket))
+        pytest.fail("ZMQ Socket {0!r} was not ready to receive.".format(socket))
     
 def recv(socket, method='', **kwargs):
     """Receive, via poll, in such a way as to fail when no message is ready."""
     assert_canrecv(socket, kwargs.pop('timeout', 5000))
-    recv = getattr(socket, 'recv_{:s}'.format(method)) if method else socket.recv
+    recv = getattr(socket, 'recv_{0:s}'.format(method)) if method else socket.recv
     return recv(**kwargs)
     
 
@@ -268,7 +268,7 @@ def Publisher(name, n, shape):
     """Make an array publisher."""
     p = MockPublisher([])
     for i in range(n):
-        p["{:s}{:d}".format(name, i)] = np.random.randn(*shape)
+        p["{0:s}{1:d}".format(name, i)] = np.random.randn(*shape)
     return p
 
 @pytest.fixture

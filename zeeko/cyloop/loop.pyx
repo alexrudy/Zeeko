@@ -71,7 +71,7 @@ cdef class IOLoopWorker:
         self._lock = Lock()
         self.context = ctx or zmq.Context.instance()
         self.log = logging.getLogger(".".join([self.__class__.__module__,self.__class__.__name__]))
-        self._internal_address_interrupt = "inproc://{:s}-interrupt".format(hex(id(self)))
+        self._internal_address_interrupt = "inproc://{0:s}-interrupt".format(hex(id(self)))
         self.thread = threading.Thread(target=self._work, name='IOLoopWorker-{0:d}'.format(index))
         
     def __dealloc__(self):
@@ -145,7 +145,7 @@ cdef class IOLoopWorker:
                 # Ignore errors that signal that we've already disconnected.
                 pass
             else:
-                self.log.warning("Exception in Worker disconnect: {!r}".format(e))
+                self.log.warning("Exception in Worker disconnect: {0!r}".format(e))
     
         for si in self._sockets:
             si._close()
@@ -154,7 +154,7 @@ cdef class IOLoopWorker:
             try:
                 socket.close(linger=0)
             except (zmq.ZMQError, zmq.Again) as e:
-                self.log.warning("Ignoring exception in worker shutdown: {!r}".format(e))
+                self.log.warning("Ignoring exception in worker shutdown: {0!r}".format(e))
             
         
     def _start(self):

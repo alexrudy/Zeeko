@@ -60,7 +60,7 @@ def test_carray_roundtrip(req, rep, array, name):
 def test_packets(push, pull, shape, name):
     """Test the receiver system."""
     n = 4
-    arrays = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
+    arrays = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
     
     framecount = 5
     array_api.send_array_packet(push, framecount, arrays)
@@ -69,7 +69,7 @@ def test_packets(push, pull, shape, name):
         name, array = array_api.recv_named_array(pull)
         assert name == arrays[count][0]
         np.testing.assert_allclose(array, arrays[count][1])
-        print("Got Array: {:s}={!r}".format(name, array))
+        print("Got Array: {0:s}={1!r}".format(name, array))
         count += 1
     assert count == len(arrays)
     

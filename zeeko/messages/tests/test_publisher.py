@@ -40,7 +40,7 @@ class TestPublisher(BaseContainerTests):
     @pytest.fixture
     def obj(self, name, n, shape):
         """Return the publisher, with arrays."""
-        publishers = [("{:s}{:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
+        publishers = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
         pub = Publisher([])
         for name, array in publishers:
             pub[name] = array
@@ -51,7 +51,7 @@ class TestPublisher(BaseContainerTests):
         obj.publish(push)
         for i, key in enumerate(obj.keys()):
             recvd_name, A = array_api.recv_named_array(pull)
-            assert "{:s}{:d}".format(name, i) == recvd_name
+            assert "{0:s}{1:d}".format(name, i) == recvd_name
             np.testing.assert_allclose(A, obj[key].array)
         
     def test_unbundled(self, obj, push, pull, name):
@@ -59,7 +59,7 @@ class TestPublisher(BaseContainerTests):
         obj.publish(push)
         for i, key in enumerate(obj.keys()):
             recvd_name, A = array_api.recv_named_array(pull)
-            assert "{:s}{:d}".format(name, i) == recvd_name
+            assert "{0:s}{1:d}".format(name, i) == recvd_name
             np.testing.assert_allclose(A, obj[key].array)
             assert not pull.getsockopt(zmq.RCVMORE)
 

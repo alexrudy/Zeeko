@@ -83,7 +83,9 @@ class TestWriter(object):
         self.send(chunks, framecount)
         self.recv(writer)
         assert len(writer) == len(chunks)
-        cdict = {chunk.name:chunk for chunk in chunks}
+        cdict = {}
+        for chunk in chunks:
+            cdict[chunk.name] = chunk 
         for key in writer.keys():
             chunk = writer[key]
             print(chunk)

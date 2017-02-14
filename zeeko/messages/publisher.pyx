@@ -10,6 +10,11 @@ from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport strndup, memcpy
 
 import collections
+try:
+    from collections import OrderedDict
+except ImportError:
+    from astropy.utils.compat.odict import OrderedDict
+
 import zmq
 from zmq.utils import jsonapi
 from zmq.backend.cython.socket cimport Socket
@@ -67,7 +72,7 @@ cdef class Publisher:
         self._failed_init = False
         
     def __init__(self, publishers=list()):
-        self._publishers = collections.OrderedDict()
+        self._publishers = OrderedDict()
         self._active_publishers = []
         for publisher in publishers:
             if isinstance(publisher, ArrayMessage):
@@ -84,7 +89,7 @@ cdef class Publisher:
             rc = pthread.pthread_mutex_destroy(&self._mutex)
     
     def __repr__(self):
-        return "<Publisher frame={:d} keys=[{:s}]>".format(self._framecount, ",".join(self.keys()))
+        return "<Publisher frame={0:d} keys=[{1:s}]>".format(self._framecount, ",".join(self.keys()))
     
     def __setitem__(self, key, value):
         try:

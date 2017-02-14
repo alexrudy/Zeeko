@@ -123,10 +123,14 @@ class TestRecorder(object):
         
         self.send(publisher)
         self.recv(recorder)
-        arrays = {key:recorder[key] for key in recorder.keys()}
+        arrays = {}
+        for key in recorder.keys():
+            arrays[key] = recorder[key] 
         self.send(publisher2)
         self.recv(recorder)
-        arrays2 = {key:recorder[key] for key in recorder.keys()}
+        arrays2 = {}
+        for key in recorder.keys():
+            arrays2[key] = recorder[key] 
         assert len(recorder) == len(publisher)
         for key in publisher.keys():
             assert_chunk_allclose(arrays[key], arrays2[key])
