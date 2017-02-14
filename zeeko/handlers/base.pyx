@@ -1,10 +1,16 @@
-import zmq
-import struct as s
+# Cython Imports
+# --------------
 from zmq.backend.cython.message cimport Frame
 from libc.string cimport strlen
 from ..utils.rc cimport check_zmq_rc
 from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_more
 from ..utils.msg cimport zmq_convert_sockopt
+
+# Python Imports
+# --------------
+import zmq
+import errno
+import struct as s
 from ..utils.msg import internal_address
 
 cdef extern from *:
@@ -175,7 +181,7 @@ cdef class SocketInfo:
         try:
             self.socket.disconnect(url)
         except zmq.ZMQError as e:
-            if e.errno in (zmq.ENOTCONN, zmq.EAGAIN, zmq.ENOENT):
+            if e.errno in (zmq.ENOTCONN, zmq.EAGAIN, errno.ENOENT):
                 # Ignore errors that signal that we've already disconnected.
                 pass
             else:
