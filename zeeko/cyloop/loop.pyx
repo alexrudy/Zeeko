@@ -15,6 +15,8 @@ import struct as s
 from ._state import StateError, STATE
 from ._state cimport *
 
+__all__ = ['IOLoopWorker', 'IOLoop']
+
 cdef inline str address_of(void * ptr):
     return hex(<size_t>ptr)
 
@@ -286,38 +288,45 @@ cdef class IOLoop:
         self.workers.append(IOLoopWorker(self.context, self.state, len(self.workers)))
         
     def attach(self, socketinfo, index=0):
+        """Attach a socket to the I/O Loop."""
         socketinfo.attach(self.workers[index])
     
     def configure_throttle(self, **kwargs):
+        """Apply a configuration to worker throttles."""
         for worker in self.workers:
             worker.throttle.configure(**kwargs)
     
     def signal(self, str state):
+        """Signal a specific state."""
         for worker in self.workers:
             worker._signal_state(state)
     
     def start(self):
+        """Start the workers."""
         self.signal(b"RUN")
         
     def resume(self):
+        """Resume the workers"""
         self.state.guard(INIT)
         self.signal(b"RUN")
     
     def pause(self):
+        """Pause all workers"""
         self.signal(b"PAUSE")
 
     def stop(self, timeout=None, join=True):
+        """Stop the workers."""
         self.signal(b"STOP")
         if join:
             self.join(timeout=timeout)
         
     def join(self, timeout=None):
+        """Join worker threads."""
         for worker in self.workers:
-            self.log.debug("JOIN WITH TIMEOUT={0}".format(timeout))
             worker.join(timeout=timeout)
     
     def cancel(self, timeout=1.0, join=True):
-        """Cancels the loop operations."""
+        """Cancel the loop operations."""
         try:
             self.signal(b"STOP")
         except StateError:
