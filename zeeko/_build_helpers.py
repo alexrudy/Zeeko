@@ -75,7 +75,7 @@ def _generate_cython_extensions(extension_args, directory, package_name):
         extcls = CyExtension
         extension_args['cython_directives'] = [("linetrace", True)]
         extension_args['define_macros'].append(("CYTHON_TRACE",1))
-        extension_args['define_macros'].append(("CYTHON_TRACE_NOGIL",1))
+        # extension_args['define_macros'].append(("CYTHON_TRACE_NOGIL",1))
     
     for component in glob.iglob(os.path.join(directory, "*.pyx")):
         # Component name and full module name.

@@ -14,14 +14,17 @@ class TimeoutError(Exception):
 
 cdef int event_trigger(event * src) nogil except -1:
     """Trigger the event without holding the GIL."""
-    cdef int rc
-    rc = pthread.mutex_lock(src.mutex)
-    try:
+    cdef int rcl = 0, rcu = 0, rcc = 0
+    rcl = pthread.pthread_mutex_lock(src.mutex)
+    if rcl == 0:
         src._setting[0] = True
-        rc = pthread.cond_broadcast(src.cond)
-    finally:
-        rc = pthread.mutex_unlock(src.mutex)
-    return rc
+        rcc = pthread.pthread_cond_broadcast(src.cond)
+        rcu = pthread.pthread_mutex_unlock(src.mutex)
+    else:
+        pthread.check_rc(rcl)
+    pthread.check_rc(rcc)
+    pthread.check_rc(rcu)
+    return rcc
     
 cdef int event_incref(event * src) nogil except -1:
     return refcount.refcount_increment(src.refcount)
@@ -29,10 +32,8 @@ cdef int event_incref(event * src) nogil except -1:
 cdef int event_clear(event * src) nogil except -1:
     """Clear an event, without the GIL."""
     rc = pthread.mutex_lock(src.mutex)
-    try:
-        src._setting[0] = False
-    finally:
-        rc = pthread.mutex_unlock(src.mutex)
+    src._setting[0] = False
+    rc = pthread.mutex_unlock(src.mutex)
     return rc
     
 cdef int event_init(event * src) nogil except -1:
@@ -145,10 +146,8 @@ cdef class Event:
     cdef int _clear(self) nogil except -1:
         cdef int rc = 0
         rc = self.lock()
-        try:
-            self.evt._setting[0] = False
-        finally:
-            rc = self.unlock()
+        self.evt._setting[0] = False
+        rc = self.unlock()
         return rc
     
     def set(self):
@@ -159,11 +158,9 @@ cdef class Event:
     cdef int _set(self) nogil except -1:
         cdef int _rc, rc = 0
         _rc = self.lock()
-        try:
-            self.evt._setting[0] = True
-            rc = pthread.cond_broadcast(self.evt.cond)
-        finally:
-            _rc = self.unlock()
+        self.evt._setting[0] = True
+        rc = pthread.pthread_cond_broadcast(self.evt.cond)
+        _rc = self.unlock()
         return pthread.check_rc(rc)
         
     def wait(self, timeout = None):
@@ -181,23 +178,19 @@ cdef class Event:
     cdef int _wait(self) nogil except -1:
         cdef int rc = 0, _rc
         _rc = self.lock()
-        try:
-            if not self.evt._setting[0]:
-                rc = pthread.pthread_cond_wait(self.evt.cond, self.evt.mutex)
-        finally:
-            _rc = self.unlock()
+        if not self.evt._setting[0]:
+            rc = pthread.pthread_cond_wait(self.evt.cond, self.evt.mutex)
+        _rc = self.unlock()
         return pthread.check_rc(rc)
     
     cdef int _timedwait(self, int microseconds) nogil except -1:
         cdef int rc = 0, _rc
         cdef timespec ts
         _rc = self.lock()
-        try:
-            if not self.evt._setting[0]:
-                ts = microseconds_to_ts(microseconds)
-                rc = pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
-        finally:
-            _rc = self.unlock()
+        if not self.evt._setting[0]:
+            ts = microseconds_to_ts(microseconds)
+            rc = pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
+        _rc = self.unlock()
         if errno.ETIMEDOUT == rc:
            with gil:
                raise TimeoutError("Event.wait() timed out.")
@@ -213,9 +206,7 @@ cdef class Event:
         cdef int rc
         cdef int is_set = 0
         rc = self.lock()
-        try:
-            is_set = <int>self.evt._setting[0]
-        finally:
-            rc = self.unlock()
+        is_set = <int>self.evt._setting[0]
+        rc = self.unlock()
         return is_set
     

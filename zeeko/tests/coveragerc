@@ -2,6 +2,7 @@
 source = zeeko
 omit =
    zeeko/_astropy_init*
+   zeeko/_build_helpers*
    zeeko/conftest*
    zeeko/cython_version*
    zeeko/setup_package*
