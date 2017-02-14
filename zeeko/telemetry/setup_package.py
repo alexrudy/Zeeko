@@ -25,7 +25,7 @@ dependencies = {
     'recorder' : receiver + publisher + [pxd('..',"messages","carray"), pxd("chunk"), pxd("..","utils","hmap")],
     'chunk' :  [pxd("..","messages","utils"), pxd("..","messages","carray"),pxd("..","messages","message")],
     'writer' : receiver + publisher + [pxd('..',"messages","carray"), pxd("chunk"), pxd("..","utils","hmap")],
-    'handlers' : [pxd("recorder"), pxd("writer"), pxd("..", "handlers", "base"), pxd("..","handlers","snail")],
+    'handlers' : [pxd("chunk"), pxd("recorder"), pxd("writer"), pxd("..", "handlers", "base"), pxd("..","handlers","snail")],
     
 }
 

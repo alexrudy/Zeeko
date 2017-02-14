@@ -229,8 +229,7 @@ cdef class Chunk:
         cdef int rc = 0
         
         #Initialize name
-        self._name = str(name)
-        self._construct_name()
+        self._construct_name(str(name))
         
         #Initialize the chunk structure.
         self._chunk.chunksize = chunksize
@@ -246,10 +245,9 @@ cdef class Chunk:
         self._construct_metadata(np.asarray(data))
         self._chunk.last_index = self.lastindex
         
-    def _construct_name(self):
+    def _construct_name(self, str pyname):
         cdef int rc
-        cdef char[:] name = bytearray(self._name)
-    
+        cdef char[:] name = bytearray(pyname)
         rc = libzmq.zmq_msg_close(&self._chunk.name)
         check_zmq_rc(rc)
     

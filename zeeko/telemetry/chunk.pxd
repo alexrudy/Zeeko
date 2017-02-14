@@ -30,7 +30,6 @@ cdef class Chunk:
     cdef array_chunk _chunk
     cdef tuple _shape
     cdef object _dtype
-    cdef str _name
     cdef Frame _data_frame
     cdef Frame _mask_frame
     
