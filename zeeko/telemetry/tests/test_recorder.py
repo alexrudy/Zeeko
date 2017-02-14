@@ -116,6 +116,7 @@ class TestRecorder(object):
             assert_chunk_array_allclose(recorder[key], publisher[key], 0)
             assert_chunk_array_allclose(recorder[key], publisher2[key], 1)
     
+    @pytest.mark.xfail
     def test_retain_multiple(self, publisher, recorder):
         """Test retaining multiple references to a given array."""
         publisher2 = self.publisher2(publisher)
