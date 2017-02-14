@@ -170,6 +170,28 @@ cdef class SocketInfo:
         ioloop._add_socketinfo(self)
         if self.opt is not None:
             ioloop._add_socketinfo(self.opt)
+        
+    cdef int _disconnect(self, str url) except -1:
+        try:
+            self.socket.disconnect(url)
+        except zmq.ZMQError as e:
+            if e.errno in (zmq.ENOTCONN, zmq.EAGAIN, zmq.ENOENT):
+                # Ignore errors that signal that we've already disconnected.
+                pass
+            else:
+                raise
+        return 0
+    
+    cdef int _reconnect(self, str url) except -1:
+        try:
+            self.socket.connect(url)
+        except zmq.ZMQError as e:
+            if e.errno == zmq.EAGAIN:
+                # Ignore errors that signal that we've already disconnected.
+                pass
+            else:
+                raise
+        return 0
 
 cdef class SocketOptions(SocketInfo):
     

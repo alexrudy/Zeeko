@@ -59,14 +59,7 @@ cdef class Client(SocketInfo):
         if not self.use_reconnections:
             return 0
         with gil:
-            try:
-                self.socket.disconnect(self.address)
-            except zmq.ZMQError as e:
-                if e.errno == zmq.ENOTCONN or e.errno == zmq.EAGAIN:
-                    # Ignore errors that signal that we've already disconnected.
-                    pass
-                else:
-                    raise
+            self._disconnect(self.address)
         return 0
     
     cdef int resumed(self) nogil except -1:
@@ -74,14 +67,7 @@ cdef class Client(SocketInfo):
         if not self.use_reconnections:
             return 0
         with gil:
-            try:
-                self.socket.connect(self.address)
-            except zmq.ZMQError as e:
-                if e.errno == zmq.ENOTCONN or e.errno == zmq.EAGAIN:
-                    # Ignore errors that signal that we've already disconnected.
-                    pass
-                else:
-                    raise
+            self._reconnect(self.address)
         return 0
         
     def subscribe(self, key):
