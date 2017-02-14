@@ -103,7 +103,10 @@ cdef class IOLoopWorker:
         self.state.guard(STOP)
         if not self.is_alive():
             self.log.debug("thread.start()")
-            self.start()
+            try:
+                self.start()
+            except RuntimeError:
+                pass
             self.log.debug("state.deselected(START).wait()")
             self._started.wait(timeout=0.1)
             self.log.debug("state.deselected(START).wait() [DONE]")
