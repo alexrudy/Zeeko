@@ -34,8 +34,6 @@ cdef class Chunk:
     cdef Frame _data_frame
     cdef Frame _mask_frame
     
-    cdef int write(self, g) except -1
-    
     @staticmethod
     cdef Chunk from_chunk(array_chunk * chunk)
 
