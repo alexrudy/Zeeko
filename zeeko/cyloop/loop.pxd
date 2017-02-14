@@ -2,7 +2,7 @@ cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
 from zmq.backend.cython.context cimport Context
 
-from ._state cimport StateMachine
+from .statemachine cimport StateMachine
 from .throttle cimport Throttle
 from ..utils.lock cimport Lock
 

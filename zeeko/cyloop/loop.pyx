@@ -12,8 +12,8 @@ import zmq
 import logging
 import warnings
 import struct as s
-from ._state import StateError, STATE
-from ._state cimport *
+from .statemachine import StateError, STATE
+from .statemachine cimport *
 
 __all__ = ['IOLoopWorker', 'IOLoop']
 

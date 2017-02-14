@@ -1,5 +1,5 @@
 import pytest
-from .._state import StateMachine, StateError
+from ..statemachine import StateMachine, StateError
 
 def test_state_init():
     """Initializer"""

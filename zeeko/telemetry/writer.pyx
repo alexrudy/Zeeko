@@ -13,7 +13,7 @@ from ..utils.hmap cimport HashMap
 
 from .chunk cimport Chunk, array_chunk, chunk_init, chunk_recv, chunk_close, chunk_copy
 from ..messages.receiver cimport receive_header
-from ..cyloop._state cimport zmq_send_sentinel, PAUSE
+from ..cyloop.statemachine cimport zmq_send_sentinel, PAUSE
 
 
 # -----------------

@@ -4,7 +4,7 @@ import pytest
 import time
 import functools
 from ..loop import IOLoop, DebugIOLoop
-from .._state import StateError
+from ..statemachine import StateError
 from zeeko.conftest import assert_canrecv
 
 @pytest.fixture

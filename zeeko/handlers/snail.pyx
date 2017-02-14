@@ -1,7 +1,7 @@
 from zmq.backend.cython.socket cimport Socket
 
 from ..utils.clock cimport current_time
-from ..cyloop._state cimport zmq_send_sentinel, PAUSE
+from ..cyloop.statemachine cimport zmq_send_sentinel, PAUSE
 
 cdef class Snail:
 
