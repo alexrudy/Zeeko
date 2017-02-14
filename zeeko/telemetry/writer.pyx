@@ -35,6 +35,7 @@ cdef class Writer:
         self.last_message = 0.0
         
         self.file = None
+        self.metadata_callback = None
         self.log = logging.getLogger(".".join([__name__, self.__class__.__name__]))
 
     def __dealloc__(self):
@@ -118,7 +119,11 @@ cdef class Writer:
         
         with gil:
             pychunk = Chunk.from_chunk(&self._chunks[i])
-            pychunk.write(self.file)
+            if self.metadata_callback is None:
+                md = {}
+            else:
+                md = self.metadata_callback()
+            pychunk.write(self.file, metadata=md)
             self.log.debug("Wrote chunk {0} to {1}".format(pychunk.name , self.file.name))
         
         return rc

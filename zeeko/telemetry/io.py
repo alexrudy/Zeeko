@@ -99,7 +99,7 @@ def initialize_group(chunk, h5group, axis=0):
         fillvalue=0)
     h5group.attrs['index'] = 0
 
-def write(chunk, h5group, truncate=False, axis=0):
+def write(chunk, h5group, truncate=False, axis=0, metadata=dict()):
     """Write the chunk to the given HDF5 group.
     
     :param chunk: The Chunk-api compliant object.
@@ -113,4 +113,5 @@ def write(chunk, h5group, truncate=False, axis=0):
         g_sub = h5group.create_group(chunk.name)
         initialize_group(chunk, g_sub, axis=axis)
     extend(chunk, g_sub, truncate=truncate, axis=axis)
+    g_sub.attrs.update(metadata)
     

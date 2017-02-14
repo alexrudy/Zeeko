@@ -363,13 +363,13 @@ cdef class Chunk:
         with nogil:
             chunk_append(&self._chunk, &msg._message, index)
     
-    cdef int write(self, g) except -1:
+    cdef int write(self, g, **kwargs) except -1:
         """
         Write a dataset to HDF5, either by extending an exisitng dataset or creating a new one.
     
         Note that empty datasets will be created as a group.
         """
-        io.write(self, g)
+        io.write(self, g, **kwargs)
     
 
     
