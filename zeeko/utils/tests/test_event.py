@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from .condition import Event, TimeoutError
+from ..condition import Event, TimeoutError
 
 
 def test_event_init():

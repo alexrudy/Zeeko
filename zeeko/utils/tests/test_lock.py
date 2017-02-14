@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from .lock import Lock
+from ..lock import Lock
 
 
 def test_lock_init():
