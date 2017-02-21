@@ -57,7 +57,7 @@ def test_integrator_throttle():
         ti += 0.5 + (to * 1e-3)
         t._mark_at(ti)
         to = t._get_timeout_at(ti)
-    print(t.record[-10:])
+    print(t._history[-10:])
     assert t._delay == approx(0.5, rel=1e-2)
     assert t._get_timeout_at(ti) == 499
     assert t._get_timeout_at(ti + 0.25) == 499 - 250
