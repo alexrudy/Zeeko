@@ -1,6 +1,8 @@
-import numpy as np
-cimport numpy as np
+#cython: embedsignature=True
 
+# Cython imports
+# --------------
+cimport numpy as np
 np.import_array()
 
 from .message cimport ArrayMessage, zmq_msg_to_str
@@ -8,14 +10,23 @@ from .carray cimport carray_named, carray_message, carray_message_info
 from .carray cimport new_named_array, close_named_array, copy_named_array
 from .carray cimport receive_named_array
 
-from libc.stdlib cimport free, malloc, realloc
+from libc.stdlib cimport free
 from libc.string cimport memcpy, memset
+
 from cpython.string cimport PyString_FromStringAndSize
-from zmq.utils import jsonapi
 cimport zmq.backend.cython.libzmq as libzmq
+
 from zmq.utils.buffers cimport viewfromobject_r
-from .utils cimport check_rc, check_ptr
+
+from ..utils.rc cimport check_zmq_rc, check_generic_rc, malloc, realloc
 from ..utils.condition cimport event_init, event_trigger, event_destroy
+
+# Python imports
+# --------------
+import numpy as np
+import collections
+from zmq.utils import jsonapi
+
 
 cdef unsigned long hash_name(char * name, size_t length) nogil except -1:
     cdef unsigned long hashvalue = 5381
@@ -30,30 +41,30 @@ cdef int receive_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int * 
     
     # Receive topic message.
     rc = libzmq.zmq_msg_recv(topic, socket, flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = zmq_recv_sized_message(socket, fc, sizeof(unsigned int), flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = zmq_recv_sized_message(socket, nm, sizeof(int), flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = zmq_recv_sized_message(socket, ts, sizeof(double), flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
     return rc
     
 cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1:
     cdef int rc = 0
     cdef libzmq.zmq_msg_t zmessage
     rc = libzmq.zmq_msg_init(&zmessage)
-    check_rc(rc)
+    check_zmq_rc(rc)
     try:
         rc = libzmq.zmq_msg_recv(&zmessage, socket, flags)
-        check_rc(rc)
+        check_zmq_rc(rc)
         memcpy(dest, libzmq.zmq_msg_data(&zmessage), size)
     finally:
         rc = libzmq.zmq_msg_close(&zmessage)
-        check_rc(rc)
+        check_zmq_rc(rc)
     return rc
 
 cdef class Receiver:
@@ -66,21 +77,18 @@ cdef class Receiver:
         self._framecount = 0
         self._name_cache = {}
         self._name_cache_valid = 1
-        rc = pthread.pthread_mutex_init(&self._mutex, NULL)
-        pthread.check_rc(rc)
+        rc = pthread.mutex_init(&self._mutex, NULL)
         self._failed_init = False
         self.last_message = 0.0
     
     cdef int lock(self) nogil except -1:
         cdef int rc
         rc = pthread.pthread_mutex_lock(&self._mutex)
-        pthread.check_rc(rc)
         return rc
 
     cdef int unlock(self) nogil except -1:
         cdef int rc
         rc = pthread.pthread_mutex_unlock(&self._mutex)
-        pthread.check_rc(rc)
         return rc
     
     cdef int _update_messages(self, int nm) nogil except -1:
@@ -91,12 +99,9 @@ cdef class Receiver:
         self._name_cache_valid = 0
         self._messages = <carray_named **>realloc(<void *>self._messages, sizeof(carray_named *) * nm)
         self._hashes = <unsigned long *>realloc(<void*>self._hashes, sizeof(unsigned long) * nm)
-        check_ptr(self._messages)
         for i in range(self._n_messages, nm):
             message = <carray_named *>malloc(sizeof(carray_named))
-            check_ptr(message)
             rc = new_named_array(message)
-            check_rc(rc)
             self._messages[i] = message
             self._hashes[i] = 0
         self._n_messages = nm
@@ -127,7 +132,7 @@ cdef class Receiver:
         while value == 1:
             rc = self._receive_unbundled(socket, flags, notify_socket)
             rc = libzmq.zmq_getsockopt(socket, libzmq.ZMQ_RCVMORE, &value, &optsize)
-            check_rc(rc)
+            check_zmq_rc(rc)
         return rc
     
     cdef int get_message_index(self, libzmq.zmq_msg_t * name) nogil except -1:
@@ -138,7 +143,6 @@ cdef class Receiver:
         cdef char * data
         
         size = libzmq.zmq_msg_size(name)
-        check_rc(size)
         data = <char *>libzmq.zmq_msg_data(name)
         hashvalue = hash_name(data, size)
         
@@ -163,9 +167,9 @@ cdef class Receiver:
         cdef libzmq.zmq_msg_t notification
         
         rc = new_named_array(&message)
-        check_rc(rc)
+        check_zmq_rc(rc)
         rc = receive_named_array(&message, socket, flags)
-        check_rc(rc)
+        check_zmq_rc(rc)
         
         hashvalue = hash_name(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
         
@@ -195,11 +199,11 @@ cdef class Receiver:
         
         if notify_socket != NULL:
             rc = libzmq.zmq_msg_init(&notification)
-            check_rc(rc)
+            check_zmq_rc(rc)
             rc = libzmq.zmq_msg_copy(&notification, &message.name)
-            check_rc(rc)
+            check_zmq_rc(rc)
             rc = libzmq.zmq_msg_send(&notification, notify_socket, 0)
-            check_rc(rc)
+            check_zmq_rc(rc)
         
         return rc
         
@@ -279,9 +283,10 @@ cdef class Receiver:
         finally:
             self.unlock()
     
-    def keys(self):
+    def __iter__(self):
+        """Iterate over the keys (names of arrays) in the recorder."""
         self._build_namecache()
-        return self._name_cache.keys()
+        return iter(self._name_cache)
     
     def __len__(self):
         return self._n_messages
@@ -290,6 +295,7 @@ cdef class Receiver:
         return "<Receiver frame={:d} keys=[{:s}]>".format(self._framecount, ",".join(self.keys()))
     
     property framecount:
+        """Counter which increments for each message sent-or-received."""
         def __get__(self):
             return int(self._framecount)
     
