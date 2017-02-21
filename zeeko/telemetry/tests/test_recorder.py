@@ -3,7 +3,7 @@ import numpy as np
 import zmq
 import itertools
 
-from ..recorder import Recorder
+from .. import Recorder
 from ...messages import array as array_api
 from ...messages import Publisher
 from .conftest import assert_chunk_array_allclose, assert_chunk_allclose

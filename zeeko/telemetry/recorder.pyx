@@ -34,6 +34,7 @@ cdef class Recorder:
         
         # Internal objects
         self.map = HashMap()
+        self._chunks = NULL
         
         # Indicate that no offset has been detected.
         self.offset = -1
@@ -62,6 +63,12 @@ cdef class Recorder:
         
     def __iter__(self):
         return iter(self.map.keys())
+        
+    def __setitem__(self, bytes key, value):
+        raise NotImplementedError("Can't mutate recorder dictionary.")
+    
+    def __delitem__(self, key):
+        raise NotImplementedError("Can't mutate recorder dictionary.")
     
     def clear(self):
         """Clear the chunk recorder object."""

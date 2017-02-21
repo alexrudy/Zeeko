@@ -5,7 +5,7 @@ import h5py
 import struct
 import itertools
 
-from ..writer import Writer
+from .. import Writer
 from .. import chunk_api
 from ...messages import array as array_api
 from .conftest import assert_chunk_allclose, assert_h5py_allclose

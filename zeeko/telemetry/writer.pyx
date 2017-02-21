@@ -48,8 +48,8 @@ cdef class Writer:
         i = self.map[key]
         return Chunk.from_chunk(&self._chunks[i])
     
-    def keys(self):
-        return self.map.keys()
+    def __iter__(self):
+        return iter(self.map.keys())
 
     def clear(self):
         """Clear the chunk recorder object."""
