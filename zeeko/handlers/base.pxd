@@ -34,6 +34,8 @@ cdef class SocketInfo:
     cdef readonly object opt
     """The socket option manager, an instance of :class:`~zeeko.handlers.base.SocketOptions`"""
     
+    cdef readonly object _loop
+    """The :class:`~zeeko.cyloop.loop.IOLoop` object which manages this socket."""
     
     cdef int paused(self) nogil except -1    
     cdef int resumed(self) nogil except -1

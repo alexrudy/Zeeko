@@ -16,4 +16,7 @@ cdef class IOLoop:
     """The loop state manager, a :class:`~zeeko.cyloop.statemachine.StateMachine`."""
     
     cdef object log
+    """Standard Library Logging"""
     
+    cdef object __weakref__
+    """Support weak references"""

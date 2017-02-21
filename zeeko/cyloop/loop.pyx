@@ -13,6 +13,7 @@ import threading
 import zmq
 import logging
 import warnings
+import weakref
 import struct as s
 from .statemachine import StateError, STATE
 from .statemachine cimport *
@@ -41,6 +42,8 @@ cdef class IOLoopWorker:
     
     cdef object thread
     cdef object log
+    cdef object _manager
+    
     cdef Socket _internal
     cdef Context context
     cdef readonly Socket _interrupt
@@ -66,8 +69,9 @@ cdef class IOLoopWorker:
         self.throttle = Throttle()
         self.throttle.timeout = 0.1
         self._started = Event()
+        self._manager = lambda : None
         
-    def __init__(self, ctx, state, index):
+    def __init__(self, manager, ctx, state, index):
         self._sockets = []
         self.state = state or StateMachine()        
         self._lock = Lock()
@@ -75,6 +79,7 @@ cdef class IOLoopWorker:
         self.log = logging.getLogger(".".join([self.__class__.__module__,self.__class__.__name__]))
         self._internal_address_interrupt = "inproc://{0:s}-interrupt".format(hex(id(self)))
         self.thread = threading.Thread(target=self._work, name='IOLoopWorker-{0:d}'.format(index))
+        self._manager = weakref.ref(manager)
         
     def __dealloc__(self):
         if self._socketinfos != NULL:
@@ -83,6 +88,10 @@ cdef class IOLoopWorker:
             free(self._pollitems)
             
         
+    @property
+    def manager(self):
+        return self._manager()
+    
     # Proxy certain threading.Thread methods
     def is_alive(self):
         return self.thread.is_alive()
@@ -293,7 +302,7 @@ cdef class IOLoop:
         
         Each I/O loop by default has a single worker thread. This adds an additional
         worker thread which can run an addtional polling loop."""
-        self.workers.append(IOLoopWorker(self.context, self.state, len(self.workers)))
+        self.workers.append(IOLoopWorker(self, self.context, self.state, len(self.workers)))
         
     def attach(self, socketinfo, index=0):
         """Attach a socket to the I/O Loop.

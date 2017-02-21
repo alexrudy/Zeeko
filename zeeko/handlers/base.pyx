@@ -13,6 +13,7 @@ from ..utils.msg cimport zmq_convert_sockopt
 import zmq
 import errno
 import collections
+import weakref
 import struct as s
 from ..utils.msg import internal_address
 
@@ -96,9 +97,17 @@ cdef int cbsockopt(void * handle, short events, void * data, void * interrupt_ha
             pass
     return rc
 
-class SocketOptionError(Exception):
+class SocektOptionBase(Exception):
+    """Base exception for socket options"""
+    pass
+
+class SocketOptionError(SocektOptionBase):
     """Error raised when something goes terribly wrong
     while setting a socket option."""
+    pass
+
+class SocketOptionTimeout(SocektOptionBase):
+    """Error raised when a socket option times out."""
     pass
 
 cdef class SocketInfo:
@@ -111,6 +120,7 @@ cdef class SocketInfo:
         self.throttle = Throttle()
         self.data = <void *>self
         self._bound = False
+        self._loop = lambda : None
         
     def check(self):
         """Check this socketinfo object for safe c values.
@@ -187,18 +197,24 @@ cdef class SocketInfo:
             raise ValueError("Can't add option support when the socket is already bound.")
         self.opt = SocketOptions.wrap_socket(self.socket)
         
-    def attach(self, ioloop):
+    def attach(self, ioloop_worker):
         """Attach this object to an ioloop.
         
         This method must be called before the IO loop
         starts, but after any call to :meth:`support_options`.
         
-        :param ioloop: The IO Loop
+        :param ioloop: The IO Loop worker that should manage this socket.
         """
-        ioloop._add_socketinfo(self)
+        ioloop_worker._add_socketinfo(self)
         if self.opt is not None:
-            ioloop._add_socketinfo(self.opt)
+            ioloop_worker._add_socketinfo(self.opt)
+        self._loop = weakref.ref(ioloop_worker.manager)
         self._bound = True
+        
+    @property
+    def loop(self):
+        """The :class:`~zeeko.cyloop.loop.IOLoop` object which manages this socket."""
+        return self._loop()
         
     cdef int _disconnect(self, str url) except -1:
         try:
@@ -250,12 +266,18 @@ cdef class SocketOptions(SocketInfo):
         def __get__(self):
             return self.client.context
     
-    def set(self, int option, str key):
+    def set(self, int option, str key, int timeout=1000):
         """Set a specific socket option.
         
         :param int option: The option to set.
         :param str key: The option value, as a bytestring.
+        :param int timeout: Response timeout, in milliseconds.
+        
         """
+        if self.loop is not None:
+            if not self.loop.is_alive():
+                raise SocketOptionError("Can't set a socket option. The underlying I/O Loop is not running.")
+        
         sink = self.context.socket(zmq.REQ)
         sink.linger = 10
         with sink:
@@ -264,18 +286,25 @@ cdef class SocketOptions(SocketInfo):
             sink.send(s.pack("i", option), flags=zmq.SNDMORE)
             sink.send(key)
             
-            result = s.unpack("i",sink.recv())[0]
-            if result == SET:
-                reply_option = s.unpack("i",sink.recv())[0]
-                if reply_option != option:
-                    raise SocketOptionError("Reply did not match requested socket option.")
+            if sink.poll(zmq.POLLIN, timeout=timeout):
+                result = s.unpack("i",sink.recv())[0]
+                if result == SET:
+                    reply_option = s.unpack("i",sink.recv())[0]
+                    if reply_option != option:
+                        raise SocketOptionError("Reply did not match requested socket option.")
+                else:
+                    errno = s.unpack("i",sink.recv())[0]
+                    raise zmq.ZMQError(errno)
             else:
-                errno = s.unpack("i",sink.recv())[0]
-                raise zmq.ZMQError(errno)
+                raise SocketOptionTimeout("Socket setoption timed out after {0} ms.".format(timeout))
         return
     
     def get(self, int option):
-        """Get a socket option."""
+        """Get a socket option.
+        
+        :param int option: The socket option to set.
+        
+        """
         sink = self.context.socket(zmq.REQ)
         sink.linger = 10
         with sink:
