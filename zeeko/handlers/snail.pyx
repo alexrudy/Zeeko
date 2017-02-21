@@ -1,5 +1,6 @@
-from zmq.backend.cython.socket cimport Socket
+#cython: embedsignature=True
 
+from zmq.backend.cython.socket cimport Socket
 from ..utils.clock cimport current_time
 from ..cyloop.statemachine cimport zmq_send_sentinel, PAUSE
 
