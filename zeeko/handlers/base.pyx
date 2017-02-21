@@ -118,6 +118,7 @@ cdef class SocketInfo:
     def __cinit__(self, Socket socket, int events, **kwargs):
         self.socket = socket # Retain reference.
         self.events = events
+        self.fired = Event()
         self.opt = None
         self.throttle = Throttle()
         self.data = <void *>self
@@ -174,6 +175,7 @@ cdef class SocketInfo:
         if ((self.events & pollitem.revents) or (self.events & libzmq.ZMQ_POLLERR)) or self.throttle.active:
             rc = self.callback(self.socket.handle, pollitem.revents, self.data, interrupt)
             rc = self.throttle.mark()
+            self.fired._set()
             return rc
         else:
             return -2
