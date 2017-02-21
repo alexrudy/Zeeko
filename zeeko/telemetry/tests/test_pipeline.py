@@ -32,7 +32,7 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
             Publisher.publish(pub)
             time.sleep(0.1)
         pipeline.write.fired.wait(timeout=0.1)
-    pipeline.state.selected("STOP").wait(timeout=0.1)
+    pipeline.state.selected("STOP").wait(timeout=1.0)
     assert pipeline.write.fired.is_set()
     assert pipeline.record.recorder.chunkcount == 1
     with h5py.File(filename, 'r') as f:
