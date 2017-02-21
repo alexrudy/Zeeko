@@ -61,6 +61,7 @@ cdef class Recorder:
         return Chunk.from_chunk(&self._chunks[i])
         
     def keys(self):
+        """Return the keys (names of arrays) in the recorder."""
         return self.map.keys()
     
     def clear(self):

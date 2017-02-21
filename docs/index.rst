@@ -9,4 +9,6 @@ This is a package for streaming Numpy arrays using ZMQ sockets
   cyloop
   servers
   clients
+  telemetry
   message
+  

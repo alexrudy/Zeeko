@@ -13,6 +13,8 @@ from ..handlers.snail cimport Snail
 from .recorder cimport Recorder
 from .writer cimport Writer
 
+__all__ = ['RClient', 'WClient']
+
 cdef int recorder_callback(void * handle, short events, void * data, void * interrupt_handle) nogil except -1:
     cdef int rc = 0
     cdef int flags = 0

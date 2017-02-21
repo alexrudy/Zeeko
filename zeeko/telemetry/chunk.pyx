@@ -23,6 +23,8 @@ from zmq.utils import jsonapi
 from .. import ZEEKO_PROTOCOL_VERSION
 from . import io
 
+__all__ = ['Chunk']
+
 cdef int chunk_init(array_chunk * chunk) nogil except -1:
     """
     Initialize empty messages required for handling chunks.
@@ -219,6 +221,10 @@ cdef int chunk_recv(array_chunk * chunk, void * socket, int flags) nogil except 
     return rc
 
 cdef class Chunk:
+    """A chunk is a record of contiguous array messages.
+    
+    Array messages are collected together to form a single bundle,
+    which can be writen to disk."""
     
     def __cinit__(self):
         chunk_init(&self._chunk)
@@ -284,11 +290,13 @@ cdef class Chunk:
         return obj
         
     def copy(self):
+        """Make a shallow copy of this chunk object."""
         cdef Chunk obj = Chunk.__new__(Chunk)
         chunk_copy(&obj._chunk, &self._chunk)
         return obj
 
     property array:
+        """The array of chunk data."""
         def __get__(self):
             cdef Frame msg = Frame()
             libzmq.zmq_msg_copy(&msg.zmq_msg, &self._chunk.data)
@@ -296,20 +304,24 @@ cdef class Chunk:
             return view.reshape((self.chunksize,) + self.shape)
     
     property name:
+        """Name of the chunk."""
         def __get__(self):
             return zmq_msg_to_str(&self._chunk.name)
 
     property metadata:
+        """Metadata, as a JSON-encoded string, for the chunk."""
         def __get__(self):
             return zmq_msg_to_str(&self._chunk.metadata)
             
     property mask:
+        """Mask, identifying valid parts of the array."""
         def __get__(self):
             cdef Frame mask = Frame()
             libzmq.zmq_msg_copy(&mask.zmq_msg, &self._chunk.mask)
             return np.frombuffer(mask, dtype=np.int32)
             
     property chunksize:
+        """Number of array messages in a single chunk."""
         def __get__(self):
             return self.mask.shape[0]
         
@@ -322,25 +334,30 @@ cdef class Chunk:
         self._dtype = np.dtype(meta['dtype'])
     
     property md:
+        """The metadata dictionary."""
         def __get__(self):
             return dict(shape=self.shape, dtype=self.dtype.str, version=ZEEKO_PROTOCOL_VERSION)
             
 
     property shape:
+        """Shape of the input array message."""
         def __get__(self):
             self._parse_metadata()
             return self._shape
 
     property dtype:
+        """Array datatype."""
         def __get__(self):
             self._parse_metadata()
             return self._dtype
             
     property stride:
+        """Array stride."""
         def __get__(self):
             return np.prod(self.shape)
             
     property lastindex:
+        """The highest valid index in the array."""
         def __get__(self):
             return np.argmax(self.mask)
             
@@ -349,6 +366,7 @@ cdef class Chunk:
             return self._chunk.last_index
         
     def send(self, Socket socket, int flags=0):
+        """Send this entire chunk over a ZeroMQ Socket."""
         cdef void * handle = socket.handle
         with nogil:
             rc = chunk_send(&self._chunk, handle, flags)

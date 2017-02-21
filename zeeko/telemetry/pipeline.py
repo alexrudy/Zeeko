@@ -9,6 +9,8 @@ from ..cyloop.loop import IOLoop
 from ..utils.msg import internal_address
 from .handlers import RClient, WClient
 
+__all__ = ['PipelineIOLoop', 'create_pipeline']
+
 def create_pipeline(address, context=None, chunksize=1024, filename="telemetry.{0:d}.hdf5", kind=zmq.SUB):
     """Create a telemetry writing pipeline."""
     return PipelineIOLoop(address, context, chunksize, filename, kind)
