@@ -15,6 +15,8 @@ STATE = {
     b'START': 5,
 }
 
+__all__ = ['StateMachine', 'StateError', 'StateTimeout']
+
 class StateError(Exception):
     """An error raised due to a state problem"""
 

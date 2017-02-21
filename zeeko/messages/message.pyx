@@ -1,3 +1,5 @@
+#cython: embedsignature=True
+
 # Standard C imports
 from libc.stdlib cimport free, malloc
 from libc.string cimport memcpy
@@ -20,6 +22,8 @@ from .carray cimport carray_named, carray_message_info
 from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
 from .. import ZEEKO_PROTOCOL_VERSION
+
+__all__ = ['ArrayMessage']
 
 #TODO: Deprecate these
 cdef int zmq_msg_from_str(libzmq.zmq_msg_t * zmsg, char[:] src):
