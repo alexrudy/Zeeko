@@ -3,7 +3,15 @@ from zmq.backend.cython.socket cimport Socket
 from ..utils.clock cimport current_time
 from ..cyloop.statemachine cimport zmq_send_sentinel, PAUSE
 
+__all__ = ['Snail']
+
 cdef class Snail:
+    """An interface for the suicidal snail pattern.
+    
+    The suicidal snail pattern is designed to cut off
+    slow subscribers when the lag between the subscriber
+    and the server gets too long.
+    """
 
     def __cinit__(self):
         self.deaths = 0
@@ -19,6 +27,9 @@ cdef class Snail:
         return "Snail(delay={0:.2g},deaths={1:d},late={2:d},active={3})".format(self.delay, self.deaths, self.nlate, self.active)
         
     property active:
+        """Is this snail currently enabled?
+        
+        When nlate_max < 0, the snail is disabled, and will never expire."""
         def __get__(self):
             return (self.nlate_max >= 0)
     
@@ -45,6 +56,13 @@ cdef class Snail:
         return self.check_at(handle, now, last_message)
     
     def check(self, Socket socket, now=None, last_message=None):
+        """Check the delay against the suicidal snail.
+        
+        :param Socket socket: The ZeroMQ socket which will receive a state update (to PAUSE) if the snail is too slow.
+        :param int now: The current time.
+        :param int last_message: The arrival time of the last message.
+        
+        """
         cdef double _last_message, _now
         if now is None:
             _now = current_time()

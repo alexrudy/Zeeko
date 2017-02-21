@@ -12,16 +12,27 @@ ctypedef struct socketinfo:
 cdef class SocketInfo:
     
     cdef socketinfo info
+    """Internal informational structure tracking this socket."""
+    
+    cdef bint _bound
+    """Flag determines whether this SocketInfo is bound to a loop."""
+    
     cdef readonly Socket socket
+    """The wrapped ZeroMQ :class:`~zmq.Socket` from PyZMQ."""
+    
     cdef readonly int events
+    """The event mask used for polling this socket."""
+    
     cdef cyloop_callback callback
     cdef void * data
     
     # Timing management
     cdef readonly Throttle throttle
+    """A socket specific :class:`~zeeko.cyloop.throttle.Throttle` object"""
     
     # Spot for options management.
     cdef readonly object opt
+    """The socket option manager, an instance of :class:`~zeeko.handlers.base.SocketOptions`"""
     
     
     cdef int paused(self) nogil except -1    
@@ -34,7 +45,17 @@ cdef class SocketInfo:
 cdef class SocketOptions(SocketInfo):
 
     cdef readonly set subscriptions
+    """The set of subscription keys."""
+    
     cdef str address
+    
     cdef public bint autosubscribe
+    """Flag which tells the underlying socket to subscribe when it starts."""
     
     cdef Socket client
+
+cdef class SocketMapping(SocketInfo):
+    cdef object target
+
+cdef class SocketMutableMapping(SocketMapping):
+    pass

@@ -1,3 +1,4 @@
+#cython: embedsignature=True
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
 from zmq.backend.cython.context cimport Context
@@ -10,7 +11,7 @@ from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_m
 from ..utils.msg import internal_address
 from ..utils.clock cimport current_time
 
-from .base cimport SocketInfo
+from .base cimport SocketMutableMapping
 from .snail cimport Snail
 from ..messages.publisher cimport Publisher
 
@@ -20,17 +21,82 @@ cdef int server_callback(void * handle, short events, void * data, void * interr
     rc = (<Server>data).publisher._publish(handle, flags)
     return rc
 
-cdef class Server(SocketInfo):
+cdef class Server(SocketMutableMapping):
+    """Stream array data over ZeroMQ Sockets.
     
-    cdef readonly Publisher publisher
+    Servers send array data over a ZeroMQ socket
+    operating in an event loop managed by 
+    :class:`~zeeko.cyloop.loop.IOLoop`. The event
+    loop triggers the server to stream arrays with
+    a specified period given by the :attr:`throttle`.
+    
+    The server can been indexed like a dictionary,
+    where dictionary keys provide the array names
+    to stream, and dictionary values are the array
+    values::
+        
+        server = Server.at_address("inproc://test")
+        server['my_array'] = np.zeros((12,12))
+    
+    Servers are designed to be used with the 
+    :class:`~zeeko.cyloop.loop.IOLoop`, but they can
+    be used independently with the :meth:`publish`
+    method::
+        
+        server = Server.at_address("inproc://test")
+        server['my_array'] = np.zeros((12,12))
+        server.publish()
+    
+    Servers are thread-safe objects, so it is possible
+    to update the arrays being served while the server
+    is operating. You can either update the arrays
+    in-place, or provide a new array.
+    """
+    
+    
+    cdef Publisher publisher
     
     def __cinit__(self):
         self.publisher = Publisher()
         self.callback = server_callback
+        self.target = self.publisher
     
     @classmethod
-    def at_address(cls, str address, Context ctx, int kind = zmq.PUB):
+    def at_address(cls, str address, Context ctx = None, int kind = zmq.PUB):
+        """Create a server which is already bound to a specified address.
+        
+        :param str address: The ZeroMQ address to connect to.
+        :param Context ctx: The ZeroMQ context to use for creating sockets.
+        :param int kind: The ZeroMQ socket kind.
+        :returns: :class:`Server` object wrapping a socket connected to `address`.
+        """
+        ctx = ctx or zmq.Context.instance()
         socket = ctx.socket(kind)
         socket.bind(address)
         return cls(socket, zmq.POLLERR)
     
+    def publish(self, Socket socket = None, int flags = 0):
+        """Publish all registered arrays.
+        
+        By default, this publish command happens over the wrapped
+        socket that the :class:`zeeko.cyloop.loop.IOLoop` would use,
+        but you can provide a different socket if desired. This is useful
+        when the I/O Loop is running, as ZeroMQ sockets are *not* thread
+        safe, but the underlying publisher is thread-safe.
+        
+        :param zmq.Socket socket: (optional) The ZeroMQ socket for publishing
+        :param int flags: (optional) The flags for the ZeroMQ socket send operation.
+        """
+        if socket is None:
+            socket = self.socket
+        self.publisher.publish(socket, flags)
+        
+    property framecount:
+        """The current framecounter for this server object.
+        
+        The framecounter is incremented once for each batch of messages published,
+        and is used by clients to determine the absolute ordering of messages from
+        the server."""
+        def __get__(self):
+            return self.publisher.framecount
+        

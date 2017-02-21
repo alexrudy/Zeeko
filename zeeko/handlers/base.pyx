@@ -1,3 +1,5 @@
+#cython: embedsignature=True
+
 # Cython Imports
 # --------------
 from zmq.backend.cython.message cimport Frame
@@ -10,8 +12,11 @@ from ..utils.msg cimport zmq_convert_sockopt
 # --------------
 import zmq
 import errno
+import collections
 import struct as s
 from ..utils.msg import internal_address
+
+__all__ = ['SocketInfo', 'SocketOptions', 'SocketOptionError']
 
 cdef extern from *:
     ctypedef char* const_char_ptr "const char*"
@@ -92,6 +97,8 @@ cdef int cbsockopt(void * handle, short events, void * data, void * interrupt_ha
     return rc
 
 class SocketOptionError(Exception):
+    """Error raised when something goes terribly wrong
+    while setting a socket option."""
     pass
 
 cdef class SocketInfo:
@@ -103,9 +110,11 @@ cdef class SocketInfo:
         self.opt = None
         self.throttle = Throttle()
         self.data = <void *>self
+        self._bound = False
         
     def check(self):
-        """Check this socketinfo"""
+        """Check this socketinfo object for safe c values.
+        """
         assert isinstance(self.socket, zmq.Socket), "Socket is None"
         assert self.socket.handle != NULL, "Socket handle is null"
         assert self.callback != NULL, "Callback must be set."
@@ -169,13 +178,27 @@ cdef class SocketInfo:
         return rc
         
     def support_options(self):
+        """Enable a thread-safe socket option support inside the IOLoop.
+        
+        Socket options can then be managed with the :attr:`opt` attribute, 
+        an instance of :class:`SocketOptions` 
+        """
+        if self._bound:
+            raise ValueError("Can't add option support when the socket is already bound.")
         self.opt = SocketOptions.wrap_socket(self.socket)
         
     def attach(self, ioloop):
-        """Attach this object to an ioloop"""
+        """Attach this object to an ioloop.
+        
+        This method must be called before the IO loop
+        starts, but after any call to :meth:`support_options`.
+        
+        :param ioloop: The IO Loop
+        """
         ioloop._add_socketinfo(self)
         if self.opt is not None:
             ioloop._add_socketinfo(self.opt)
+        self._bound = True
         
     cdef int _disconnect(self, str url) except -1:
         try:
@@ -200,6 +223,7 @@ cdef class SocketInfo:
         return 0
 
 cdef class SocketOptions(SocketInfo):
+    """Manage the socket options on a ZeroMQ socket."""
     
     @classmethod
     def wrap_socket(cls, Socket socket):
@@ -227,7 +251,11 @@ cdef class SocketOptions(SocketInfo):
             return self.client.context
     
     def set(self, int option, str key):
-        """Set a specific socket option"""
+        """Set a specific socket option.
+        
+        :param int option: The option to set.
+        :param str key: The option value, as a bytestring.
+        """
         sink = self.context.socket(zmq.REQ)
         sink.linger = 10
         with sink:
@@ -273,6 +301,7 @@ cdef class SocketOptions(SocketInfo):
         self.set(zmq.SUBSCRIBE, key)
 
     def unsubscribe(self, str key):
+        """Unsubscribe from a specific channel."""
         assert_socket_is_sub(self.socket)
         if key not in self.subscriptions:
             raise ValueError("Can't unsubscribe from {0:s}, not subscribed.".format(key))
@@ -285,3 +314,27 @@ cdef class SocketOptions(SocketInfo):
             if self.autosubscribe:
                 self.client.subscribe("")
     
+
+cdef class SocketMapping(SocketInfo):
+    
+    def __getitem__(self, key):
+        return self.target.__getitem__(key)
+    
+    def keys(self):
+        """Return the mapping keys"""
+        return collections.Mapping.keys(self.target)
+        
+    def __len__(self):
+        return self.target.__len__()
+    
+    def __iter__(self):
+        return self.target.__iter__()
+        
+
+cdef class SocketMutableMapping(SocketMapping):
+    
+    def __setitem__(self, key, value):
+        self.target.__setitem__(key, value)
+    
+    def __delitem__(self, key):
+        self.target.__delitem__(key)

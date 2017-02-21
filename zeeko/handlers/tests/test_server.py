@@ -17,7 +17,7 @@ class TestServer(SocketInfoTestBase):
         """Socket info"""
         c = self.cls(push, zmq.POLLERR)
         for k, v in arrays:
-            c.publisher[k] = v
+            c[k] = v
         yield c
         c.close()
         
@@ -26,7 +26,7 @@ class TestServer(SocketInfoTestBase):
         """A publishign socket info class."""
         c = self.cls(pub, zmq.POLLERR)
         for k, v in arrays:
-            c.publisher[k] = v
+            c[k] = v
         yield c
         c.close()
         
@@ -45,7 +45,7 @@ class TestServer(SocketInfoTestBase):
                 c += 1
         stop = time.time()
         assert c > 0
-        assert socketinfo.publisher.framecount >= c / len(arrays)
+        assert socketinfo.framecount >= c / len(arrays)
         
     def test_framerate(self, ioloop, pubinfo, arrays, sub, Receiver):
         """Test that the server approximately handles a given framerate."""
@@ -54,7 +54,7 @@ class TestServer(SocketInfoTestBase):
         def callback():
             assert_canrecv(sub)
             Receiver.receive(sub)
-        self.run_loop_throttle_test(ioloop, ioloop.worker.throttle, lambda : pubinfo.publisher.framecount, callback)
+        self.run_loop_throttle_test(ioloop, ioloop.worker.throttle, lambda : pubinfo.framecount, callback)
         
     @pytest.mark.xfail
     def test_server_framerate(self, ioloop, pubinfo, arrays, sub, Receiver):
@@ -64,5 +64,5 @@ class TestServer(SocketInfoTestBase):
         def callback():
             assert_canrecv(sub)
             Receiver.receive(sub)
-        self.run_loop_throttle_test(ioloop, pubinfo.throttle, lambda : pubinfo.publisher.framecount, callback)
+        self.run_loop_throttle_test(ioloop, pubinfo.throttle, lambda : pubinfo.framecount, callback)
         
