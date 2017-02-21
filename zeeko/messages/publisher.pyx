@@ -1,3 +1,5 @@
+#cython: embedsignature=True
+
 """
 Output arrays by publishing them over ZMQ.
 """
@@ -27,6 +29,8 @@ from .message cimport ArrayMessage, zmq_msg_to_str
 from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
 from .. import ZEEKO_PROTOCOL_VERSION
+
+__all__ = ['Publisher']
 
 cdef int MAXFRAMECOUNT = (2**30)
 
@@ -106,10 +110,12 @@ cdef class Publisher:
     def __len__(self):
         return len(self._publishers)
     
-    def keys(self):
-        return self._publishers.keys()
+    def __iter__(self):
+        """Iterate over the publisher."""
+        return iter(self._publishers)
     
     property framecount:
+        """A counter incremented each time a message is sent by this publisher."""
         def __get__(self):
             return self._framecount
         def __set__(self, int fc):
