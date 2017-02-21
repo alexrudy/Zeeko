@@ -3,6 +3,8 @@
 # Cython Imports
 # --------------
 from zmq.backend.cython.message cimport Frame
+from zmq.backend.cython.context cimport Context
+
 from libc.string cimport strlen
 from ..utils.rc cimport check_zmq_rc
 from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_more
@@ -197,7 +199,18 @@ cdef class SocketInfo:
             raise ValueError("Can't add option support when the socket is already bound.")
         self.opt = SocketOptions.wrap_socket(self.socket)
         
-    def attach(self, ioloop_worker):
+    def create_ioloop(self, Context ctx):
+        """This is a shortcut method to create an I/O Loop to manage this object.
+        
+        :param zmq.Context ctx: The ZeroMQ context to use for sockets in this loop.
+        :returns: The :class:`~zeeko.cyloop.loop.IOLoop` object.
+        """
+        from ..cyloop.loop import IOLoop
+        loop = IOLoop(ctx)
+        loop.attach(self)
+        return loop
+        
+    def _attach(self, ioloop_worker):
         """Attach this object to an ioloop.
         
         This method must be called before the IO loop

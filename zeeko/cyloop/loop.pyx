@@ -310,7 +310,7 @@ cdef class IOLoop:
         :param socketinfo: The socket info object to attach to the loop.
         :param index: The index of the worker to attach.
         """
-        socketinfo.attach(self.workers[index])
+        socketinfo._attach(self.workers[index])
     
     def configure_throttle(self, **kwargs):
         """Apply a configuration to worker throttles.
