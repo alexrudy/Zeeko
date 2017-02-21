@@ -69,6 +69,10 @@ exclude_patterns.append('_templates')
 rst_epilog += """
 """
 
+automodsumm_inherited_members = True
+
+intersphinx_mapping['zmq'] = ('http://pyzmq.readthedocs.io/en/latest/', None)
+
 # -- Project information ------------------------------------------------------
 
 # This does not *have* to match the package name, but typically does
