@@ -252,7 +252,7 @@ def n():
     """Number of arrays"""
     return 3
     
-from .messages.publisher import Publisher as _Publisher
+from .messages import Publisher as _Publisher
 
 class MockPublisher(_Publisher):
     """docstring for MockPublisher"""
@@ -274,5 +274,5 @@ def Publisher(name, n, shape):
 @pytest.fixture
 def Receiver():
     """Receiver"""
-    from .messages.receiver import Receiver as _Receiver
+    from .messages import Receiver as _Receiver
     return _Receiver()

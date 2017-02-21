@@ -9,7 +9,7 @@ import struct
 import zmq
 
 from ..message import ArrayMessage
-from ..publisher import Publisher
+from ..sugar import Publisher
 from .. import array as array_api
 from .test_base import BaseContainerTests
 

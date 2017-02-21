@@ -10,7 +10,7 @@ import time
 import zmq
 
 from ..message import ArrayMessage
-from ..receiver import Receiver
+from .. import Receiver
 from .. import array as array_api
 import struct
 from zeeko.conftest import assert_canrecv

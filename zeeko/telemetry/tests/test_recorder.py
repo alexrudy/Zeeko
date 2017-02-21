@@ -5,7 +5,7 @@ import itertools
 
 from ..recorder import Recorder
 from ...messages import array as array_api
-from ...messages.publisher import Publisher
+from ...messages import Publisher
 from .conftest import assert_chunk_array_allclose, assert_chunk_allclose
 from zeeko.conftest import assert_canrecv
 

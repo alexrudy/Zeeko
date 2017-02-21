@@ -317,19 +317,41 @@ cdef class SocketOptions(SocketInfo):
 
 cdef class SocketMapping(SocketInfo):
     
+    # Abstract methods provdied by the target.
     def __getitem__(self, key):
         return self.target.__getitem__(key)
     
-    def keys(self):
-        """Return the mapping keys"""
-        return collections.Mapping.keys(self.target)
-        
     def __len__(self):
         return self.target.__len__()
     
     def __iter__(self):
         return self.target.__iter__()
         
+    # Mixin methods provided by collections.
+    def __contains__(self, key):
+        return collections.Mapping.__contains__(self.target, key)
+    
+    def keys(self):
+        """Return a new view of the dictionary’s keys"""
+        return collections.Mapping.keys(self.target)
+    
+    def items(self):
+        """Return a new view of the dictionary’s items (``(key, value)`` pairs)."""
+        return collections.Mapping.items(self.target)
+    
+    def values(self):
+        """Return a new view of the dictionary’s values."""
+        return collections.Mapping.values(self.target)
+    
+    def get(self, key, default):
+        """Get a value from the mapping, with a default."""
+        return collections.Mapping.get(self.target, key, default)
+    
+    #def __eq__(self, other):
+    #    return collections.Mapping.__eq__(self.target, other)
+    #
+    #def __ne__(self, other):
+    #    return collections.Mapping.__ne__(self.target, other)
 
 cdef class SocketMutableMapping(SocketMapping):
     
@@ -338,3 +360,23 @@ cdef class SocketMutableMapping(SocketMapping):
     
     def __delitem__(self, key):
         self.target.__delitem__(key)
+    
+    def pop(self, key, default=None):
+        """If `key` is in the dictionary, remove it and return its `value`, else return `default`. If `default` is not given and `key` is not in the dictionary, a `KeyError` is raised."""
+        return collections.Mapping.pop(self.target, key, default)
+    
+    def popitem(self):
+        """Remove and return an arbitrary `(key, value)` pair from the dictionary."""
+        return collections.Mapping.popitem(self.target)
+    
+    def setdefault(self, key, value):
+        """If `key` is in the dictionary, return its `value`. If not, insert `key` with a value of `default` and return `default`. `default` defaults to `None`."""
+        return collections.Mapping.setdefault(self.target, key, value)
+    
+    def update(self, other):
+        """Update the dictionary with the key/value pairs from `other`, overwriting existing keys. Return `None`."""
+        return collections.Mapping.update(self.target, other)
+    
+    def clear(self):
+        """Remove all values from the dictionary."""
+        return collections.Mapping.clear(self.target)
