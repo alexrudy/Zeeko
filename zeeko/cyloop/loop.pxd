@@ -8,10 +8,12 @@ from ..utils.lock cimport Lock
 
 cdef class IOLoop:
     cdef list workers
+    
     cdef readonly Context context
+    """The :class:`~zmq.Context` object associated with this loop."""
     
     cdef readonly StateMachine state
-    cdef readonly Throttle throttle
+    """The loop state manager, a :class:`~zeeko.cyloop.statemachine.StateMachine`."""
     
     cdef object log
     

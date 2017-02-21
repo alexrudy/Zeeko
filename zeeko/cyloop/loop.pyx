@@ -1,3 +1,5 @@
+#cython: embedsignature=True
+
 cimport zmq.backend.cython.libzmq as libzmq
 from libc.stdlib cimport free, malloc, realloc, calloc
 from libc.string cimport memcpy
@@ -15,7 +17,7 @@ import struct as s
 from .statemachine import StateError, STATE
 from .statemachine cimport *
 
-__all__ = ['IOLoopWorker', 'IOLoop']
+__all__ = ['IOLoop']
 
 cdef inline str address_of(void * ptr):
     return hex(<size_t>ptr)
@@ -287,20 +289,34 @@ cdef class IOLoop:
         self.add_worker()
     
     def add_worker(self):
-        """Add a new worker to this I/O Loop"""
+        """Add a new worker to this I/O Loop.
+        
+        Each I/O loop by default has a single worker thread. This adds an additional
+        worker thread which can run an addtional polling loop."""
         self.workers.append(IOLoopWorker(self.context, self.state, len(self.workers)))
         
     def attach(self, socketinfo, index=0):
-        """Attach a socket to the I/O Loop."""
+        """Attach a socket to the I/O Loop.
+        
+        :param socketinfo: The socket info object to attach to the loop.
+        :param index: The index of the worker to attach.
+        """
         socketinfo.attach(self.workers[index])
     
     def configure_throttle(self, **kwargs):
-        """Apply a configuration to worker throttles."""
+        """Apply a configuration to worker throttles.
+        
+        The keyword arguments are applied to each worker's
+        :class:`~zeeko.cyloop.throttle.Throttle` object.
+        """
         for worker in self.workers:
             worker.throttle.configure(**kwargs)
     
     def signal(self, str state):
-        """Signal a specific state."""
+        """Signal a specific state to each worker.
+        
+        :param str state: The name of the state for signaling.
+        """
         for worker in self.workers:
             worker._signal_state(state)
     
@@ -318,18 +334,29 @@ cdef class IOLoop:
         self.signal(b"PAUSE")
 
     def stop(self, timeout=None, join=True):
-        """Stop the workers."""
+        """Stop the workers.
+        
+        :param timeout: Seconds to wait for workers to join.
+        :param bool join: Whether to join worker threads, or leave them dangling.
+        """
         self.signal(b"STOP")
         if join:
             self.join(timeout=timeout)
         
     def join(self, timeout=None):
-        """Join worker threads."""
+        """Join worker threads.
+        
+        :param timeout: Seconds to wait for workers to join.
+        """
         for worker in self.workers:
             worker.join(timeout=timeout)
     
     def cancel(self, timeout=1.0, join=True):
-        """Cancel the loop operations."""
+        """Cancel the loop operations.
+        
+        :param timeout: Seconds to wait for workers to join.
+        :param bool join: Whether to join worker threads, or leave them dangling.
+        """
         try:
             self.signal(b"STOP")
         except StateError:
@@ -337,11 +364,14 @@ cdef class IOLoop:
         self.join(timeout=timeout)
     
     def is_alive(self):
-        """Are the workers alive?"""
+        """Return whether any worker thread is alive."""
         return any(worker.is_alive() for worker in self.workers)
     
     def running(self, timeout=None):
-        """Produce a context manager to ensure the shutdown of this worker."""
+        """Produce a context manager to ensure the shutdown of this worker.
+        
+        :param timeout: Seconds to wait for workers to join when exiting the context manager.
+        """
         return _RunningLoopContext(self, timeout=timeout)
   
 cdef class DebugIOLoop(IOLoop):

@@ -3,6 +3,8 @@ from posix.time cimport timespec, nanosleep
 from libc.math cimport floor, fmod
 from ..utils.clock cimport current_time
 
+__all__ = ['Throttle']
+
 cdef class Throttle:
     """A class for tracking and maintaining a rate limit.
     
@@ -70,6 +72,7 @@ cdef class Throttle:
                 raise ValueError("C must be between 0.0 and 1.0.")
         
     property overhead:
+        """Estimate of the amount of time spent doing work."""
         def __get__(self):
             return self.period - self._delay
     
@@ -81,7 +84,11 @@ cdef class Throttle:
         return "<{0:s} {1:s}>".format(self.__class__.__name__, reprstr)
     
     def configure(self, **kwargs):
-        """Configure the throttle."""
+        """Configure the throttle.
+        
+        Accepted keyword arguments are any of the exposed
+        throttle properties. Unknown arguments are ignored.
+        """
         if "frequency" in kwargs:
             self.frequency = kwargs.pop("frequency")
         elif "period" in kwargs:
