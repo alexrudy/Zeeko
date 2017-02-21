@@ -29,8 +29,8 @@ cdef class Throttle:
         self.timeout = 0.01
         self.active = False
         
-        self.record = np.zeros((1000,), dtype=np.float)
-        self.i = 0
+        self._history = np.zeros((1000,), dtype=np.float)
+        self._i = 0
         
     property frequency:
         """Frequency, in Hz."""
@@ -140,10 +140,12 @@ cdef class Throttle:
         self._delay = memory - (memory * self._c) #- self._adjustment
         self._next_event = now + self.period
         self._last_event = now
-        if self.i < self.record.shape[0]:
+        
+        # Record history
+        if self._i < self._history.shape[0]:
             with gil:
-                self.record[self.i] = self._delay
-                self.i += 1
+                self._history[self._i] = self._delay
+                self._i += 1
         return 0
         
     cdef int mark(self) nogil:

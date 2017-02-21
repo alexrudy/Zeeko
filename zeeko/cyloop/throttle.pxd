@@ -15,8 +15,8 @@ cdef class Throttle:
     cdef readonly double _next_event
     cdef readonly double _adjustment
     
-    cdef readonly np.ndarray record
-    cdef readonly int i
+    cdef readonly np.ndarray _history
+    cdef readonly int _i
     
     cdef public double period
     """Target period between when this throttle should fire, in seconds."""
