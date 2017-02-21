@@ -103,6 +103,10 @@ cdef class Publisher:
             self._update_messages()
         else:
             pub.array[:] = value
+            
+    def __delitem__(self, key):
+        self._publishers.__delitem__(key)
+        self._update_messages()
         
     def __getitem__(self, key):
         return self._publishers[key]
