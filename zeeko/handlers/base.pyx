@@ -232,7 +232,10 @@ cdef class SocketInfo:
         return self._loop()
         
     def _is_loop_running(self):
-        return self.loop is not None and self.loop.is_alive()
+        if self.loop is None:
+            return False
+        self.loop.event("START").wait(timeout=0.1)
+        return  and self.loop.is_alive()
         
     cdef int _disconnect(self, str url) except -1:
         try:

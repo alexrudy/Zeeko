@@ -192,8 +192,9 @@ cdef class Event:
             rc = pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
         _rc = self.unlock()
         if errno.ETIMEDOUT == rc:
-           with gil:
-               raise TimeoutError("Event.wait() timed out.")
+           return rc
+           #with gil:
+           #    raise TimeoutError("Event.wait() timed out.")
         return pthread.check_rc(rc)
     
     def is_set(self):
