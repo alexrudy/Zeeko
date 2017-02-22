@@ -13,7 +13,8 @@ omit =
    zeeko/*/*/tests/*
    zeeko/version*
    zeeko/bundled/*
-plugins = Cython.Coverage
+plugins = 
+   Cython.Coverage
 
 [report]
 exclude_lines =
