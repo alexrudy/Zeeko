@@ -6,6 +6,8 @@ from zmq.backend.cython.context cimport Context
 import zmq
 import h5py
 import itertools
+import datetime as dt
+
 from ..utils.msg import internal_address
 
 from ..handlers.base cimport SocketMutableMapping, SocketMapping
@@ -33,14 +35,28 @@ cdef int writer_callback(void * handle, short events, void * data, void * interr
 
 cdef class Telemetry(SocketMutableMapping):
     
-    cdef readonly Recorder recorder
+    cdef Recorder recorder
     cdef readonly Snail snail
+    """A :class:`~zeeko.handlers.snail.Snail` interface.
+    
+    The snail maintains the algorithm for properly handling
+    lag between the server and the client. When too much lag
+    occurs, the client will disconnect, drop intervenening
+    messages, and then reconnect."""
+    
     cdef str address
     cdef public bint use_reconnections
+    """Whether the client should reconnect each time the I/O loop resumes processing messages."""
     
     cdef readonly str notifications_address
+    """Address that chunk notification messages are sent over."""
+    
     cdef readonly Socket notify
+    """ZeroMQ socket used for outgoing notifications."""
+    
     cdef readonly TelemetryWriter writer
+    """:class:`~zeeko.telemetry.handlers.TelemetryWriter` object associated with this Telemetry reader."""
+    
     cdef void * notify_handle
     
     def __cinit__(self):
@@ -67,21 +83,44 @@ cdef class Telemetry(SocketMutableMapping):
             self.support_options()
     
     def enable_reconnections(self, str address not None):
-        """Enable the reconnect/disconnect on pause."""
+        """Enable the reconnect/disconnect on pause.
+    
+        :param str address: The address to use for reconnections.
+        """
         self.address = address
         self.use_reconnections = True
         
     def enable_notifications(self, Context ctx, str address not None, str filename = None):
+        """Enable notifications of full chunks.
+        
+        :param zmq.Context ctx: The ZeroMQ context for this pipeline.
+        :param str address: The address to use for notifications.
+        :param str filename: The HDF5 filename, possibly a new-style template which can be incremented.
+        :returns: :class:`~zeeko.telemetry.handlers.TelemetryWriter`
+        """
         self.notifications_address = address
         self.notify = ctx.socket(zmq.PUSH)
         self.notify.bind(self.notifications_address)
         self.notify_handle = self.notify.handle
-        self.writer = TelemetryWriter.from_recorder(filename, self, self.use_reconnections)
+        writer = self.writer = TelemetryWriter.from_recorder(filename, self, self.use_reconnections)
+        return writer
     
     @classmethod
     def at_address(cls, str address, Context ctx, int kind = zmq.SUB, 
                    str filename = None, int chunksize = 1024,
                    enable_reconnections=True, enable_notifications=True):
+        """Create a client which is already connected to a specified address.
+
+        :param str address: The ZeroMQ address to connect to.
+        :param Context ctx: The ZeroMQ context to use for creating sockets.
+        :param int kind: The ZeroMQ socket kind.
+        :param str filename: The HDF5 filename, possibly a new-style template which can be incremented.
+        :param int chunksize: The size of telemetry chunks to record.
+        :param bool enable_reconnections: Whether to enable reconnection on pause for this socket.
+        :param bool enable_reconnections: Whether to enable notifications for full chunks.
+
+        :returns: :class:`Telemetry` object wrapping a socket connected to `address`.
+        """
         socket = ctx.socket(kind)
         socket.connect(address)
         obj = cls(socket, zmq.POLLIN, chunksize=chunksize)
@@ -107,6 +146,23 @@ cdef class Telemetry(SocketMutableMapping):
             self._reconnect(self.address)
         return 0
         
+    
+    def receive(self, Socket socket = None, int flags = 0):
+        """Receive a single message.
+    
+        By default, this receive command happens over the wrapped
+        socket that the :class:`zeeko.cyloop.loop.IOLoop` would use,
+        but you can provide a different socket if desired. This is useful
+        when the I/O Loop is running, as ZeroMQ sockets are *not* thread
+        safe, but the underlying publisher is thread-safe.
+    
+        :param zmq.Socket socket: (optional) The ZeroMQ socket for receiving
+        :param int flags: (optional) The flags for the ZeroMQ socket receive operation.
+        """
+        if socket is None:
+            socket = self.socket
+        self.recorder.receive(socket, flags)
+    
     def subscribe(self, key):
         """Subscribe"""
         self.opt.subscribe(key)
@@ -129,11 +185,35 @@ cdef class Telemetry(SocketMutableMapping):
             self.notify.close()
         if self.writer is not None:
             self.writer.close()
+        
+    property framecounter:
+        """The current framecounter for this client object.
+
+        The framecounter is incremented once for each batch of messages published,
+        and is used by clients to determine the absolute ordering of messages from
+        the server."""
+        def __get__(self):
+            return self.recorder.counter
+
+    property last_message:
+        """A datetime object representing the last message received."""
+        def __get__(self):
+            return dt.datetime.fromtimestamp(self.recorder.last_message)
+            
+    @property
+    def pushed(self):
+        """An event which is set when telemetry data is pushed to the writer."""
+        return self.recorder.pushed
+        
+    @property
+    def complete(self):
+        """Whether the contained chunks are currently in a compelte state."""
+        return self.recorder.complete
     
 
 cdef class TelemetryWriter(SocketMapping):
 
-    cdef readonly Writer writer
+    cdef Writer writer
     cdef readonly Snail snail
     cdef str address
     cdef object counter

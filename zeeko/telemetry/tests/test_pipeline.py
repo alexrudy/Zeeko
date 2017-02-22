@@ -27,19 +27,19 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
     """Test running the pipeline."""
     with pipeline.running(timeout=0.1):
         pipeline.state.selected("RUN").wait(timeout=0.1)
-        while not pipeline.record.recorder.pushed.is_set():
+        while not pipeline.record.pushed.is_set():
             Publisher.update()
             Publisher.publish(pub)
             time.sleep(0.1)
-        pipeline.record.recorder.pushed.wait(timeout=3.0)
+        pipeline.record.pushed.wait(timeout=3.0)
         pipeline.write.fired.wait(timeout=3.0)
     pipeline.state.selected("STOP").wait(timeout=1.0)
-    print(pipeline.record.recorder.complete)
-    for chunk in pipeline.record.recorder:
-        print("{0}: {1}".format(chunk, pipeline.record.recorder[chunk].lastindex))
-    assert pipeline.record.recorder.pushed.is_set()
+    print(pipeline.record.complete)
+    for chunk in pipeline.record:
+        print("{0}: {1}".format(chunk, pipeline.record[chunk].lastindex))
+    assert pipeline.record.pushed.is_set()
     assert pipeline.write.fired.is_set()
-    assert pipeline.record.recorder.chunkcount == 1
+    assert pipeline.record.framecounter == 1
     with h5py.File(filename, 'r') as f:
         for name in Publisher.keys():
             assert name in f

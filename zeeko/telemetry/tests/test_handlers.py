@@ -25,17 +25,17 @@ class TestRClient(SocketInfoTestBase):
         time.sleep(0.01)
         Publisher.publish(push)
         assert_canrecv(socketinfo.socket)
-        socketinfo.recorder.receive(socketinfo.socket)
+        socketinfo.receive()
         Publisher.publish(push)
         assert_canrecv(socketinfo.socket)
-        socketinfo.recorder.receive(socketinfo.socket)
+        socketinfo.receive()
         Publisher.publish(push)
         assert_canrecv(socketinfo.socket)
-        socketinfo.recorder.receive(socketinfo.socket)
+        socketinfo.receive(socketinfo.socket)
         time.sleep(0.1)
-        print(socketinfo.recorder.last_message)
-        assert socketinfo.recorder.counter != 0
-        assert len(socketinfo.recorder) == 3
+        print(socketinfo.last_message)
+        assert socketinfo.framecounter != 0
+        assert len(socketinfo) == 3
         socketinfo.close()
     
     def test_callback(self, ioloop, socketinfo, Publisher, push):
@@ -45,9 +45,9 @@ class TestRClient(SocketInfoTestBase):
             Publisher.publish(push)
             assert_canrecv(socketinfo.socket)
             socketinfo(socketinfo.socket, socketinfo.socket.poll(timeout=100), ioloop.worker._interrupt)
-        print(socketinfo.recorder.last_message)
-        assert socketinfo.recorder.counter != 0
-        assert len(socketinfo.recorder) == 3
+        print(socketinfo.last_message)
+        assert socketinfo.framecounter != 0
+        assert len(socketinfo) == 3
         socketinfo._close()
         
     def test_attached(self, ioloop, socketinfo, Publisher, push):
@@ -56,23 +56,23 @@ class TestRClient(SocketInfoTestBase):
         
         n = 3
         self.run_loop_safely(ioloop, functools.partial(Publisher.publish, push), n)
-        assert socketinfo.recorder.counter != 0
-        assert socketinfo.recorder.counter == n * len(Publisher)
-        print(socketinfo.recorder.last_message)
-        assert len(socketinfo.recorder) == len(Publisher)
+        assert socketinfo.framecounter == n * len(Publisher)
+        print(socketinfo.last_message)
+        assert len(socketinfo) == len(Publisher)
         
-    # def test_suicidal_snail(self, ioloop, socketinfo, Publisher, push):
-    #     """Test the suicidal snail pattern."""
-    #
-    #     ioloop.attach(socketinfo)
-    #     socketinfo.use_reconnections = False
-    #     self.run_loop_snail_test(ioloop, socketinfo.snail,
-    #                              lambda : socketinfo.recorder.counter,
-    #                              functools.partial(Publisher.publish, push),
-    #                              n = 3, narrays = len(Publisher))
-    #     assert socketinfo.receiver.framecount != 0
-    #     print(socketinfo.receiver.last_message)
-    #     assert len(socketinfo.receiver) == 3
+    @pytest.mark.skip
+    def test_suicidal_snail(self, ioloop, socketinfo, Publisher, push):
+        """Test the suicidal snail pattern."""
+
+        ioloop.attach(socketinfo)
+        socketinfo.use_reconnections = False
+        self.run_loop_snail_test(ioloop, socketinfo.snail,
+                                 lambda : socketinfo.recorder.counter,
+                                 functools.partial(Publisher.publish, push),
+                                 n = 3, narrays = len(Publisher))
+        assert socketinfo.framecounter != 0
+        print(socketinfo.last_message)
+        assert len(socketinfo.receiver) == 3
     
     def test_pubsub(self, ioloop, address, context, Publisher, pub):
         """Test the pub/sub algorithm."""
@@ -80,6 +80,6 @@ class TestRClient(SocketInfoTestBase):
         ioloop.attach(client)
         n = 3
         self.run_loop_safely(ioloop, functools.partial(Publisher.publish, pub), n)
-        assert client.recorder.counter != 0
-        print(client.recorder.last_message)
-        assert len(client.recorder) == 3
+        assert client.framecounter != 0
+        print(client.last_message)
+        assert len(client) == 3
