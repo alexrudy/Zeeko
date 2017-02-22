@@ -2,20 +2,38 @@ from . cimport pthread
 from .rc cimport malloc, realloc
 from libc.stdlib cimport free
 from libc.string cimport memset
-from .clock cimport current_utc_time, timespec
+from libc cimport errno
+from .clock cimport current_utc_time, timespec, microseconds_offset
 
 from posix.types cimport time_t
 
 cdef int lock_acquire(lock * src) nogil except -1:
     """Acquire the lock without holding the GIL."""
-    cdef int rc
+    cdef int rc = 0
     rc = pthread.mutex_lock(src.mutex)
     try:
+        # We only wait on the condition if the lock is already owned.
         if src._owned[0]:
-            pthread.pthread_cond_wait(src.condition, src.mutex)
+            rc = pthread.pthread_cond_wait(src.condition, src.mutex)
         src._owned[0] = 1
     finally:
         rc = pthread.mutex_unlock(src.mutex)
+    return rc
+
+cdef int lock_acquire_timed(lock * src, long timeout) nogil except -1:
+    """Acquire the lock with a timeout."""
+    cdef int rc = 0
+    cdef timespec ts
+    pthread.mutex_lock(src.mutex)
+    try:
+        # We only wait on the condition if the lock is already owned.
+        if src._owned[0]:
+            ts = microseconds_offset(timeout)
+            rc = pthread.pthread_cond_timedwait(src.condition, src.mutex, &ts)
+        if rc != errno.ETIMEDOUT:
+            src._owned[0] = 1
+    finally:
+        pthread.mutex_unlock(src.mutex)
     return rc
     
 cdef int lock_release(lock * src) nogil except -1:
@@ -121,13 +139,21 @@ cdef class Lock:
         return Lock._from_lock(&lck)
     
     cdef int _acquire(self) nogil except -1:
-        cdef int rc
         return lock_acquire(&self._lock)
         
-    def acquire(self):
+    cdef int _acquire_timed(self, long timeout) nogil except -1:
+        return lock_acquire_timed(&self._lock, timeout)
+        
+    def acquire(self, timeout=None):
         """Acquire the lock"""
-        with nogil:
-            self._acquire()
+        cdef long to
+        if timeout is not None:
+           to = timeout
+           with nogil:
+               self._acquire_timed(to)
+        else:
+            with nogil:
+                self._acquire()
 
     cdef int _release(self) nogil except -1:
         cdef int rc
