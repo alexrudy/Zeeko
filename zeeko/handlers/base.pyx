@@ -238,8 +238,8 @@ cdef class SocketInfo:
     def _is_loop_running(self):
         if self.loop is None:
             return False
-        self.loop.event("START").wait(timeout=0.1)
-        return self.loop.is_alive() and self.loop.event("START").is_set()
+        self.loop.state.deselected("INIT").wait(timeout=0.1)
+        return self.loop.is_alive() and self.loop.state.deselected("INIT").is_set()
         
     cdef int _disconnect(self, str url) except -1:
         try:

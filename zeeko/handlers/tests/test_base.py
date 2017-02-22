@@ -149,12 +149,15 @@ class SocketInfoTestBase(object):
     def test_attach(self, ioloop, socketinfo):
         """Test client add to a loop."""
         ioloop.attach(socketinfo)
+        assert not socketinfo._is_loop_running()
         ioloop.start()
         try:
+            assert socketinfo._is_loop_running()
             ioloop.state.selected("RUN").wait(timeout=0.1)
             time.sleep(0.01)
         finally:
             ioloop.stop(timeout=0.1)
+        assert not socketinfo._is_loop_running()
             
         
     def test_check(self, socketinfo):
