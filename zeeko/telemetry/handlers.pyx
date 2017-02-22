@@ -147,7 +147,7 @@ cdef class Telemetry(SocketMutableMapping):
         return 0
         
     
-    def receive(self, Socket socket = None, int flags = 0):
+    def receive(self, Socket socket = None, Socket notify = None, int flags = 0):
         """Receive a single message.
     
         By default, this receive command happens over the wrapped
@@ -161,7 +161,9 @@ cdef class Telemetry(SocketMutableMapping):
         """
         if socket is None:
             socket = self.socket
-        self.recorder.receive(socket, flags)
+        if notify is None:
+            notify = self.notify
+        self.recorder.receive(socket, notify, flags)
     
     def subscribe(self, key):
         """Subscribe"""

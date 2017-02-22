@@ -39,7 +39,7 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
         print("{0}: {1}".format(chunk, pipeline.record[chunk].lastindex))
     assert pipeline.record.pushed.is_set()
     assert pipeline.write.fired.is_set()
-    assert pipeline.record.framecounter == 1
+    assert pipeline.record.framecounter == len(Publisher) * chunksize
     with h5py.File(filename, 'r') as f:
         for name in Publisher.keys():
             assert name in f
