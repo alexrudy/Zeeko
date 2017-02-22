@@ -27,7 +27,7 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
     """Test running the pipeline."""
     with pipeline.running(timeout=0.1):
         pipeline.state.selected("RUN").wait(timeout=0.1)
-        for i in range(10):
+        while not pipeline.record.recorder.pushed.is_set():
             Publisher.update()
             Publisher.publish(pub)
             time.sleep(0.1)
