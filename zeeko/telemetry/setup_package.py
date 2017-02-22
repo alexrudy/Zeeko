@@ -3,35 +3,23 @@ from __future__ import absolute_import
 
 import os
 
-from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions
+from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions, pxd, get_package_data
 from astropy_helpers import setup_helpers
 
-
-HERE = os.path.dirname(__file__)
-PACKAGE = ".".join(__name__.split(".")[:-1])
-
-pjoin = os.path.join
-pyx = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pyx")
-pxd = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pxd")
-
-clock = pxd("..","utils","clock")
-mutils = pxd("..","messages","utils")
-
-receiver = [clock, mutils, pxd("..","messages","receiver")]
-publisher = [clock, mutils, pxd("..","messages","publisher")]
-
+utilities = [pxd("..utils.rc"), 
+             pxd("..utils.msg"), 
+             pxd("..utils.hmap"),
+             pxd("..utils.pthread"), 
+             pxd("..utils.lock"), 
+             pxd("..utils.condition"), 
+             pxd("..utils.clock")]
 
 dependencies = {
-    'recorder' : receiver + publisher + [pxd('..',"messages","carray"), pxd("chunk"), pxd("..","utils","hmap")],
-    'chunk' :  [pxd("..","messages","utils"), pxd("..","messages","carray"),pxd("..","messages","message")],
-    'writer' : receiver + publisher + [pxd('..',"messages","carray"), pxd("chunk"), pxd("..","utils","hmap")],
-    'handlers' : [pxd("chunk"), pxd("recorder"), pxd("writer"), pxd("..", "handlers", "base"), pxd("..","handlers","snail")],
-    
+    'chunk'    : utilities + [ pxd("..messages.utils"), pxd("..messages.carray"), pxd("..messages.message") ],
+    'recorder' : utilities + [ pxd("..messages.receiver"), pxd("..messages.publisher"), pxd(".chunk") ],
+    'writer'   : utilities + [ pxd("..messages.receiver"), pxd("..messages.publisher"), pxd(".chunk") ],
+    'handlers' : utilities + [ pxd(".chunk"), pxd(".recorder"), pxd(".writer"), pxd("..handlers.snail"), pxd("..handlers.base") ],
 }
-
-def get_package_data():
-    """Return package data."""
-    return {PACKAGE:['*.pxd', '*.h']}
 
 def get_extensions(**kwargs):
     """Get the Cython extensions"""

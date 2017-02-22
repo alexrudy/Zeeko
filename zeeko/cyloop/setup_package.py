@@ -3,33 +3,21 @@ from __future__ import absolute_import
 
 import os
 
-from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions
+from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions, pxd, get_package_data
 from astropy_helpers import setup_helpers
 
-HERE = os.path.dirname(__file__)
-PACKAGE = ".".join(__name__.split(".")[:-1])
-
-pjoin = os.path.join
-pyx = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pyx")
-pxd = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pxd")
-
-rc = pxd("..", "utils", "rc")
-msg = pxd("..","utils","msg")
-clock = pxd("..","utils","clock")
-lock = pxd("..","utils","lock")
-event = pxd("..","utils","condition")
-
-base = pxd("..", "handlers", "base")
+utilities = [pxd("..utils.rc"), 
+             pxd("..utils.msg"), 
+             pxd("..utils.pthread"), 
+             pxd("..utils.lock"), 
+             pxd("..utils.condition"), 
+             pxd("..utils.clock")]
 
 dependencies = {
-    'loop' : [clock, lock,  pxd("statemachine"), pxd("throttle"), base],
-    '_state': [ lock, event, rc, msg],
-    'throttle' : [clock, rc, event],
+    'loop'        : utilities + [ pxd(".throttle"), pxd("..handlers.base"), pxd(".statemachine") ],
+    'statemachine': utilities,
+    'throttle'    : utilities,
 }
-
-def get_package_data():
-    """Return package data."""
-    return {PACKAGE:['*.pxd']}
 
 def get_extensions(**kwargs):
     """Get the Cython extensions"""

@@ -5,28 +5,27 @@ import glob
 import os
 import copy
 
-from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions
+from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions, pxd, h, get_package_data
 from astropy_helpers import setup_helpers
 
-HERE = os.path.dirname(__file__)
-PACKAGE = ".".join(__name__.split(".")[:-1])
+utilities = [pxd("..utils.rc"), 
+             pxd("..utils.msg"), 
+             pxd("..utils.pthread"), 
+             pxd("..utils.lock"), 
+             pxd("..utils.condition"), 
+             pxd("..utils.clock")]
 
-pjoin = os.path.join
-pxd = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pxd")
-h = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".h")
+clock = [ pxd(".clock"), h(".mclock") ]
+pthread = [ pxd(".rc"), pxd(".pthread") ] + clock
+refcount = [ pxd(".rc"), pxd(".refcount") ] + clock
 
 dependencies = {
-    'hmap'      : [pxd("rc")],
-    'condition' : [pxd("condition"), pxd("pthread"), pxd("clock"), h("mclock")],
-    'lock'      : [pxd("lock"), pxd("pthread"), pxd("clock"), h("mclock")],
-    'stopwatch' : [pxd("clock"), h("mclock")],
-    'msg'       : [pxd("rc")],
-    'rc'        : [],
+    'msg'       : [ pxd(".rc") ],
+    'condition' : refcount + pthread,
+    'hmap'      : [ pxd(".rc") ],
+    'lock'      : refcount + pthread,
+    'stopwatch' : clock
 }
-
-def get_package_data():
-    """Return package data."""
-    return {PACKAGE:['*.pxd', '*.h']}
 
 def get_extensions(**kwargs):
     """Get the Cython extensions"""

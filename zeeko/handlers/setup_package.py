@@ -3,38 +3,22 @@ from __future__ import absolute_import
 
 import os
 
-from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions
+from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions, pxd, get_package_data
 from astropy_helpers import setup_helpers
 
-HERE = os.path.dirname(__file__)
-PACKAGE = ".".join(__name__.split(".")[:-1])
-
-pjoin = os.path.join
-pyx = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pyx")
-pxd = lambda *path : os.path.relpath(pjoin(HERE, *path) + ".pxd")
-
-rc = pxd("..", "utils", "rc")
-msg = pxd("..","utils","msg")
-clock = pxd("..","utils","clock")
-lock = pxd("..","utils","lock")
-event = pxd("..","utils","condition")
-
-
-receiver = pxd("..","messages","receiver")
-publisher = pxd("..","messages","publisher")
-state = pxd("..", "cyloop", "statemachine")
-throttle = pxd("..", "cyloop", "throttle")
+utilities = [pxd("..utils.rc"), 
+             pxd("..utils.msg"), 
+             pxd("..utils.pthread"), 
+             pxd("..utils.lock"), 
+             pxd("..utils.condition"), 
+             pxd("..utils.clock")]
 
 dependencies = {
-    'base' : [throttle],
-    'snail' : [clock, state],
-    'client': [rc, msg, receiver, throttle, pxd('base'), pxd('snail')],
-    'server': [rc, msg, publisher, throttle, pxd('base'), pxd('snail')]
+    'base'    : utilities + [ pxd("..cyloop.throttle") ],
+    'snail'   : utilities + [ pxd("..cyloop.throttle"), pxd("..cyloop.statemachine") ],
+    'client'  : utilities + [ pxd("..cyloop.throttle"), pxd("..cyloop.statemachine"), pxd(".snail"), pxd(".base") ],
+    'server'  : utilities + [ pxd("..cyloop.throttle"), pxd("..cyloop.statemachine"), pxd(".snail"), pxd(".base") ],
 }
-
-def get_package_data():
-    """Return package data."""
-    return {PACKAGE:['*.pxd', '*.h']}
 
 def get_extensions(**kwargs):
     """Get the Cython extensions"""

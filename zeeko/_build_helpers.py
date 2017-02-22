@@ -4,6 +4,7 @@ import os
 import glob
 import copy
 import sys
+import inspect
 
 from distutils.core import Extension
 
@@ -11,11 +12,47 @@ from astropy_helpers import setup_helpers
 
 pjoin = os.path.join
 HERE = os.path.dirname(__file__)
+BASE = pjoin("..", HERE)
 
-# ASAN_PATH = '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/8.0.0/lib/darwin/libclang_rt.asan_osx_dynamic.dylib'
-# if os.path.exists(ASAN_PATH):
-#     os.environ.setdefault('SHADY_USE_ASAN', 'yes')
-#     os.environ.setdefault('DYLD_INSERT_LIBRARIES', ASAN_PATH)
+def get_parent_module():
+    """Get parent filename."""
+    frame = inspect.currentframe()
+    module = inspect.getmodule(frame)
+    
+    while module.__name__ == __name__:
+        if frame.f_back is None:
+            raise ValueError("Fell off the top of the stack.")
+        frame = frame.f_back
+        module = inspect.getmodule(frame)
+    return module
+
+def get_parent_filename():
+    """Get parent module filename."""
+    return os.path.relpath(get_parent_module().__file__, BASE)
+
+def get_package_data():
+    """A basic get-package-data."""
+    package = ".".join(get_parent_module().__name__.split(".")[:-1])
+    return {package:['*.pxd', '*.h']}
+
+def module_to_path(module):
+    """docstring for module_to_path"""
+    base = BASE
+    if module.startswith("."):
+        base = os.path.relpath(os.path.dirname(get_parent_filename()))
+    return os.path.abspath(pjoin(base, *module.split(".")))
+
+def pxd(module):
+    """Return the path to a PXD file for a particular module."""
+    return module_to_path(module) + ".pxd"
+    
+def pyx(module):
+    """Return the path to a PYX file for a particular module."""
+    return module_to_path(module) + ".pyx"
+
+def h(module):
+    """Return the path to an h file."""
+    return module_to_path(module) + ".h"
 
 def get_zmq_include_path():
     """Get the ZMQ include path in an import-safe manner."""
@@ -66,20 +103,21 @@ def get_utils_extension_args():
     
 def _generate_cython_extensions(extension_args, directory, package_name):
     """Generate cython extensions"""
-    extcls = Extension
     try:
         from Cython.Distutils import Extension as CyExtension
     except ImportError:
-        pass
+        extcls = Extension
     else:
         extcls = CyExtension
         extension_args['cython_directives'] = [("embedsignature", True)]
+        extension_args['cython_directives'].append(("linetrace", True))
+        extension_args['cython_directives'].append(("profile", True))
     
-    if sys.platform == 'darwin' and os.environ.get("SHADY_USE_ASAN","") == 'yes':
+    if sys.platform == 'darwin' and os.environ.get("USE_ASAN","") == 'yes':
         extension_args['extra_compile_args'].extend(['-fsanitize=address', '-fno-omit-frame-pointer'])
         extension_args['extra_link_args'].extend(['-fsanitize=address'])
+    
     if 'test' in sys.argv and ('-c' in sys.argv or '--coverage' in sys.argv):
-        extension_args['cython_directives'].append(("linetrace", True))
         extension_args['define_macros'].append(("CYTHON_TRACE",1))
         # extension_args['define_macros'].append(("CYTHON_TRACE_NOGIL",1))
     
