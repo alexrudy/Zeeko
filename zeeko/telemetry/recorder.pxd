@@ -2,6 +2,7 @@
 # Cython imports
 
 from ..utils.hmap cimport HashMap
+from ..utils.condition cimport Event
 from .chunk cimport array_chunk
 
 
@@ -13,6 +14,9 @@ cdef class Recorder:
     cdef readonly size_t counter
     cdef unsigned int _chunkcount
     cdef array_chunk * _chunks
+    
+    cdef readonly Event pushed
+    """Event which is set once messages have been pushed to the writer."""
     
     cdef long offset
     cdef readonly int chunksize

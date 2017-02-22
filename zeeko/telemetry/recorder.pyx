@@ -43,6 +43,7 @@ cdef class Recorder:
         # Accounting objects
         self._chunkcount = 0
         self.chunksize = -1 # Will be re-initialized by __init__
+        self.pushed = Event()
         self.log = logging.getLogger(".".join([__name__, self.__class__.__name__]))
         
     
@@ -199,6 +200,9 @@ cdef class Recorder:
         with gil:
             self.log.debug("Sent chunks after completion")
         
+        # Notify listeners that something was sent.
+        self.pushed._set()
+        
         # Release the memory held by the sent chunks
         self._release_arrays()
         return rc
@@ -216,6 +220,9 @@ cdef class Recorder:
             finally:
                 rc = check_zmq_rc(libzmq.zmq_msg_close(&topic))
             
+        # Notify listeners that something was sent.
+        self.pushed._set()
+        
         # Release the memory held by arrays
         self._release_arrays()
         return rc
