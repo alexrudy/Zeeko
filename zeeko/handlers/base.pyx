@@ -235,7 +235,7 @@ cdef class SocketInfo:
         if self.loop is None:
             return False
         self.loop.event("START").wait(timeout=0.1)
-        return  and self.loop.is_alive()
+        return self.loop.is_alive() and self.loop.event("START").is_set()
         
     cdef int _disconnect(self, str url) except -1:
         try:
