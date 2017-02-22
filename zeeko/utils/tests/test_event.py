@@ -30,7 +30,6 @@ def test_event_wait():
     """Test waiting for an event."""
     evt = Event()
     assert not evt.is_set()
-    with pytest.raises(TimeoutError):
-        evt.wait(timeout=0.1)
+    evt.wait(timeout=0.1)
     assert not evt.is_set()
     
