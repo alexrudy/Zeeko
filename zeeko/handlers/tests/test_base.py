@@ -161,6 +161,11 @@ class SocketInfoTestBase(object):
         """Test check should not raise"""
         socketinfo.check()
         
+    def test_repr(self, socketinfo):
+        """Test that the repr works."""
+        value = repr(socketinfo)
+        assert socketinfo.__class__.__name__ in value
+        
 
 class TestSocketInfo(SocketInfoTestBase):
     

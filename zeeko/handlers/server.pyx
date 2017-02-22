@@ -11,9 +11,10 @@ from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_m
 from ..utils.msg import internal_address
 from ..utils.clock cimport current_time
 
+from ..messages.publisher cimport Publisher
+
 from .base cimport SocketMutableMapping
 from .snail cimport Snail
-from ..messages.publisher cimport Publisher
 
 cdef int server_callback(void * handle, short events, void * data, void * interrupt_handle) nogil except -1:
     cdef int rc = 0
@@ -57,9 +58,18 @@ cdef class Server(SocketMutableMapping):
     cdef Publisher publisher
     
     def __cinit__(self):
-        self.publisher = Publisher()
+        from ..messages import Publisher
+        self.publisher = self.target = Publisher()
         self.callback = server_callback
-        self.target = self.publisher
+    
+    def __repr__(self):
+        parts = ["{0}".format(self.__class__.__name__)]
+        if self.loop is not None:
+            parts.append("{0}".format(self.loop.state.name))
+        if len(self):
+            parts.append("framecount={0}".format(self.framecount))
+            parts.append("keys=[{0}]".format(",".join(self.keys())))
+        return "<{0}>".format(" ".join(parts))
     
     @classmethod
     def at_address(cls, str address, Context ctx = None, int kind = zmq.PUB):

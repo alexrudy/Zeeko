@@ -61,11 +61,10 @@ cdef class Client(SocketMapping):
     """Whether the client should reconnect each time the I/O loop resumes processing messages."""
     
     def __cinit__(self):
-        
+        from ..messages import Receiver
         # Initialize basic client functions
-        self.receiver = Receiver()
+        self.receiver = self.target = Receiver()
         self.callback = client_callback
-        self.target = self.receiver
         
         # Delay management
         self.snail = Snail()
