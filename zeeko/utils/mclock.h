@@ -3,22 +3,29 @@
 #include <stdio.h>
 
 #ifdef __MACH__
-#include <mach/clock.h>
-#include <mach/mach.h>
+#include <Availability.h>
 #endif
 
+#ifdef __MAC_OS_X_VERSION_MAX_ALLOWED
+#if __MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+#include <time.h>
+#include <mach/mach_time.h>
+#define CLOCK_REALTIME 0
+#define CLOCK_MONOTONIC 0
+int clock_gettime(int clk_id, struct timespec *t){
+    mach_timebase_info_data_t timebase;
+    mach_timebase_info(&timebase);
+    uint64_t time;
+    time = mach_absolute_time();
+    double nseconds = ((double)time * (double)timebase.numer)/((double)timebase.denom);
+    double seconds = ((double)time * (double)timebase.numer)/((double)timebase.denom * 1.0e9);
+    t->tv_sec = seconds;
+    t->tv_nsec = nseconds - (t->tv_sec * 1.0e9);
+    return 0;
+}
+#endif
+#endif
 
 void current_utc_time(struct timespec *ts) {
-
-#ifdef __MACH__ // OS X does not have clock_gettime, use clock_get_time
-  clock_serv_t cclock;
-  mach_timespec_t mts;
-  host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
-  clock_get_time(cclock, &mts);
-  mach_port_deallocate(mach_task_self(), cclock);
-  ts->tv_sec = mts.tv_sec;
-  ts->tv_nsec = mts.tv_nsec;
-#else
-  clock_gettime(CLOCK_REALTIME, ts);
-#endif
+  clock_gettime(CLOCK_MONOTONIC, ts);
 }

@@ -6,7 +6,7 @@ from libc.stdlib cimport free
 from libc cimport errno
 
 from posix.types cimport time_t
-from .clock cimport timespec, microseconds_to_ts
+from .clock cimport timespec, microseconds_to_ts, microseconds_offset, current_utc_time, MICROSECONDS
 from .rc cimport check_generic_rc, realloc, malloc
 
 class TimeoutError(Exception):
@@ -83,7 +83,7 @@ cdef int event_copy(event * dst, event * src) nogil except -1:
     event_incref(dst)
     return 0
 
-cdef int event_timedwait(event * src, int timeout) nogil except -1:
+cdef int event_timedwait(event * src, long timeout) nogil except -1:
     cdef timespec ts
     pthread.mutex_lock(src.mutex)
     ts = microseconds_to_ts(timeout)
@@ -170,7 +170,7 @@ cdef class Event:
             with nogil:
                 self._wait()
         else:
-            to = <int>((<double>timeout) * 100000.0)
+            to = <long>(timeout * MICROSECONDS)
             with nogil:
                 rc = self._timedwait(to)
         return bool(self._is_set())
@@ -183,12 +183,12 @@ cdef class Event:
         _rc = self.unlock()
         return pthread.check_rc(rc)
     
-    cdef int _timedwait(self, int microseconds) nogil except -1:
+    cdef int _timedwait(self, long microseconds) nogil except -1:
         cdef int rc = 0, _rc
         cdef timespec ts
         _rc = self.lock()
         if not self.evt._setting[0]:
-            ts = microseconds_to_ts(microseconds)
+            ts = microseconds_offset(microseconds)
             rc = pthread.pthread_cond_timedwait(self.evt.cond, self.evt.mutex, &ts)
         _rc = self.unlock()
         if errno.ETIMEDOUT == rc:
