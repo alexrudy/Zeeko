@@ -54,6 +54,16 @@ cdef class Telemetry(SocketMapping):
         <Telemetry chunksize=1024 address='inproc://telemetry' RUN>
         >>> loop.stop()
     
+    Telemetry objects behave like a read-only mapping of telemetry chunks,
+    exposing each individual :class:`~zeeko.telemetry.chunk.Chunk` object
+    by keyed name::
+        
+        >>> telemetry = Telemetry.at_address('inproc://telemetry')
+        >>> telemetry
+        <Telemetry chunksize=1024 address='inproc://telemetry'>
+        >>> telemetry['WFS']
+        <Chunk (180x180)x(1024) at 1>
+
     """
     
     cdef Recorder recorder
@@ -142,7 +152,7 @@ cdef class Telemetry(SocketMapping):
     def at_address(cls, str address, Context ctx = None, int kind = zmq.SUB, 
                    str filename = None, int chunksize = 1024,
                    enable_reconnections=True, enable_notifications=True):
-        """Create a client which is already connected to a specified address.
+        """Create a telemetry client which is already connected to a specified address.
 
         :param str address: The ZeroMQ address to connect to.
         :param Context ctx: The ZeroMQ context to use for creating sockets.
@@ -289,7 +299,9 @@ cdef class TelemetryWriter(SocketMapping):
     cdef object counter
     
     cdef public str filename
-    """Filename template for writing telemetry.
+    """
+    
+    Filename template for writing telemetry.
     
     If the filename contains a format field, it will be incremented
     according to an internal counter. Otherwise, the HDF5 file will be
