@@ -297,6 +297,9 @@ cdef class IOLoop:
         self.log = logging.getLogger(".".join([self.__class__.__module__,self.__class__.__name__]))
         self.add_worker()
     
+    def __repr__(self):
+        return "<{0} n={1} {2}>".format(self.__class__.__name__, len(self.workers), self.state.name)
+    
     def add_worker(self):
         """Add a new worker to this I/O Loop.
         

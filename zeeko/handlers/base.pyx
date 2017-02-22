@@ -201,14 +201,14 @@ cdef class SocketInfo:
             raise ValueError("Can't add option support when the socket is already bound.")
         self.opt = SocketOptions.wrap_socket(self.socket)
         
-    def create_ioloop(self, Context ctx):
+    def create_ioloop(self):
         """This is a shortcut method to create an I/O Loop to manage this object.
         
         :param zmq.Context ctx: The ZeroMQ context to use for sockets in this loop.
         :returns: The :class:`~zeeko.cyloop.loop.IOLoop` object.
         """
         from ..cyloop.loop import IOLoop
-        loop = IOLoop(ctx)
+        loop = IOLoop(self.socket.context)
         loop.attach(self)
         return loop
         
@@ -230,6 +230,9 @@ cdef class SocketInfo:
     def loop(self):
         """The :class:`~zeeko.cyloop.loop.IOLoop` object which manages this socket."""
         return self._loop()
+        
+    def _is_loop_running(self):
+        return self.loop is not None and self.loop.is_alive()
         
     cdef int _disconnect(self, str url) except -1:
         try:
@@ -289,9 +292,8 @@ cdef class SocketOptions(SocketInfo):
         :param int timeout: Response timeout, in milliseconds.
         
         """
-        if self.loop is not None:
-            if not self.loop.is_alive():
-                raise SocketOptionError("Can't set a socket option. The underlying I/O Loop is not running.")
+        if not self._is_loop_running():
+            raise SocketOptionError("Can't set a socket option. The underlying I/O Loop is not running.")
         
         sink = self.context.socket(zmq.REQ)
         sink.linger = 10
@@ -314,12 +316,16 @@ cdef class SocketOptions(SocketInfo):
                 raise SocketOptionTimeout("Socket setoption timed out after {0} ms.".format(timeout))
         return
     
-    def get(self, int option):
+    def get(self, int option, int timeout=1000):
         """Get a socket option.
         
         :param int option: The socket option to set.
+        :param int timeout: Response timeout, in milliseconds.
         
         """
+        if not self._is_loop_running():
+            raise SocketOptionError("Can't get a socket option. The underlying I/O Loop is not running.")
+        
         sink = self.context.socket(zmq.REQ)
         sink.linger = 10
         with sink:
@@ -327,13 +333,16 @@ cdef class SocketOptions(SocketInfo):
             sink.send(s.pack("i", GET), flags=zmq.SNDMORE)
             sink.send(s.pack("i", option))
             
-            result = s.unpack("i",sink.recv())[0]
-            if result == GET:
-                frame = <Frame>sink.recv(copy=False)
-                response = zmq_convert_sockopt(option, &frame.zmq_msg)
+            if sink.poll(zmq.POLLIN, timeout=timeout):
+                result = s.unpack("i",sink.recv())[0]
+                if result == GET:
+                    frame = <Frame>sink.recv(copy=False)
+                    response = zmq_convert_sockopt(option, &frame.zmq_msg)
+                else:
+                    errno = s.unpack("i",sink.recv())[0]
+                    raise zmq.ZMQError(errno)
             else:
-                errno = s.unpack("i",sink.recv())[0]
-                raise zmq.ZMQError(errno)
+                raise SocketOptionTimeout("Socket getoption timed out after {0} ms.".format(timeout))
         return response
     
     def subscribe(self, str key):
