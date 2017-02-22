@@ -7,6 +7,7 @@ import sys
 import inspect
 
 from distutils.core import Extension
+from distutils import log
 
 from astropy_helpers import setup_helpers
 
@@ -83,6 +84,21 @@ def get_zmq_library_path():
         elif os.path.exists(pjoin(ZMQDIR,".libs")):
             return [pjoin(ZMQDIR,".libs")+os.path.sep]
     return []
+
+def show_zmq_path_info():
+    """Show ZeroMQ path information."""
+    for path in get_zmq_include_path():
+        log.info("found zmq includes at '{0}'".format(path))
+    for path in get_zmq_library_path():
+        if len(glob.glob(pjoin(path, 'libzmq.*'))):
+            log.info("found libzmq at '{0}'".format(glob.glob(pjoin(path, 'libzmq.*'))[0]))
+            break
+        else:
+            log.debug("checked for libzmq at '{0}'".format(path))
+    else:
+        log.warn("did not find libzmq")
+
+show_zmq_path_info()
 
 def get_zmq_extension_args():
     """Get the ZMQ Distutils Extension Args"""
