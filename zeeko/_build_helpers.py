@@ -28,7 +28,7 @@ def get_parent_module():
 
 def get_parent_filename():
     """Get parent module filename."""
-    return os.path.relpath(get_parent_module().__file__, BASE)
+    return os.path.relpath(get_parent_module().__file__)
 
 def get_package_data():
     """A basic get-package-data."""
@@ -40,7 +40,12 @@ def module_to_path(module):
     base = BASE
     if module.startswith("."):
         base = os.path.relpath(os.path.dirname(get_parent_filename()))
-    return os.path.abspath(pjoin(base, *module.split(".")))
+        
+    updirs = len(module) - len(module.lstrip(".")) - 1
+    parts = ([ ".." ] * updirs) + module.lstrip(".").split(".")
+    
+    path = os.path.abspath(pjoin(base, *parts))
+    return path
 
 def pxd(module):
     """Return the path to a PXD file for a particular module."""
