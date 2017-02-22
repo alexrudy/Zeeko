@@ -123,6 +123,7 @@ cdef class SocketInfo:
         self.throttle = Throttle()
         self.data = <void *>self
         self._bound = False
+        self._inuse = Lock()
         self._loop = lambda : None
         
     def check(self):
@@ -143,6 +144,7 @@ cdef class SocketInfo:
     def _close(self):
         """Close this socketinfo."""
         self.socket.close(linger=0)
+        self._inuse.release()
         
     def close(self):
         """Safely close this socket wrapper"""
@@ -220,11 +222,13 @@ cdef class SocketInfo:
         
         :param ioloop: The IO Loop worker that should manage this socket.
         """
+        self._inuse.acquire()
         ioloop_worker._add_socketinfo(self)
         if self.opt is not None:
             ioloop_worker._add_socketinfo(self.opt)
         self._loop = weakref.ref(ioloop_worker.manager)
         self._bound = True
+        
         
     @property
     def loop(self):
@@ -296,7 +300,9 @@ cdef class SocketOptions(SocketInfo):
         
         """
         if not self._is_loop_running():
-            raise SocketOptionError("Can't set a socket option. The underlying I/O Loop is not running.")
+            with self._inuse:
+                self.socket.setsockopt(option, key)
+            # raise SocketOptionError("Can't set a socket option. The underlying I/O Loop is not running.")
         
         sink = self.context.socket(zmq.REQ)
         sink.linger = 10
@@ -327,7 +333,9 @@ cdef class SocketOptions(SocketInfo):
         
         """
         if not self._is_loop_running():
-            raise SocketOptionError("Can't get a socket option. The underlying I/O Loop is not running.")
+            with self._inuse:
+                return self.socket.getsockopt(option)
+            # raise SocketOptionError("Can't get a socket option. The underlying I/O Loop is not running.")
         
         sink = self.context.socket(zmq.REQ)
         sink.linger = 10

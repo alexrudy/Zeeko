@@ -1,7 +1,8 @@
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
 
-from ..utils.condition cimport Event, event
+from ..utils.condition cimport Event
+from ..utils.lock cimport Lock
 from ..cyloop.throttle cimport Throttle
 
 ctypedef int (*cyloop_callback)(void * handle, short events, void * data, void * interrupt_handle) nogil except -1
@@ -17,6 +18,9 @@ cdef class SocketInfo:
     
     cdef readonly Event fired
     """Event triggered when this callback fires."""
+    
+    cdef Lock _inuse
+    """Socket thread lock."""
     
     cdef bint _bound
     """Flag determines whether this SocketInfo is bound to a loop."""
