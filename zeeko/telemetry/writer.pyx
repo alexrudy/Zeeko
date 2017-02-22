@@ -97,11 +97,11 @@ cdef class Writer:
             self.last_message = tm
             
         while value == 1:
-            rc = self._receive_chunk(socket, flags, interrupt)
+            rc = self._receive_chunk(socket, flags)
             rc = check_zmq_rc(libzmq.zmq_getsockopt(socket, libzmq.ZMQ_RCVMORE, &value, &optsize))
         return rc
     
-    cdef int _receive_chunk(self, void * socket, int flags, void * interrupt) nogil except -1:
+    cdef int _receive_chunk(self, void * socket, int flags) nogil except -1:
         cdef int rc = 0
         cdef int i
         cdef unsigned int fc = 0

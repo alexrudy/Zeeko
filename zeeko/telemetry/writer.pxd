@@ -19,6 +19,6 @@ cdef class Writer:
     
     cdef int _release_arrays(self) nogil except -1
     cdef int _receive(self, void * socket, int flags, void * interrupt) nogil except -1
-    cdef int _receive_chunk(self, void * socket, int flags, void * interrupt) nogil except -1
+    cdef int _receive_chunk(self, void * socket, int flags) nogil except -1
 
     
