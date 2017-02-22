@@ -87,16 +87,24 @@ def get_zmq_library_path():
 
 def show_zmq_path_info():
     """Show ZeroMQ path information."""
+    found_zmq_h = False
     for path in get_zmq_include_path():
         log.info("found zmq includes at '{0}'".format(path))
+        if os.path.exists(pjoin(path, 'zmq.h')):
+            found_zmq_h = True
+            log.info("found zmq.h at '{0}'".format(pjoin(path, 'zmq.h')))
+    if not found_zmq_h:
+        log.warn("did not find zmq.h on pyzmq include paths")
+    
+    found_libzmq = False
     for path in get_zmq_library_path():
         if len(glob.glob(pjoin(path, 'libzmq.*'))):
             log.info("found libzmq at '{0}'".format(glob.glob(pjoin(path, 'libzmq.*'))[0]))
-            break
-        else:
+            found_libzmq = True
+        elif not found_libzmq:
             log.debug("checked for libzmq at '{0}'".format(path))
-    else:
-        log.warn("did not find libzmq")
+    if not found_libzmq:
+        log.warn("did not find libzmq on pyzmq library paths")
 
 show_zmq_path_info()
 
