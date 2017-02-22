@@ -34,6 +34,15 @@ cdef class Client(SocketMapping):
     for handling messages not-yet-received, and ensuring
     that the client keeps up with whatever server is streaming
     data.
+    
+    To use a simple client, with default settings, use :meth:`at_address`::
+        
+        >>> client = Client.at_address("inproc://my-server")
+        >>> client.create_loop()
+        <IOLoop n=1 INIT>
+        >>> client.loop.start()
+        >>> client.loop.stop(timeout=1.0)
+        
     """
     
     cdef Receiver receiver
@@ -68,6 +77,17 @@ cdef class Client(SocketMapping):
         if self.socket.type == zmq.SUB:
             self.support_options()
     
+    def __repr__(self):
+        parts = ["{0}".format(self.__class__.__name__)]
+        if self.address:
+            parts.append("address='{0}'".format(self.address))
+        if self.loop is not None:
+            parts.append("{0}".format(self.loop.state.name))
+        if len(self):
+            parts.append("last message at {0:%H%M%S}".format(self.last_message))
+            parts.append("keys=[{0}]".format(",".join(self.keys())))
+        return "<{0}>".format(" ".join(parts))
+    
     def enable_reconnections(self, str address not None):
         """Enable the reconnect/disconnect on pause.
         
@@ -77,7 +97,7 @@ cdef class Client(SocketMapping):
         self.use_reconnections = True
     
     @classmethod
-    def at_address(cls, str address, Context ctx, int kind = zmq.SUB, enable_reconnections=True):
+    def at_address(cls, str address, Context ctx = None, int kind = zmq.SUB, enable_reconnections=True):
         """Create a client which is already connected to a specified address.
     
         :param str address: The ZeroMQ address to connect to.
@@ -86,6 +106,7 @@ cdef class Client(SocketMapping):
         :param bool enable_reconnections: Whether to enable reconnection on pause for this socket.
         :returns: :class:`Server` object wrapping a socket connected to `address`.
         """
+        ctx = ctx or zmq.Context.instance()
         socket = ctx.socket(kind)
         socket.connect(address)
         obj = cls(socket, zmq.POLLIN)

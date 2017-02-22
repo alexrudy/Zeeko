@@ -7,6 +7,16 @@ windows:
     - workon -n Zeeko
   panes:
     - pane
+- window_name: test
+  shell_command_before:
+    - workon -n Zeeko
+  panes:
+    - watching_testrunner -b zeeko -p '*.p*' -- python setup.py test
+- window_name: doc
+  shell_command_before:
+    - workon -n Zeeko
+  panes:
+    - watching_testrunner -b zeeko -p '*.p*' -- python setup.py build_docs
 - window_name: testing
   layout: even-horizontal
   shell_command_before:
