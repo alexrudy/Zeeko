@@ -29,10 +29,10 @@ matrix:
           
         # Check for sphinx doc build warnings - we do this first because it
         # may run for a long time
-        # - python: 2.7
-        #   env:
-        #     - SETUP_CMD='build_sphinx -w'
-        #     - CONDA_DEPENDENCIES="$CONDA_DEPENDENCIES sphinx<1.4"
+        - python: 2.7
+          env:
+            - SETUP_CMD='build_sphinx -w'
+            - CONDA_DEPENDENCIES="$CONDA_DEPENDENCIES sphinx"
           
 
 # Setting sudo to false opts in to Travis-CI container-based builds.
