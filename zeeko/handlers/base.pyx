@@ -301,7 +301,7 @@ cdef class SocketOptions(SocketInfo):
         """
         if not self._is_loop_running():
             with self._inuse:
-                self.socket.setsockopt(option, key)
+                return self.socket.setsockopt(option, key)
             # raise SocketOptionError("Can't set a socket option. The underlying I/O Loop is not running.")
         
         sink = self.context.socket(zmq.REQ)
