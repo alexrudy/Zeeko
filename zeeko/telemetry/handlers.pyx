@@ -8,30 +8,30 @@ import h5py
 import itertools
 from ..utils.msg import internal_address
 
-from ..handlers.base cimport SocketInfo
+from ..handlers.base cimport SocketMutableMapping, SocketMapping
 from ..handlers.snail cimport Snail
 from .recorder cimport Recorder
 from .writer cimport Writer
 
-__all__ = ['RClient', 'WClient']
+__all__ = ['Telemetry', 'TelemetryWriter']
 
 cdef int recorder_callback(void * handle, short events, void * data, void * interrupt_handle) nogil except -1:
     cdef int rc = 0
     cdef int flags = 0
     if (events & libzmq.ZMQ_POLLIN):
-        rc = (<RClient>data).recorder._receive(handle, flags, (<RClient>data).notify_handle, 0)
-        rc = (<RClient>data).snail._check(interrupt_handle, (<RClient>data).recorder.last_message)
+        rc = (<Telemetry>data).recorder._receive(handle, flags, (<Telemetry>data).notify_handle, 0)
+        rc = (<Telemetry>data).snail._check(interrupt_handle, (<Telemetry>data).recorder.last_message)
     return rc
 
 cdef int writer_callback(void * handle, short events, void * data, void * interrupt_handle) nogil except -1:
     cdef int rc = 0
     cdef int flags = 0
     if (events & libzmq.ZMQ_POLLIN):
-        rc = (<WClient>data).writer._receive(handle, flags, NULL)
-        rc = (<WClient>data).snail._check(interrupt_handle, (<WClient>data).writer.last_message)
+        rc = (<TelemetryWriter>data).writer._receive(handle, flags, NULL)
+        rc = (<TelemetryWriter>data).snail._check(interrupt_handle, (<TelemetryWriter>data).writer.last_message)
     return rc
 
-cdef class RClient(SocketInfo):
+cdef class Telemetry(SocketMutableMapping):
     
     cdef readonly Recorder recorder
     cdef readonly Snail snail
@@ -40,12 +40,14 @@ cdef class RClient(SocketInfo):
     
     cdef readonly str notifications_address
     cdef readonly Socket notify
+    cdef readonly TelemetryWriter writer
     cdef void * notify_handle
     
     def __cinit__(self):
         
         # Initialize basic client functions
-        self.recorder = Recorder(1024)
+        from .sugar import Recorder
+        self.recorder = self.target = Recorder(1024)
         self.callback = recorder_callback
         
         # Delay management
@@ -54,10 +56,12 @@ cdef class RClient(SocketInfo):
         self.use_reconnections = False
         self.notify = None
         self.notify_handle = NULL
+        self.writer = None
     
     def __init__(self, *args, **kwargs):
+        from .sugar import Recorder
         chunksize = kwargs.pop('chunksize', 1024)
-        self.recorder = Recorder(chunksize)
+        self.recorder = self.target = Recorder(chunksize)
         super().__init__(self, *args, **kwargs)
         if self.socket.type == zmq.SUB:
             self.support_options()
@@ -67,14 +71,16 @@ cdef class RClient(SocketInfo):
         self.address = address
         self.use_reconnections = True
         
-    def enable_notifications(self, Context ctx, str address not None):
+    def enable_notifications(self, Context ctx, str address not None, str filename = None):
         self.notifications_address = address
         self.notify = ctx.socket(zmq.PUSH)
         self.notify.bind(self.notifications_address)
         self.notify_handle = self.notify.handle
+        self.writer = TelemetryWriter.from_recorder(filename, self, self.use_reconnections)
     
     @classmethod
-    def at_address(cls, str address, Context ctx, int kind = zmq.SUB, chunksize=1024,
+    def at_address(cls, str address, Context ctx, int kind = zmq.SUB, 
+                   str filename = None, int chunksize = 1024,
                    enable_reconnections=True, enable_notifications=True):
         socket = ctx.socket(kind)
         socket.connect(address)
@@ -82,7 +88,7 @@ cdef class RClient(SocketInfo):
         if enable_reconnections:
             obj.enable_reconnections(address)
         if enable_notifications:
-            obj.enable_notifications(ctx, internal_address(obj, 'notify'))
+            obj.enable_notifications(ctx, internal_address(obj, 'notify'), filename)
         return obj
         
     cdef int paused(self) nogil except -1:
@@ -121,9 +127,11 @@ cdef class RClient(SocketInfo):
             self.socket.close()
         if self.notify is not None and not self.notify.closed:
             self.notify.close()
+        if self.writer is not None:
+            self.writer.close()
     
 
-cdef class WClient(SocketInfo):
+cdef class TelemetryWriter(SocketMapping):
 
     cdef readonly Writer writer
     cdef readonly Snail snail
@@ -135,7 +143,8 @@ cdef class WClient(SocketInfo):
     def __cinit__(self):
 
         # Initialize basic client functions
-        self.writer = Writer()
+        from .sugar import Writer
+        self.writer = self.target = Writer()
         self.callback = writer_callback
         
         # Delay management
@@ -160,7 +169,8 @@ cdef class WClient(SocketInfo):
         obj = cls.at_address(rclient.notifications_address, 
                              rclient.notify.context, kind=zmq.PULL,
                              enable_reconnections=enable_reconnections)
-        obj.filename = filename
+        if filename is not None:
+            obj.filename = filename
         return obj
     
     @classmethod

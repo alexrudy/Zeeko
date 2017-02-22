@@ -4,14 +4,14 @@ import pytest
 import time
 import functools
 import zmq
-from ..handlers import RClient, WClient
+from ..handlers import Telemetry, TelemetryWriter
 from zeeko.conftest import assert_canrecv
 from ...handlers.tests.test_base import SocketInfoTestBase
 
 class TestRClient(SocketInfoTestBase):
     """Test the client socket."""
     
-    cls = RClient
+    cls = Telemetry
     
     @pytest.fixture
     def socketinfo(self, pull, push):
@@ -76,7 +76,7 @@ class TestRClient(SocketInfoTestBase):
     
     def test_pubsub(self, ioloop, address, context, Publisher, pub):
         """Test the pub/sub algorithm."""
-        client = self.cls.at_address(address, context, kind=zmq.SUB)
+        client = self.cls.at_address(address, context, kind=zmq.SUB, enable_notifications=False)
         ioloop.attach(client)
         n = 3
         self.run_loop_safely(ioloop, functools.partial(Publisher.publish, pub), n)

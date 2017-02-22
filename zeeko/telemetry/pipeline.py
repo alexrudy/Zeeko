@@ -7,7 +7,7 @@ import zmq
 
 from ..cyloop.loop import IOLoop
 from ..utils.msg import internal_address
-from .handlers import RClient, WClient
+from .handlers import Telemetry, TelemetryWriter
 
 __all__ = ['PipelineIOLoop', 'create_pipeline']
 
@@ -21,10 +21,10 @@ class PipelineIOLoop(IOLoop):
         context = context or zmq.Context.instance()
         super(PipelineIOLoop, self).__init__(context)
         self.add_worker()
-        self.record = RClient.at_address(address, context, kind=kind, chunksize=chunksize)
+        self.record = Telemetry.at_address(address, context, kind=kind, chunksize=chunksize, filename=filename)
         self.attach(self.record, 0)
-        self.write = WClient.from_recorder(filename, self.record)
-        self.attach(self.write, 1)
+        self.attach(self.record.writer, 1)
+        self.write = self.record.writer
         
     
         
