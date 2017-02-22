@@ -33,7 +33,28 @@ cdef int writer_callback(void * handle, short events, void * data, void * interr
         rc = (<TelemetryWriter>data).snail._check(interrupt_handle, (<TelemetryWriter>data).writer.last_message)
     return rc
 
-cdef class Telemetry(SocketMutableMapping):
+cdef class Telemetry(SocketMapping):
+    """A telemetry recording interface, which behaves like a Zeeko client.
+    
+    Messages are recorded in chunks of `chunksize`. When a chunk is full,
+    it is either discarded or sent to a :class:`TelemetryWriter` socket (see
+    :meth:`enable_notifications`).
+    
+    :param zmq.Socket socket: The ZeroMQ socket which will receive telemetry.
+    :param int events: The ZeroMQ events to listen for on this socket.
+    
+    To use a telemetry recorder, build one with :meth:`at_address`::
+        
+        >>> telemetry = Telemetry.at_address('inproc://telemetry')
+        >>> telemetry
+        <Telemetry chunksize=1024 address='inproc://telemetry'>
+        >>> loop = telemetry.create_ioloop()
+        >>> loop.start()
+        >>> telemetry
+        <Telemetry chunksize=1024 address='inproc://telemetry' RUN>
+        >>> loop.stop()
+    
+    """
     
     cdef Recorder recorder
     cdef readonly Snail snail
@@ -82,6 +103,18 @@ cdef class Telemetry(SocketMutableMapping):
         if self.socket.type == zmq.SUB:
             self.support_options()
     
+    def __repr__(self):
+        parts = ["{0}".format(self.__class__.__name__)]
+        parts.append("chunksize={0:d}".format(self.recorder.chunksize))
+        if self.address:
+            parts.append("address='{0}'".format(self.address))
+        if self.loop is not None:
+            parts.append("{0}".format(self.loop.state.name))
+        if len(self):
+            parts.append("last message at {0:%H%M%S}".format(self.last_message))
+            parts.append("keys=[{0}]".format(",".join(self.keys())))
+        return "<{0}>".format(" ".join(parts))
+    
     def enable_reconnections(self, str address not None):
         """Enable the reconnect/disconnect on pause.
     
@@ -106,7 +139,7 @@ cdef class Telemetry(SocketMutableMapping):
         return writer
     
     @classmethod
-    def at_address(cls, str address, Context ctx, int kind = zmq.SUB, 
+    def at_address(cls, str address, Context ctx = None, int kind = zmq.SUB, 
                    str filename = None, int chunksize = 1024,
                    enable_reconnections=True, enable_notifications=True):
         """Create a client which is already connected to a specified address.
@@ -121,6 +154,7 @@ cdef class Telemetry(SocketMutableMapping):
 
         :returns: :class:`Telemetry` object wrapping a socket connected to `address`.
         """
+        ctx = ctx or zmq.Context.instance()
         socket = ctx.socket(kind)
         socket.connect(address)
         obj = cls(socket, zmq.POLLIN, chunksize=chunksize)
@@ -188,6 +222,11 @@ cdef class Telemetry(SocketMutableMapping):
         if self.writer is not None:
             self.writer.close()
         
+    property chunkcount:
+        """The number of chunks completed by this object."""
+        def __get__(self):
+            return self.recorder.chunkcount
+        
     property framecounter:
         """The current framecounter for this client object.
 
@@ -212,16 +251,54 @@ cdef class Telemetry(SocketMutableMapping):
         """Whether the contained chunks are currently in a compelte state."""
         return self.recorder.complete
     
+    def create_ioloop(self):
+        """This is a shortcut method to create an I/O Loop to manage this object.
+    
+        :param zmq.Context ctx: The ZeroMQ context to use for sockets in this loop.
+        :returns: The :class:`~zeeko.cyloop.loop.IOLoop` object.
+        """
+        from ..cyloop.loop import IOLoop
+        loop = IOLoop(self.socket.context)
+        loop.attach(self)
+        if self.writer is not None:
+            loop.add_worker()
+            loop.attach(self.writer, 1)
+        return loop
+
 
 cdef class TelemetryWriter(SocketMapping):
+    """The telemetry writer writes chunks of data
+    to HDF5 files on disk. Chunks are appended when
+    appropriate.
+    
+    TelemetryWriter should be used primarily from the :class:`Telemetry`
+    object via :meth:`Telemetry.enable_notifications`.
+    """
 
     cdef Writer writer
+    
     cdef readonly Snail snail
+    """A :class:`~zeeko.handlers.snail.Snail` interface.
+    
+    The snail maintains the algorithm for properly handling
+    lag between the server and the client. When too much lag
+    occurs, the client will disconnect, drop intervenening
+    messages, and then reconnect."""
+    
     cdef str address
     cdef object counter
+    
     cdef public str filename
+    """Filename template for writing telemetry.
+    
+    If the filename contains a format field, it will be incremented
+    according to an internal counter. Otherwise, the HDF5 file will be
+    appended. By default, the filename contains a format field ``telemetry.{0:d}.hdf5``.
+    """
+    
     cdef public bint use_reconnections
-
+    """Whether the client should reconnect each time the I/O loop resumes processing messages."""
+    
     def __cinit__(self):
 
         # Initialize basic client functions

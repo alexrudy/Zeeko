@@ -4,7 +4,7 @@ import collections
 from .recorder import Recorder as _Recorder
 from .writer import Writer as _Writer
 
-class Recorder(_Recorder, collections.MutableMapping):
+class Recorder(_Recorder, collections.Mapping):
     pass
 
 class Writer(_Writer, collections.Mapping):
