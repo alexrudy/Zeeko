@@ -1,6 +1,7 @@
 numpy>=1.8
 astropy
---no-binary pyzmq>=15.4.0
+--no-binary pyzmq
+pyzmq>=15.4.0
 click
 Cython>=0.24
 pytest
