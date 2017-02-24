@@ -106,9 +106,9 @@ cdef class IOLoopWorker:
     def _signal_state(self, state):
         """Signal a state change."""
         self._not_done()
-        self.log.debug("state.signal()")
+        self.log.debug("state.signal({0})".format(state))
         self.state.signal(state, self._internal_address_interrupt, self.context)
-        self.log.debug("state.signal() [DONE]")
+        self.log.debug("state.signal({0}) [DONE]".format(state))
     
     def _not_done(self):
         self.state.guard(STOP)
