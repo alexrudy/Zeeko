@@ -4,6 +4,9 @@ include LICENSE.rst
 include ez_setup.py
 include ah_bootstrap.py
 
+include zeeko/utils/mclock.h
+
 exclude *.pyc *.o
 prune build
-prune Zeeko/tests
+prune zeeko/tests
+prune zeeko/**/tests
