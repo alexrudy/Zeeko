@@ -9,12 +9,12 @@ def array(shape, dtype):
 @pytest.fixture
 def chunksize():
     """The size of chunks."""
-    return 1024
+    return 20
     
 @pytest.fixture
 def lastindex():
     """The last index filled in."""
-    return 512
+    return 17
     
 @pytest.fixture
 def filename(tmpdir):
