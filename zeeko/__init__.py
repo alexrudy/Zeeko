@@ -15,4 +15,5 @@ ZEEKO_PROTOCOL_VERSION = 1
 
 # For egg_info test builds to pass, put package imports here.
 if not _ASTROPY_SETUP_:
-    pass
+    from .zmq_check import check_zeromq
+    check_zeromq()
