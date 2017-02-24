@@ -37,10 +37,18 @@ def chunks(n, name, chunk_array, chunk_mask):
     """Return a list of chunks"""
     return [chunk_api.PyChunk("{0:s}{1:d}".format(name, i), np.random.randn(*chunk_array.shape), chunk_mask) for i in range(n)]
 
+@pytest.fixture
+def metadata_callback():
+    """Return a metadata callback."""
+    def callback():
+        return {'meta':'data', 'n':5}
+    return callback
+
+
 def test_writer_construction(filename):
     """Test construction"""
     w = Writer(filename)
-    
+
 class TestWriter(object):
     """Test case for recorders."""
     
@@ -49,15 +57,15 @@ class TestWriter(object):
     pytestmark = pytest.mark.usefixtures("rnotify")
     
     @pytest.fixture
-    def writer(self, push, pull, notify, filename):
+    def writer(self, push, pull, notify, filename, metadata_callback):
         """Return a receiver"""
         self._pull = pull
         self._push = push
         self._notify = notify
         w = Writer()
-        w.file = h5py.File(filename)
-        yield w
-        w.file.close()
+        w.metadata_callback = metadata_callback
+        with h5py.File(filename) as w.file:
+            yield w
     
     @pytest.fixture
     def framecount(self):
@@ -78,7 +86,7 @@ class TestWriter(object):
             chunk.send(self._push, flags=zmq.SNDMORE)
         chunks[-1].send(self._push, flags=0)
     
-    def test_once(self, chunks, framecount, writer):
+    def test_once(self, chunks, framecount, writer, metadata_callback):
         """Test the writer system with a single message."""
         self.send(chunks, framecount)
         self.recv(writer)
@@ -93,6 +101,9 @@ class TestWriter(object):
         writer.file.flush()
         for key in writer.keys():
             assert_h5py_allclose(writer.file[key], cdict[key])
+            md = dict(writer.file[key].attrs)
+            for key in metadata_callback():
+                assert key in md
         
     def test_sentinel(self, writer, rnotify):
         """Test the shutdown sentinel"""

@@ -335,6 +335,10 @@ cdef class TelemetryWriter(SocketMapping):
         self.address = address
         self.use_reconnections = True
         
+    def set_metadata_callback(self, callback):
+        """Register a callback to be used to set HDF5 attributes when writing to a file."""
+        self.writer.metadata_callback = callback
+        
     @classmethod
     def from_recorder(cls, str filename, rclient, enable_reconnections=True):
         obj = cls.at_address(rclient.notifications_address, 
