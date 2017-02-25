@@ -58,14 +58,14 @@ cdef class Recorder:
     def __len__(self):
         return self.map.n
     
-    def __getitem__(self, bytes key):
+    def __getitem__(self, key):
         i = self.map[key]
         return Chunk.from_chunk(&self._chunks[i])
         
     def __iter__(self):
         return iter(self.map.keys())
         
-    def __setitem__(self, bytes key, value):
+    def __setitem__(self, key, value):
         raise NotImplementedError("Can't mutate recorder dictionary.")
     
     def __delitem__(self, key):

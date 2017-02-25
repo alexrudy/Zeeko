@@ -14,6 +14,8 @@ import itertools
 
 from .. import ZEEKO_PROTOCOL_VERSION
 
+from ..utils.sandwich import sandwich_unicdoe, unsandwich_unicode
+
 class zmq_ndarray(np.ndarray):
     pass
 
@@ -96,7 +98,7 @@ def send_named_array(socket, name, A, framecount=None, flags=0, copy=True, track
         Track the message
     
     """
-    socket.send(name, flags|zmq.SNDMORE)
+    socket.send(sandwich_unicdoe(name), flags|zmq.SNDMORE)
     return send_array(socket, A, framecount=framecount, flags=flags, copy=copy, track=track)
 
 def recv_array(socket, flags=0, copy=True, track=False):
@@ -162,7 +164,7 @@ def recv_named_array(socket, flags=0, copy=True, track=False):
     
     
     """
-    name = socket.recv(flags=flags, copy=copy, track=track)
+    name = unsandwich_unicode(socket.recv(flags=flags, copy=copy, track=track))
     A = recv_array(socket, flags=flags, copy=copy, track=track)
     return (name, A)
     
@@ -175,7 +177,7 @@ def send_array_packet_header(socket, topic, narrays, framecount=0, timestamp=Non
     if timestamp is None:
         timestamp = time.time()
     
-    m1 = socket.send(topic, flags=bflags, copy=copy, track=False)
+    m1 = socket.send(sandwich_unicdoe(topic), flags=bflags, copy=copy, track=False)
     m2 = socket.send(struct.pack("I", framecount), flags=bflags, copy=copy, track=False)
     m3 = socket.send(struct.pack("i", narrays), flags=bflags, copy=copy, track=False)
     m4 = socket.send(struct.pack("d", timestamp), flags=flags, copy=copy, track=False)

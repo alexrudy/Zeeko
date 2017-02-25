@@ -1,4 +1,5 @@
 # Re-usable hash map for char * pointers.
+import sys
 
 from .rc cimport realloc, malloc
 from libc.stdlib cimport free
@@ -13,6 +14,18 @@ cdef hashvalue hash_data(char * data, size_t length) nogil except -1:
         value = ((value << 5) + value) + c
     return value
     
+cdef bytes sandwich_unicode(object value):
+    if not isinstance(value, bytes):
+         return value.encode('utf-8')
+    return value
+    
+cdef object unsandwich_unicode(char * value, size_t length):
+    cdef bytes pyvalue = PyBytes_FromStringAndSize(value, length)
+    if sys.version_info[0] < 3:
+        return pyvalue
+    else:
+        return pyvalue.decode('utf-8')
+    
 cdef class HashMap:
     """A slow, simple hash map for binary data to integer indicies"""
     
@@ -26,10 +39,15 @@ cdef class HashMap:
     def __len__(self):
         return self.n
     
-    def keys(self):
-        return [ PyBytes_FromStringAndSize(self.hashes[i].data, self.hashes[i].length) for i in range(self.n) ]
+    def __iter__(self):
+        for i in range(self.n):
+            yield unsandwich_unicode(self.hashes[i].data, self.hashes[i].length)
         
-    def add(self, bytes key):
+    def keys(self):
+        return list(self)
+        
+    def add(self, keyv):
+        cdef bytes key = sandwich_unicode(keyv)
         cdef size_t length = len(key)
         cdef int rc = self.get(<char *>key, length)
         if rc == -1:
@@ -39,8 +57,9 @@ cdef class HashMap:
     def __repr__(self):
         return "HashMap({0!r})".format(self.keys())
         
-    def __getitem__(self, bytes key):
+    def __getitem__(self, keyv):
         """Get the index for a single name."""
+        cdef bytes key = sandwich_unicode(keyv)
         cdef size_t length = len(key)
         return self.lookup(<char *>key, length)
         

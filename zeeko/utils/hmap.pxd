@@ -1,6 +1,9 @@
 # Hash map implementation.
 ctypedef unsigned long hashvalue
 
+cdef object unsandwich_unicode(char * value, size_t length)
+cdef bytes sandwich_unicode(object value)
+
 ctypedef struct hashentry:
     hashvalue value
     char * data

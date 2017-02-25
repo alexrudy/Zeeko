@@ -324,7 +324,7 @@ cdef class IOLoop:
         for worker in self.workers:
             worker.throttle.configure(**kwargs)
     
-    def signal(self, str state):
+    def signal(self, state):
         """Signal a specific state to each worker.
         
         :param str state: The name of the state for signaling.

@@ -7,6 +7,8 @@ import numpy as np
 import zmq
 from zmq.utils import jsonapi
 
+from ..utils.sandwich import sandwich_unicdoe, unsandwich_unicode
+
 from .. import ZEEKO_PROTOCOL_VERSION
 
 class PyChunk(object):
@@ -76,7 +78,7 @@ class PyChunk(object):
     
     def send(self, socket, flags=0):
         """Send this chunk over a ZMQ socket."""
-        socket.send(self.name, flags=flags|zmq.SNDMORE)
+        socket.send(sandwich_unicdoe(self.name), flags=flags|zmq.SNDMORE)
         socket.send_json(self.md, flags=flags|zmq.SNDMORE)
         socket.send(self.array, flags=flags|zmq.SNDMORE)
         socket.send(self.mask, flags=flags)
@@ -88,7 +90,7 @@ class PyChunk(object):
     @classmethod
     def recv(cls, socket, flags=0):
         """Recieve a chunk from a socket."""
-        name = socket.recv(flags=flags)
+        name = unsandwich_unicode(socket.recv(flags=flags))
         md = socket.recv_json(flags=flags)
         msg = socket.recv(flags=flags)
         try:

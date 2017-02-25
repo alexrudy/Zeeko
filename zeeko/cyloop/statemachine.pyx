@@ -6,6 +6,7 @@ from libc.stdlib cimport free, calloc
 
 import struct as s
 import zmq
+from ..utils.sandwich import sandwich_unicdoe, unsandwich_unicode
 
 STATE = {
     b'RUN': 1,
@@ -51,7 +52,8 @@ cdef class StateMachine:
         
     
     def __iter__(self):
-        return iter(self._name_to_long)
+        for name in self._name_to_long:
+            yield unsandwich_unicode(name)
     
     def __dealloc__(self):
         if self._select_events != NULL:
@@ -66,10 +68,10 @@ cdef class StateMachine:
             free(self._event_to_long)
     
     def name_to_state(self, name):
-        return self._name_to_long[name]
+        return self._name_to_long[sandwich_unicdoe(name)]
         
     def state_to_name(self, state):
-        return self._long_to_name[state]
+        return unsandwich_unicode(self._long_to_name[state])
         
     def selected(self, state):
         """Return an event which is triggered when this state is selected."""

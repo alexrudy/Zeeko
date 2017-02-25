@@ -44,7 +44,7 @@ cdef class Writer:
     def __len__(self):
         return self.map.n
 
-    def __getitem__(self, bytes key):
+    def __getitem__(self, key):
         i = self.map[key]
         return Chunk.from_chunk(&self._chunks[i])
     
