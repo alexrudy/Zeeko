@@ -5,6 +5,7 @@ include ez_setup.py
 include ah_bootstrap.py
 
 include zeeko/utils/mclock.h
+recursive-include zeeko *.pxd
 
 exclude *.pyc *.o
 prune build
