@@ -1,0 +1,4 @@
+# Requirements core to Zeeko's operations.
+--no-binary pyzmq
+pyzmq>=15.4.0
+h5py
