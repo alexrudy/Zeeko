@@ -124,7 +124,7 @@ cdef class SocketInfo:
         self.data = <void *>self
         self._bound = False
         self._inuse = Lock()
-        self._loop = lambda : None
+        self._loop_ref = lambda : None
         
     def __init__(self, socket, events, **kwargs):
         super().__init__()
@@ -215,7 +215,15 @@ cdef class SocketInfo:
         from ..cyloop.loop import IOLoop
         loop = IOLoop(self.socket.context)
         loop.attach(self)
+        self._loop = loop
         return loop
+        
+    def _register(self, ioloop_worker):
+        """Register ownership of an IOLoop"""
+        self._inuse.acquire()
+        self._loop_ref = weakref.ref(ioloop_worker.manager)
+        self._bound = True
+        
         
     def _attach(self, ioloop_worker):
         """Attach this object to an ioloop.
@@ -225,18 +233,16 @@ cdef class SocketInfo:
         
         :param ioloop: The IO Loop worker that should manage this socket.
         """
-        self._inuse.acquire()
+        self._register(ioloop_worker)
         ioloop_worker._add_socketinfo(self)
         if self.opt is not None:
+            self.opt._register(ioloop_worker)
             ioloop_worker._add_socketinfo(self.opt)
-        self._loop = weakref.ref(ioloop_worker.manager)
-        self._bound = True
-        
         
     @property
     def loop(self):
         """The :class:`~zeeko.cyloop.loop.IOLoop` object which manages this socket."""
-        return self._loop()
+        return self._loop_ref()
         
     def _is_loop_running(self):
         if self.loop is None:
@@ -315,7 +321,7 @@ cdef class SocketOptions(SocketInfo):
             sink.send(s.pack("i", option), flags=zmq.SNDMORE)
             sink.send(key)
             
-            if sink.poll(zmq.POLLIN, timeout=timeout):
+            if sink.poll(timeout=timeout, flags=zmq.POLLIN):
                 result = s.unpack("i",sink.recv())[0]
                 if result == SET:
                     reply_option = s.unpack("i",sink.recv())[0]
@@ -347,7 +353,7 @@ cdef class SocketOptions(SocketInfo):
             sink.send(s.pack("i", GET), flags=zmq.SNDMORE)
             sink.send(s.pack("i", option))
             
-            if sink.poll(zmq.POLLIN, timeout=timeout):
+            if sink.poll(timeout=timeout, flags=zmq.POLLIN):
                 result = s.unpack("i",sink.recv())[0]
                 if result == GET:
                     frame = <Frame>sink.recv(copy=False)
