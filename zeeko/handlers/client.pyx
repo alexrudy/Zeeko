@@ -72,7 +72,7 @@ cdef class Client(SocketMapping):
         self.use_reconnections = False
     
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         if self.socket.type == zmq.SUB:
             self.support_options()
     

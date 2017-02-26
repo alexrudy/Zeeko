@@ -109,7 +109,7 @@ cdef class Telemetry(SocketMapping):
         from .sugar import Recorder
         chunksize = kwargs.pop('chunksize', 1024)
         self.recorder = self.target = Recorder(chunksize)
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         if self.socket.type == zmq.SUB:
             self.support_options()
     
@@ -326,7 +326,7 @@ cdef class TelemetryWriter(SocketMapping):
         self.use_reconnections = False
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         if self.socket.type == zmq.SUB:
             self.support_options()
 

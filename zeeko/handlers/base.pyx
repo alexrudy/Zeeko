@@ -126,6 +126,9 @@ cdef class SocketInfo:
         self._inuse = Lock()
         self._loop = lambda : None
         
+    def __init__(self, socket, events, **kwargs):
+        super().__init__()
+    
     def check(self):
         """Check this socketinfo object for safe c values.
         """
