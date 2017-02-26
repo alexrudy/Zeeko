@@ -298,7 +298,9 @@ cdef class TelemetryWriter(SocketMapping):
     cdef str address
     cdef object counter
     
-    cdef public str filename
+    cdef str last_filename
+    
+    cdef public str filename_template
     """
     
     Filename template for writing telemetry.
@@ -321,7 +323,8 @@ cdef class TelemetryWriter(SocketMapping):
         # Delay management
         self.snail = Snail()
         self.address = ""
-        self.filename = "telemetry.{0:04d}.hdf5"
+        self.filename_template = "telemetry.{0:04d}.hdf5"
+        self.last_filename = ""
         self.counter = itertools.count()
         self.use_reconnections = False
 
@@ -339,13 +342,18 @@ cdef class TelemetryWriter(SocketMapping):
         """Register a callback to be used to set HDF5 attributes when writing to a file."""
         self.writer.metadata_callback = callback
         
+    @property
+    def filename(self):
+        """The last recorded filename."""
+        return self.last_filename
+        
     @classmethod
     def from_recorder(cls, str filename, rclient, enable_reconnections=True):
         obj = cls.at_address(rclient.notifications_address, 
                              rclient.notify.context, kind=zmq.PULL,
                              enable_reconnections=enable_reconnections)
         if filename is not None:
-            obj.filename = filename
+            obj.filename_template = filename
         return obj
     
     @classmethod
@@ -381,7 +389,8 @@ cdef class TelemetryWriter(SocketMapping):
         """Function called when the loop is resumed."""
         if self.writer.file is None:
             with gil:
-                self.writer.file = h5py.File(self.filename.format(next(self.counter)))
+                self.last_filename = self.filename_template.format(next(self.counter))
+                self.writer.file = h5py.File(self.last_filename)
         
         if not self.use_reconnections:
             return 0
