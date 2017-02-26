@@ -5,6 +5,7 @@ from libc.stdlib cimport free
 from libc.string cimport memcpy
 
 from cpython cimport PyBytes_FromStringAndSize
+from .sandwich import unsandwich_unicode
 import zmq
 
 cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1:
@@ -79,7 +80,7 @@ cdef int zmq_msg_from_str(libzmq.zmq_msg_t * zmsg, char[:] src):
 
 cdef str zmq_msg_to_str(libzmq.zmq_msg_t * msg):
     """Construct a string from a ZMQ message."""
-    return str(PyBytes_FromStringAndSize(<char *>libzmq.zmq_msg_data(msg), <Py_ssize_t>libzmq.zmq_msg_size(msg)))
+    return unsandwich_unicode(PyBytes_FromStringAndSize(<char *>libzmq.zmq_msg_data(msg), <Py_ssize_t>libzmq.zmq_msg_size(msg)))
     
 def internal_address(self, *parts):
     """Construct an internal address for zmq."""

@@ -1,6 +1,9 @@
 import pytest
 import numpy as np
 
+from zmq.utils import jsonapi
+jsonify = lambda data : jsonapi.loads(jsonapi.dumps(data))
+
 @pytest.fixture
 def array(shape, dtype):
     """An array to send over the wire"""
@@ -39,7 +42,7 @@ def assert_chunk_allclose(chunka, chunkb):
     """Assert that two chunks are essentially the same."""
     np.testing.assert_allclose(chunka.array, chunkb.array)
     np.testing.assert_allclose(chunka.mask, chunkb.mask)
-    assert chunka.metadata == chunkb.metadata
+    assert jsonify(chunka.md) == jsonify(chunkb.md)
     assert chunka.chunksize == chunkb.chunksize
     assert chunka.lastindex == chunkb.lastindex
     assert chunka.name == chunkb.name
@@ -49,7 +52,7 @@ def assert_chunk_array_allclose(chunk, array, index=None):
     """Assert that a chunk and an array are all close."""
     if index is None:
         index = chunk.lastindex
-    assert chunk.metadata == array.metadata
+    assert jsonify(chunk.md) == jsonify(array.md)
     assert chunk.name == array.name
     assert np.max(chunk.mask) >= index + 1
     mask = chunk.mask

@@ -26,7 +26,7 @@ from ..utils.condition cimport event_init, event_trigger, event_destroy
 import numpy as np
 import collections
 from zmq.utils import jsonapi
-
+from ..utils.sandwich import sandwich_unicode
 
 cdef unsigned long hash_name(char * name, size_t length) nogil except -1:
     cdef unsigned long hashvalue = 5381
@@ -242,7 +242,7 @@ cdef class Receiver:
         cdef unsigned long hashvalue
         cdef char[:] _name
         cdef int j
-        _name = bytearray(name)
+        _name = bytearray(sandwich_unicode(name))
         hashvalue = hash_name(&_name[0], len(_name))
         j = self._get_event(hashvalue)
         return Event._from_event(&self._events[j].evt)

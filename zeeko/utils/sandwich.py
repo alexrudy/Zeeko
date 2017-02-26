@@ -2,9 +2,11 @@
 
 import sys
 
-__all__ = ['sandwich_unicdoe', 'unsandwich_unicode']
+PY2 = (sys.version_info[0] == 2)
 
-def sandwich_unicdoe(value):
+__all__ = ['sandwich_unicode', 'unsandwich_unicode']
+
+def sandwich_unicode(value):
     """Sandwich unicode values"""
     if isinstance(value, bytes):
         return value
@@ -13,6 +15,6 @@ def sandwich_unicdoe(value):
 
 def unsandwich_unicode(value):
     """Unsandwich a bytestirng value."""
-    if isinstance(value, bytes) and sys.version_info[0] > 2:
+    if isinstance(value, bytes) and not PY2:
         return value.decode("utf-8")
     return value

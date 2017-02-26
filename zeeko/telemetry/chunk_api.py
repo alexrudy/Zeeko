@@ -7,7 +7,7 @@ import numpy as np
 import zmq
 from zmq.utils import jsonapi
 
-from ..utils.sandwich import sandwich_unicdoe, unsandwich_unicode
+from ..utils.sandwich import sandwich_unicode, unsandwich_unicode
 
 from .. import ZEEKO_PROTOCOL_VERSION
 
@@ -67,7 +67,7 @@ class PyChunk(object):
     @property
     def metadata(self):
         """The JSON-encoded metadata for this chunk"""
-        return jsonapi.dumps(self.md)
+        return unsandwich_unicode(jsonapi.dumps(self.md))
     
     def append(self, data):
         """Append data to the chunk"""
@@ -78,7 +78,7 @@ class PyChunk(object):
     
     def send(self, socket, flags=0):
         """Send this chunk over a ZMQ socket."""
-        socket.send(sandwich_unicdoe(self.name), flags=flags|zmq.SNDMORE)
+        socket.send(sandwich_unicode(self.name), flags=flags|zmq.SNDMORE)
         socket.send_json(self.md, flags=flags|zmq.SNDMORE)
         socket.send(self.array, flags=flags|zmq.SNDMORE)
         socket.send(self.mask, flags=flags)

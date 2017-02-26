@@ -8,6 +8,7 @@ import struct
 
 from .. import array as array_api
 from ..message import ArrayMessage
+from ...utils.sandwich import unsandwich_unicode
 
 @pytest.fixture(params=[0,1,6])
 def framecount(request):
@@ -17,7 +18,7 @@ def framecount(request):
 def test_array_message(array):
     """Test generating an array message."""
     metadata, _ = array_api.generate_array_message(array)
-    meta = json.loads(metadata)
+    meta = json.loads(unsandwich_unicode(metadata))
     assert tuple(meta['shape']) == array.shape
     assert meta['dtype'] == array.dtype.str
     

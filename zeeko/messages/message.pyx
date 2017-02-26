@@ -21,6 +21,7 @@ from .carray cimport carray_named, carray_message_info
 # Utilities
 from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
+from ..utils.sandwich import sandwich_unicode, unsandwich_unicode
 from .. import ZEEKO_PROTOCOL_VERSION
 
 __all__ = ['ArrayMessage']
@@ -39,7 +40,7 @@ cdef int zmq_msg_from_str(libzmq.zmq_msg_t * zmsg, char[:] src):
 
 cdef str zmq_msg_to_str(libzmq.zmq_msg_t * msg):
     """Construct a string from a ZMQ message."""
-    return str(PyBytes_FromStringAndSize(<char *>libzmq.zmq_msg_data(msg), <Py_ssize_t>libzmq.zmq_msg_size(msg)))
+    return unsandwich_unicode(PyBytes_FromStringAndSize(<char *>libzmq.zmq_msg_data(msg), <Py_ssize_t>libzmq.zmq_msg_size(msg)))
 
 cdef class ArrayMessage:
     """A single array which is sent or received over a streaming socket.
@@ -65,8 +66,7 @@ cdef class ArrayMessage:
     
     def __init__(self, str name, data):
         # Initialize with new values.
-        self._name = str(name)
-        self._construct_name()
+        self._construct_name(bytearray(sandwich_unicode(name)))
         data = np.asarray(data)
         self._frame = Frame(data=data)
         self._readonly = False
@@ -74,9 +74,8 @@ cdef class ArrayMessage:
         self._construct_data()
         self._construct_info()
         
-    def _construct_name(self):
+    def _construct_name(self, char[:] name):
         cdef int rc
-        cdef char[:] name = bytearray(self._name)
         
         rc = libzmq.zmq_msg_close(&self._message.name)
         check_rc(rc)
@@ -88,9 +87,11 @@ cdef class ArrayMessage:
         """Construct the metadata message."""
         cdef int rc
         cdef char[:] metadata
+        cdef bytes metadata_str
         cdef void * msg_data
         A = <object>data
-        metadata = bytearray(jsonapi.dumps(dict(shape=A.shape, dtype=A.dtype.str, version=ZEEKO_PROTOCOL_VERSION)))
+        
+        metadata = bytearray(sandwich_unicode(jsonapi.dumps(dict(shape=A.shape, dtype=A.dtype.str, version=ZEEKO_PROTOCOL_VERSION))))
         
         rc = libzmq.zmq_msg_close(&self._message.array.metadata)
         check_rc(rc)
@@ -188,6 +189,11 @@ cdef class ArrayMessage:
         """JSON-formatted array metadata."""
         def __get__(self):
             return zmq_msg_to_str(&self._message.array.metadata)
+            
+    property md:
+        """JSON loaded metadata"""
+        def __get__(self):
+            return jsonapi.loads(self.metadata)
     
     def _parse_metadata(self):
         """Internal function to parse the JSON metadata."""

@@ -6,7 +6,7 @@ from libc.stdlib cimport free, calloc
 
 import struct as s
 import zmq
-from ..utils.sandwich import sandwich_unicdoe, unsandwich_unicode
+from ..utils.sandwich import sandwich_unicode, unsandwich_unicode
 
 STATE = {
     b'RUN': 1,
@@ -68,7 +68,7 @@ cdef class StateMachine:
             free(self._event_to_long)
     
     def name_to_state(self, name):
-        return self._name_to_long[sandwich_unicdoe(name)]
+        return self._name_to_long[sandwich_unicode(name)]
         
     def state_to_name(self, state):
         return unsandwich_unicode(self._long_to_name[state])

@@ -15,7 +15,6 @@ cdef class ArrayMessage:
     
     # Outbound array data references
     cdef bint _readonly
-    cdef str _name
     cdef Frame _frame
     
     # Array message structure.

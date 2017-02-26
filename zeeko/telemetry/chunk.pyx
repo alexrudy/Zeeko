@@ -22,6 +22,7 @@ import numpy as np
 from zmq.utils import jsonapi
 from .. import ZEEKO_PROTOCOL_VERSION
 from . import io
+from ..utils.sandwich import sandwich_unicode, unsandwich_unicode
 
 __all__ = ['Chunk']
 
@@ -235,7 +236,7 @@ cdef class Chunk:
         cdef int rc = 0
         
         #Initialize name
-        self._construct_name(str(name))
+        self._construct_name(bytearray(sandwich_unicode(name)))
         
         #Initialize the chunk structure.
         self._chunk.chunksize = chunksize
@@ -251,9 +252,8 @@ cdef class Chunk:
         self._construct_metadata(np.asarray(data))
         self._chunk.last_index = self.lastindex
         
-    def _construct_name(self, str pyname):
+    def _construct_name(self, char[:] name):
         cdef int rc
-        cdef char[:] name = bytearray(pyname)
         rc = libzmq.zmq_msg_close(&self._chunk.name)
         check_zmq_rc(rc)
     
@@ -266,7 +266,7 @@ cdef class Chunk:
         cdef char[:] metadata
         cdef void * msg_data
         A = <object>data
-        metadata = bytearray(jsonapi.dumps(dict(shape=A.shape[1:], dtype=A.dtype.str, version=ZEEKO_PROTOCOL_VERSION)))
+        metadata = bytearray(sandwich_unicode(jsonapi.dumps(dict(shape=A.shape[1:], dtype=A.dtype.str, version=ZEEKO_PROTOCOL_VERSION))))
         
         rc = libzmq.zmq_msg_close(&self._chunk.metadata)
         check_zmq_rc(rc)
