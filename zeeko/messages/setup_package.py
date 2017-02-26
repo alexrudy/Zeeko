@@ -9,8 +9,8 @@ from astropy_helpers import setup_helpers
 dependencies = {
     'carray'    : [ pxd(".utils") ],
     'message'   : [ pxd(".carray"), pxd(".utils"), pxd("..utils.clock")],
-    'receiver'  : [ pxd(".carray"), pxd(".utils"), pxd("..utils.pthread"), pxd("..utils.condition")],
-    'publisher' : [ pxd(".carray"), pxd(".utils"), pxd("..utils.pthread"), pxd("..utils.clock"), pxd(".receiver")]
+    'receiver'  : [ pxd(".carray"), pxd(".utils"), pxd('.message'), pxd("..utils.pthread"), pxd("..utils.condition")],
+    'publisher' : [ pxd(".carray"), pxd(".utils"), pxd('.message'), pxd("..utils.pthread"), pxd("..utils.clock"), pxd(".receiver")]
 }
 
 def get_extensions(**kwargs):
