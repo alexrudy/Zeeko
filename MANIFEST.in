@@ -3,6 +3,7 @@ include LICENSE.rst
 
 include ez_setup.py
 include ah_bootstrap.py
+include zmqconfig.py
 
 include zeeko/utils/mclock.h
 recursive-include zeeko *.pxd

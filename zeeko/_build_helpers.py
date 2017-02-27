@@ -10,6 +10,7 @@ from distutils.core import Extension
 from distutils import log
 
 from astropy_helpers import setup_helpers
+from zmqconfig import libzmq_settings
 
 pjoin = os.path.join
 HERE = os.path.dirname(__file__)
@@ -60,65 +61,13 @@ def h(module):
     """Return the path to an h file."""
     return module_to_path(module) + ".h"
 
-def get_zmq_include_path():
-    """Get the ZMQ include path in an import-safe manner."""
-    try:
-        import zmq
-        includes = zmq.get_includes()
-    except ImportError as e:
-        includes = []
-        if os.path.exists(pjoin(HERE, 'include')):
-            includes += [ pjoin(HERE, 'include') ]
-    return includes
-
-def get_zmq_library_path():
-    """Get the ZMQ include path in an import-safe manner."""
-    try:
-        import zmq
-    except ImportError as e:
-        pass
-    else:
-        ZMQDIR = os.path.dirname(zmq.__file__)
-        if len(glob.glob(pjoin(ZMQDIR, 'libzmq.*'))):
-            return [ZMQDIR]
-        elif os.path.exists(pjoin(ZMQDIR,".libs")):
-            return [pjoin(ZMQDIR,".libs")+os.path.sep]
-    return []
-
-def show_zmq_path_info():
-    """Show ZeroMQ path information."""
-    found_zmq_h = False
-    for path in get_zmq_include_path():
-        log.info("found zmq includes at '{0}'".format(path))
-        if os.path.exists(pjoin(path, 'zmq.h')):
-            found_zmq_h = True
-            log.info("found zmq.h at '{0}'".format(pjoin(path, 'zmq.h')))
-    if not found_zmq_h:
-        log.warn("did not find zmq.h on pyzmq include paths")
-    
-    found_libzmq = False
-    for path in get_zmq_library_path():
-        if len(glob.glob(pjoin(path, 'libzmq.*'))):
-            log.info("found libzmq at '{0}'".format(glob.glob(pjoin(path, 'libzmq.*'))[0]))
-            found_libzmq = True
-        elif not found_libzmq:
-            log.debug("checked for libzmq at '{0}'".format(path))
-    if not found_libzmq:
-        log.warn("did not find libzmq on pyzmq library paths")
-
-show_zmq_path_info()
-
 def get_zmq_extension_args():
     """Get the ZMQ Distutils Extension Args"""
     cfg = setup_helpers.DistutilsExtensionArgs()
-    cfg['include_dirs'] = get_zmq_include_path()
-    cfg['library_dirs'] = get_zmq_library_path()
-    cfg['runtime_library_dirs'] = get_zmq_library_path()
-    cfg['libraries'] = ['zmq']
+    cfg.update(libzmq_settings(False))
     if not (sys.platform.startswith('darwin') or sys.platform.startswith('freebsd')):
         cfg['libraries'].append("rt")
         cfg['libraries'].append("pthread")
-    
     return cfg
     
 def get_utils_extension_args():
