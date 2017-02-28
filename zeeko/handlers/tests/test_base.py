@@ -7,7 +7,7 @@ from pytest import approx
 
 from ...cyloop.throttle import Throttle
 from ...utils.stopwatch import Stopwatch
-from ..base import SocketInfo
+from ..base import SocketInfo, SocketOptions
 from ...tests.test_helpers import ZeekoTestBase
 
 
@@ -179,6 +179,12 @@ class SocketInfoTestBase(ZeekoTestBase):
         print("Finished setsocketoptions loop test")
         
     
+    def test_create_ioloop(self, socketinfo):
+        """Test creating an IOLoop instance"""
+        ioloop = socketinfo.create_ioloop()
+        with self.running_loop(ioloop, timeout=0.1):
+            assert socketinfo._is_loop_running()
+    
     def test_check(self, socketinfo):
         """Test check should not raise"""
         socketinfo.check()
@@ -194,6 +200,12 @@ class TestSocketInfo(SocketInfoTestBase):
         si = self.cls(s, zmq.POLLIN)
         yield si
         si.close()
+        
+    def test_create_ioloop(self, socketinfo):
+        """Socketinfo shouldn't work."""
+        with pytest.raises(AssertionError):
+            super(TestSocketInfo, self).test_create_ioloop(socketinfo)
+        
         
     def test_setsocketoptions(self, ioloop, socketinfo):
         """Sockopts shouldn't work."""
@@ -214,4 +226,18 @@ class TestSocketInfo(SocketInfoTestBase):
         """Check the socket."""
         with pytest.raises(AssertionError):
             socketinfo.check() # Should assert some internal stuff.
+            
+
+class TestSocketOptions(SocketInfoTestBase):
+    """Test the client socket."""
+    
+    cls = SocketOptions
+    
+    @pytest.fixture
+    def socketinfo(self, pull):
+        """Socket information."""
+        si = self.cls.wrap_socket(pull)
+        yield si
+        si.close()
+    
     
