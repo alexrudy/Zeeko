@@ -7,6 +7,28 @@ import zmq
 from ..client import Client
 from zeeko.conftest import assert_canrecv
 from .test_base import SocketInfoTestBase
+from ...tests.test_helpers import ZeekoMappingTests
+
+class TestClientMapping(ZeekoMappingTests):
+    """Test client mappings."""
+    
+    cls = Client
+    
+    @pytest.fixture
+    def mapping(self, pull, push, Publisher):
+        """A client, set up for use as a mapping."""
+        c = self.cls(pull, zmq.POLLIN)
+        Publisher.publish(push)
+        while pull.poll(timeout=100, flags=zmq.POLLIN):
+            c.receive(pull)
+        yield c
+        c.close()
+        
+    @pytest.fixture
+    def keys(self, Publisher):
+        """Return keys which should be availalbe."""
+        return Publisher.keys()
+    
 
 class TestClient(SocketInfoTestBase):
     """Test the client socket."""

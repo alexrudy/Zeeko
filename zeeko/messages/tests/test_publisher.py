@@ -12,8 +12,9 @@ from ..message import ArrayMessage
 from ..sugar import Publisher
 from .. import array as array_api
 from .test_base import BaseContainerTests
+from ...tests.test_helpers import ZeekoMutableMappingTests, ZeekoTestBase
 
-class TestArrayMessage(object):
+class TestArrayMessage(ZeekoTestBase):
     """Test an array message object."""
     
     cls = ArrayMessage
@@ -30,12 +31,27 @@ class TestArrayMessage(object):
         pub.array[:] = np.ones((10,))
         assert pub.array.shape == (10,)
         assert pub.name == "array"
+        assert pub.dtype == np.float
+        assert pub.framecount == 0
+        assert pub.md == {'shape':[10], 'dtype':'<f8', 'version': 1}
+        assert isinstance(pub.metadata, str)
+        assert pub.timestamp > 0
     
 
-class TestPublisher(BaseContainerTests):
+class TestPublisher(BaseContainerTests, ZeekoMutableMappingTests):
     """Test the publisher."""
     
     cls = Publisher
+    
+    @pytest.fixture
+    def mapping(self, obj):
+        """Return a mapping"""
+        return obj
+    
+    @pytest.fixture
+    def keys(self, name, n):
+        """Return the keys"""
+        return ["{0:s}{1:d}".format(name, i) for i in range(n)]
     
     @pytest.fixture
     def obj(self, name, n, shape):

@@ -8,7 +8,7 @@ from pytest import approx
 from ...cyloop.throttle import Throttle
 from ...utils.stopwatch import Stopwatch
 from ..base import SocketInfo
-from ...tests.helpers import ZeekoTestBase
+from ...tests.test_helpers import ZeekoTestBase
 
 
 class SocketInfoTestBase(ZeekoTestBase):

@@ -7,6 +7,28 @@ from ..server import Server
 from zeeko.conftest import assert_canrecv
 from .test_base import SocketInfoTestBase
 
+from ...tests.test_helpers import ZeekoMutableMappingTests
+
+class TestServerMutableMapping(ZeekoMutableMappingTests):
+    """Test the server as a mutable mapping."""
+    
+    cls = Server
+    
+    @pytest.fixture
+    def mapping(self, pull, push, arrays):
+        """A client, set up for use as a mapping."""
+        c = self.cls(push, zmq.POLLIN)
+        for k, v in arrays:
+            c[k] = v
+        yield c
+        c.close()
+        
+    @pytest.fixture
+    def keys(self, arrays):
+        """Return keys which should be availalbe."""
+        return [k for k,v in arrays]
+    
+
 class TestServer(SocketInfoTestBase):
     """Test the client socket."""
     

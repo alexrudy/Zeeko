@@ -1,6 +1,8 @@
 import pytest
 
-class BaseContainerTests(object):
+from ...tests.test_helpers import ZeekoTestBase
+
+class BaseContainerTests(ZeekoTestBase):
     """Base tests for containers"""
     
     cls = None

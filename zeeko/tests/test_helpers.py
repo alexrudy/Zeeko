@@ -63,7 +63,7 @@ class ZeekoMappingTests(ZeekoTestBase):
         
     def assert_value_for_key(self, key, value):
         """Assert that a value is correct for a key."""
-        assert value == 'world'
+        assert value.name == key
     
     def test_getitem(self, mapping, keys):
         """Test the mappings"""
@@ -93,12 +93,12 @@ class ZeekoMappingTests(ZeekoTestBase):
     def test_values(self, mapping, keys):
         """Test the values view."""
         values = [mapping[key] for key in keys]
-        assert set(mapping.values()) >= set(values)
+        assert len(set(mapping.values())) >= len(set(values))
     
     def test_items(self, mapping, keys):
         """Test the mapping items view."""
         items = [(key, mapping[key]) for key in keys]
-        assert set(mapping.items()) >= set(items)
+        assert len(set(mapping.items())) >= len(set(items))
     
     def test_get(self, mapping, keys, missing_key):
         """Test get"""
@@ -110,5 +110,5 @@ class ZeekoMappingTests(ZeekoTestBase):
         value = mapping.get(missing_key, default)
         assert value is default
     
-    
-        
+class ZeekoMutableMappingTests(ZeekoMappingTests):
+    """Include tests for the mutability of mappings"""
