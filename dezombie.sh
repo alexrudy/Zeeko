@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
 SIGNAL=${1:-9}
-echo $SIGNAL
-ps | grep $VIRTUAL_ENV/bin/python | ghead -n -1
-ps | grep $VIRTUAL_ENV/bin/python | ghead -n -1 | awk '{ print $1 }' | xargs kill -$SIGNAL
+ps | grep $VIRTUAL_ENV/bin/python | grep "_ASTROPY_TEST_ = True" | awk '{ print $1 $2 }'
+ps | grep $VIRTUAL_ENV/bin/python | grep "_ASTROPY_TEST_ = True" | awk '{ print $1 }' | xargs kill -$SIGNAL
