@@ -333,7 +333,7 @@ cdef class SocketOptions(SocketInfo):
         
         if not self._is_loop_running():
             with self._inuse.timeout(timeout):
-                return self.socket.setsockopt(option, optval)
+                return self.client.setsockopt(option, optval)
             # raise SocketOptionError("Can't set a socket option. The underlying I/O Loop is not running.")
         
         optctl_c = PyBytes_FromStringAndSize(<char *>&optctl, sizeof(int))
@@ -376,7 +376,7 @@ cdef class SocketOptions(SocketInfo):
         
         if not self._is_loop_running():
             with self._inuse.timeout(timeout):
-                return self.socket.getsockopt(option)
+                return self.client.getsockopt(option)
             # raise SocketOptionError("Can't get a socket option. The underlying I/O Loop is not running.")
         
         optctl_c = PyBytes_FromStringAndSize(<char *>&optctl, sizeof(int))

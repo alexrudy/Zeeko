@@ -156,6 +156,10 @@ class SocketInfoTestBase(ZeekoTestBase):
             hwm = socketinfo.opt.get(zmq.RCVHWM)
             assert isinstance(hwm, int)
         
+        # We should get a ZeroMQ error here, because
+        # the socket was closed by ending the I/O Loop.
+        with pytest.raises(zmq.ZMQError):
+            hwm = socketinfo.opt.get(zmq.RCVHWM)
     
     def test_setsocketoptions(self, ioloop, socketinfo):
         """Test set socket options"""
@@ -170,8 +174,13 @@ class SocketInfoTestBase(ZeekoTestBase):
         with self.running_loop(ioloop, timeout=0.1):
             # This should test against the REP/REQ pair
             # which impelments live socket options
-            socketinfo.opt.set(zmq.RCVHWM, 100)
             
+            hwm = socketinfo.opt.get(zmq.RCVHWM, 10)
+            assert isinstance(hwm, int)
+            assert hwm == 10
+            
+            
+            socketinfo.opt.set(zmq.RCVHWM, 100)
             hwm = socketinfo.opt.get(zmq.RCVHWM)
             assert isinstance(hwm, int)
             assert hwm == 100
@@ -240,4 +249,6 @@ class TestSocketOptions(SocketInfoTestBase):
         yield si
         si.close()
     
-    
+    def test_get(self, ioloop, socketinfo):
+        """Test the get method for socket options."""
+        pass
