@@ -6,6 +6,7 @@ import functools
 from ..loop import IOLoop, DebugIOLoop
 from ..statemachine import StateError
 from zeeko.conftest import assert_canrecv
+from ...tests.test_helpers import ZeekoTestBase
 
 @pytest.fixture
 def loop(context):
@@ -13,7 +14,7 @@ def loop(context):
     yield l
     l.cancel()
     
-class IOLoopTests(object):
+class IOLoopTests(ZeekoTestBase):
     """Test set for IO Loops."""
     
     cls = None
@@ -28,14 +29,13 @@ class IOLoopTests(object):
     def test_loop_attrs(self, loop, address, context):
         """Test loop attributes."""
         assert loop.context == context
-    
         with pytest.raises(AttributeError):
             loop.context = 1
     
     def test_loop_start_stop(self, loop):
         """Test loop start stop."""
         print(".start()")
-        loop.start()
+        loop.start(timeout=10.0)
         print(".is_alive()")
         assert loop.is_alive()
         print(".stop()")
@@ -52,6 +52,11 @@ class IOLoopTests(object):
             assert loop.is_alive()
         print(".is_alive()")
         assert not loop.is_alive()
+        
+    def test_loop_background(self, loop):
+        """Test loop running in the backgrond"""
+        with self.running_loop(loop):
+            assert loop.is_alive()
 
     def test_loop_states(self, loop):
         """Test worker states."""
@@ -75,7 +80,7 @@ class IOLoopTests(object):
 
     def test_loop_multistop(self, loop):
         """Test loop multistop"""
-        loop.start()
+        loop.start(timeout=0.1)
         print("First stop")
         loop.stop(timeout=1.0)
     

@@ -12,7 +12,7 @@ class ZeekoTestBase(object):
     """A base class for all Zeeko tests."""
     
     @contextlib.contextmanager
-    def running_loop(self, ioloop, timeout):
+    def running_loop(self, ioloop, timeout=0.1):
         """Running loop."""
         assert timeout, "Must set a timeout for the loop."
         with ioloop.running(timeout=timeout):

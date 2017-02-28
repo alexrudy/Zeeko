@@ -103,11 +103,11 @@ cdef class IOLoopWorker:
         return self.thread.start()
         
     # Thread management functions
-    def _signal_state(self, state):
+    def _signal_state(self, state, timeout=100):
         """Signal a state change."""
         self._not_done()
         self.log.debug("state.signal({0})".format(state))
-        self.state.signal(state, self._internal_address_interrupt, self.context)
+        self.state.signal(state, self._internal_address_interrupt, context=self.context, timeout=timeout)
         self.log.debug("state.signal({0}) [DONE]".format(state))
     
     def _not_done(self):
@@ -324,34 +324,34 @@ cdef class IOLoop:
         for worker in self.workers:
             worker.throttle.configure(**kwargs)
     
-    def signal(self, state):
+    def signal(self, state, timeout=1.0):
         """Signal a specific state to each worker.
         
         :param str state: The name of the state for signaling.
         """
         for worker in self.workers:
-            worker._signal_state(state)
+            worker._signal_state(state, timeout=timeout * 1000)
     
-    def start(self):
+    def start(self, timeout=1.0):
         """Start the workers."""
-        self.signal(b"RUN")
+        self.signal(b"RUN", timeout=timeout)
         
-    def resume(self):
+    def resume(self, timeout=1.0):
         """Resume the workers"""
         self.state.guard(INIT)
-        self.signal(b"RUN")
+        self.signal(b"RUN", timeout=timeout)
     
-    def pause(self):
+    def pause(self, timeout=1.0):
         """Pause all workers"""
-        self.signal(b"PAUSE")
+        self.signal(b"PAUSE", timeout=timeout)
 
-    def stop(self, timeout=None, join=True):
+    def stop(self, timeout=1.0, join=True):
         """Stop the workers.
         
         :param timeout: Seconds to wait for workers to join.
         :param bool join: Whether to join worker threads, or leave them dangling.
         """
-        self.signal(b"STOP")
+        self.signal(b"STOP", timeout=timeout)
         if join:
             self.join(timeout=timeout)
         
@@ -370,7 +370,7 @@ cdef class IOLoop:
         :param bool join: Whether to join worker threads, or leave them dangling.
         """
         try:
-            self.signal(b"STOP")
+            self.signal(b"STOP", timeout=timeout)
         except StateError:
             pass
         self.join(timeout=timeout)

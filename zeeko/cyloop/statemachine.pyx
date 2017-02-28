@@ -186,14 +186,14 @@ cdef class StateMachine:
             return 1
         return 0
         
-    def signal(self, state, address, context = None):
+    def signal(self, state, address, context = None, timeout = 100):
         """Signal a state change."""
         context = context or zmq.Context.instance()
         signal = context.socket(zmq.PUSH)
         signal.linger = 1000
         with signal:
             signal.connect(address) # Should not block?
-            if signal.poll(timeout=100, flags=zmq.POLLOUT):
+            if signal.poll(timeout=timeout, flags=zmq.POLLOUT):
                 try:
                     signal.send(s.pack("i", self._convert(state)), flags=zmq.NOBLOCK)
                 except zmq.Again:
