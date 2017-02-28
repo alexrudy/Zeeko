@@ -7,6 +7,12 @@ import time
 
 from ..utils.stopwatch import Stopwatch
 
+# Fallback for OrderedDict
+try:
+    from collections import OrderedDict
+except ImportError:
+    from astropy.utils.compat.odict import OrderedDict
+
 
 class ZeekoTestBase(object):
     """A base class for all Zeeko tests."""

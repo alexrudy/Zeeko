@@ -8,6 +8,7 @@ from ..client import Client
 from zeeko.conftest import assert_canrecv
 from .test_base import SocketInfoTestBase
 from ...tests.test_helpers import ZeekoMappingTests
+from ...messages.tests.test_receiver import ReceiverTestBase
 
 class TestClientMapping(ZeekoMappingTests):
     """Test client mappings."""
@@ -29,6 +30,18 @@ class TestClientMapping(ZeekoMappingTests):
         """Return keys which should be availalbe."""
         return Publisher.keys()
     
+
+class TestClientReceiver(ReceiverTestBase):
+    """Test client as a receiver."""
+    
+    cls = Client
+    
+    @pytest.fixture
+    def receiver(self, pull):
+        """The receiver object"""
+        c = self.cls(pull, zmq.POLLIN)
+        yield c
+        c.close()
 
 class TestClient(SocketInfoTestBase):
     """Test the client socket."""

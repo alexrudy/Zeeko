@@ -8,6 +8,7 @@ from zeeko.conftest import assert_canrecv
 from .test_base import SocketInfoTestBase
 
 from ...tests.test_helpers import ZeekoMutableMappingTests
+from ...messages.tests.test_publisher import BasePublisherTests
 
 class TestServerMutableMapping(ZeekoMutableMappingTests):
     """Test the server as a mutable mapping."""
@@ -27,6 +28,21 @@ class TestServerMutableMapping(ZeekoMutableMappingTests):
     def keys(self, arrays):
         """Return keys which should be availalbe."""
         return [k for k,v in arrays]
+    
+
+class TestServerPublisher(BasePublisherTests):
+    """Tests for the Server conforming to the publisher interface."""
+    
+    cls = Server
+    
+    @pytest.fixture
+    def obj(self, pull, push, arrays):
+        """Return the publisher, with arrays."""
+        c = self.cls(push, zmq.POLLERR)
+        for k, v in arrays:
+            c[k] = v
+        yield c
+        c.close()
     
 
 class TestServer(SocketInfoTestBase):

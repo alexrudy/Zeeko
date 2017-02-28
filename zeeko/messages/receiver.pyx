@@ -292,7 +292,7 @@ cdef class Receiver:
         return self._n_messages
     
     def __repr__(self):
-        return "<Receiver frame={:d} keys=[{:s}]>".format(self._framecount, ",".join(self.keys()))
+        return "<Receiver frame={0:d} keys=[{1:s}]>".format(self._framecount, ",".join(self.keys()))
     
     property framecount:
         """Counter which increments for each message sent-or-received."""

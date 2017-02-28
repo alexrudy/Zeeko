@@ -37,31 +37,30 @@ class TestArrayMessage(ZeekoTestBase):
         assert isinstance(pub.metadata, str)
         assert pub.timestamp > 0
     
-
-class TestPublisher(BaseContainerTests, ZeekoMutableMappingTests):
-    """Test the publisher."""
+class TestPublisherMapping(ZeekoMutableMappingTests):
+    """Test mapping characterisitics of the publisher"""
     
     cls = Publisher
     
     @pytest.fixture
-    def mapping(self, obj):
-        """Return a mapping"""
-        return obj
-    
-    @pytest.fixture
-    def keys(self, name, n):
-        """Return the keys"""
-        return ["{0:s}{1:d}".format(name, i) for i in range(n)]
-    
-    @pytest.fixture
-    def obj(self, name, n, shape):
+    def mapping(self, name, n, shape):
         """Return the publisher, with arrays."""
         publishers = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
         pub = Publisher([])
         for name, array in publishers:
             pub[name] = array
         return pub
-        
+
+    
+    @pytest.fixture
+    def keys(self, name, n):
+        """Return the keys"""
+        return ["{0:s}{1:d}".format(name, i) for i in range(n)]
+    
+
+class BasePublisherTests(BaseContainerTests):
+    """Base tests for publishers."""
+    
     def test_publish(self, obj, push, pull, name):
         """Test the array publisher."""
         obj.publish(push)
@@ -78,6 +77,20 @@ class TestPublisher(BaseContainerTests, ZeekoMutableMappingTests):
             assert "{0:s}{1:d}".format(name, i) == recvd_name
             np.testing.assert_allclose(A, obj[key].array)
             assert not pull.getsockopt(zmq.RCVMORE)
+
+class TestPublisher(BasePublisherTests):
+    """Test the publisher."""
+    
+    cls = Publisher
+    
+    @pytest.fixture
+    def obj(self, name, n, shape):
+        """Return the publisher, with arrays."""
+        publishers = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
+        pub = Publisher([])
+        for name, array in publishers:
+            pub[name] = array
+        return pub
 
 @pytest.fixture
 def n():

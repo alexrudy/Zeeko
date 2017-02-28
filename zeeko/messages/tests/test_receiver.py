@@ -12,107 +12,162 @@ import zmq
 from ..message import ArrayMessage
 from .. import Receiver
 from .. import array as array_api
-import struct
-from zeeko.conftest import assert_canrecv
+from ...utils.condition import Event
 
+import struct
+
+from zeeko.conftest import assert_canrecv
+from ...tests.test_helpers import ZeekoMappingTests, ZeekoTestBase, OrderedDict
 
 @pytest.fixture
 def n():
     """Number of arrays to publish."""
     return 3
-
-def test_receiver_array_init():
-    """Can't raw init."""
-    with pytest.raises(TypeError):
-        ArrayMessage()
-    
-    
-def test_receiver_array(req, rep, array, name):
-    """Test update array items."""
-    array_api.send_named_array(req, name, array)
-    
-    reply = ArrayMessage.receive(rep)
-    np.testing.assert_allclose(reply.array, array)
-    assert reply.name == name
     
 
-def test_receiver(push, pull, shape, name, n):
-    """Test the receiver system."""
-    arrays = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
+construct_name = "{0:s}{1:d}".format
+
+class ReceiverTestBase(ZeekoTestBase):
+    """Tests for the basic recorder object."""
     
-    framecount = 5
-    array_api.send_array_packet(push, framecount, arrays)
+    cls = Receiver
     
-    rcv = Receiver()
-    rcv.receive(pull)
-    assert len(rcv) == n
-    for i in range(len(rcv)):
-        np.testing.assert_allclose(rcv["{0:s}{1:d}".format(name, i)].array, arrays[i][1])
+    @pytest.fixture
+    def receiver(self):
+        """The receiver object"""
+        return self.cls()
+    
+    @pytest.fixture
+    def arrays(self, shape, name, n):
+        """Arrays"""
+        return OrderedDict((construct_name(name, i), np.random.randn(*shape)) for i in range(n))
         
-
-def test_receiver_unbundled(push, pull, shape, name, n):
-    """Test the receiver system."""
-    arrays = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
+    @pytest.fixture
+    def framecount(self):
+        """A fixture for the framecount."""
+        return 5
+        
+    def send_arrays(self, socket, arrays, framecount):
+        """Send arrays."""
+        assert socket.poll(timeout=100, flags=zmq.POLLOUT)
+        array_api.send_array_packet(socket, framecount, list(arrays.items()), flags=zmq.NOBLOCK)
+        
+    def recv_arrays(self, receiver, socket, arrays, flags=zmq.NOBLOCK):
+        """Wrapper around receiving arrays."""
+        assert_canrecv(socket)
+        receiver.receive(socket, flags=flags)
+        for key in arrays:
+            assert receiver.event(key).is_set()
+        assert len(receiver) == len(arrays)
     
-    for _name, array in arrays:
-        array_api.send_named_array(push, _name, array)
+    def send_unbundled_arrays(self, socket, arrays):
+        """Send arrays as individual messages."""
+        for name, array in arrays.items():
+            assert socket.poll(timeout=100, flags=zmq.POLLOUT)
+            array_api.send_named_array(socket, name, array, flags=zmq.NOBLOCK)
+        
+    def recv_unbundled_arrays(self, receiver, socket, arrays, flags=zmq.NOBLOCK):
+        """Receive unbundled arrays"""
+        count = 0
+        while socket.poll(timeout=100, flags=zmq.POLLIN):
+            assert_canrecv(socket)
+            receiver.receive(socket, flags=flags)
+            count += 1
+        for key in arrays:
+            assert receiver.event(key).is_set()
+        assert count == len(arrays)
     
-    rcv = Receiver()
-    for i in range(n):
-        assert_canrecv(pull)
-        rcv.receive(pull)
-    assert len(rcv) == n
-    print(rcv.keys())
-    for i in range(len(rcv)):
-        key = "{0:s}{1:d}".format(name, i)
-        source = arrays[i][1]
-        target = rcv[key].array
-        np.testing.assert_allclose(target, source)
+    def assert_receiver_arrays_allclose(self, receiver, arrays):
+        """Assert receiver and arrays are all close."""
+        assert len(receiver) == len(arrays)
+        assert set(receiver.keys()) == set(arrays.keys())
+        for i, key in enumerate(receiver):
+            data = receiver[key].array
+            np.testing.assert_allclose(data, arrays[key])
+        
+    def test_receiver_attrs(self, receiver):
+        """Test receiver attributes after init"""
+        assert receiver.framecount == 0
+        last_message = receiver.last_message
+        if isinstance(last_message, float):
+            assert last_message == 0.0
+        else:
+            assert time.mktime(last_message.timetuple()) == 0.0
+        evt = receiver.event("my_key")
+        assert isinstance(evt, Event)
     
-def test_receiver_multiple(push, pull, shape, name, n):
-    """Test receive multiple messages."""
-    arrays = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-    arrays2 = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
+    def test_receiver_packet(self, receiver, push, pull, arrays, framecount):
+        """Test receive a single message."""
+        self.send_arrays(push, arrays, framecount)
+        for key in arrays:
+            assert not receiver.event(key).is_set()
+        self.recv_arrays(receiver, pull, arrays)
+        self.assert_receiver_arrays_allclose(receiver, arrays)
+        
+    def test_receiver_unbundled(self, receiver, push, pull, arrays):
+        """Test an unbundled send."""
+        self.send_unbundled_arrays(push, arrays)
+        for key in arrays:
+            assert not receiver.event(key).is_set()
+        self.recv_unbundled_arrays(receiver, pull, arrays)
+        self.assert_receiver_arrays_allclose(receiver, arrays)
+        
+    def test_receiver_multiple(self, receiver, push, pull, arrays, framecount):
+        """Test multiple consecutive packets."""
+        self.send_arrays(push, arrays, framecount)
+        arrays_2 = OrderedDict((key, data * 2.0) for key, data in arrays.items())
+        self.send_arrays(push, arrays_2, framecount + 1)
+        for key in arrays:
+            assert not receiver.event(key).is_set()
+        self.recv_arrays(receiver, pull, arrays)
+        self.assert_receiver_arrays_allclose(receiver, arrays)
+        assert receiver.framecount == framecount
+        self.recv_arrays(receiver, pull, arrays)
+        self.assert_receiver_arrays_allclose(receiver, arrays_2)
+        assert receiver.framecount == framecount + 1
     
-    framecount = 5
-    array_api.send_array_packet(push, framecount, arrays)
-    framecount = 6
-    array_api.send_array_packet(push, framecount, arrays2)
+    def test_retain_multiple(self, receiver, push, pull, arrays, framecount):
+        """Test retain against multiple receiver array bodies."""
+        self.send_arrays(push, arrays, framecount)
+        arrays_2 = OrderedDict((key, data * 2.0) for key, data in arrays.items())
+        self.send_arrays(push, arrays_2, framecount + 1)
+        for key in arrays:
+            assert not receiver.event(key).is_set()
+        self.recv_arrays(receiver, pull, arrays)
+        self.assert_receiver_arrays_allclose(receiver, arrays)
+        akey = set(receiver.keys()).pop()
+        reference = receiver[akey]
+        self.recv_arrays(receiver, pull, arrays)
+        self.assert_receiver_arrays_allclose(receiver, arrays_2)
+        reference2 = receiver[akey]
+        assert reference.name == reference2.name
+        assert not np.allclose(reference.array, reference2.array)
+        
+    def test_repr(self, receiver, push, pull, arrays, framecount):
+        """Test representation."""
+        assert self.cls.__name__ in repr(receiver)
+        self.send_arrays(push, arrays, framecount)
+        self.recv_arrays(receiver, pull, arrays)
+        assert self.cls.__name__ in repr(receiver)
     
-    rcv = Receiver()
-    event = rcv.event("{0:s}{1:d}".format(name, 0))
-    assert not event.is_set()
-    assert_canrecv(pull)
-    rcv.receive(pull)
-    assert len(rcv) == n
-    assert event.is_set()
-    for i in range(len(rcv)):
-        np.testing.assert_allclose(rcv["{0:s}{1:d}".format(name, i)].array, arrays[i][1])
-    assert_canrecv(pull)
-    rcv.receive(pull)
-    for i in range(len(rcv)):
-        np.testing.assert_allclose(rcv["{0:s}{1:d}".format(name, i)].array, arrays2[i][1])
+class TestReceiver(ReceiverTestBase):
+    """Concrete implementation of tests for receivers."""
+    pass
     
-def test_retain_multiple(push, pull, shape, name, n):
-    """Test retaining multiple references to a given array."""
-    arrays = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-    arrays2 = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
+class TestReceiverMapping(ZeekoMappingTests, ReceiverTestBase):
+    """Test client mappings."""
     
-    framecount = 5
-    array_api.send_array_packet(push, framecount, arrays)
-    framecount = 6
-    array_api.send_array_packet(push, framecount, arrays2)
+    cls = Receiver
     
-    rcv = Receiver()
-    assert_canrecv(pull)
-    rcv.receive(pull)
-    assert len(rcv) == n
-    for i in range(len(rcv)):
-        np.testing.assert_allclose(rcv["{0:s}{1:d}".format(name, i)].array, arrays[i][1])
-    refd_array = rcv[1].array
-    assert_canrecv(pull)
-    rcv.receive(pull)
-    for i in range(len(rcv)):
-        np.testing.assert_allclose(rcv["{0:s}{1:d}".format(name, i)].array, arrays2[i][1])
-    refd_array2 = rcv[1].array
-    assert (refd_array != refd_array2).any()
+    @pytest.fixture
+    def mapping(self, pull, push, arrays, framecount):
+        """A client, set up for use as a mapping."""
+        receiver = self.cls(pull, zmq.POLLIN)
+        self.send_arrays(push, arrays, framecount)
+        self.recv_arrays(receiver, pull, arrays)
+        yield receiver
+        
+    @pytest.fixture
+    def keys(self, arrays):
+        """Return keys which should be availalbe."""
+        return arrays.keys()
