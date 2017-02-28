@@ -10,8 +10,6 @@ from ..utils.rc cimport check_zmq_rc, malloc, free
 from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_more
 from ..utils.msg cimport zmq_convert_sockopt, zmq_invert_sockopt, zmq_size_sockopt
 
-from libc.stdio cimport printf
-
 from cpython cimport PyBytes_FromStringAndSize
 
 # Python Imports
@@ -53,14 +51,8 @@ cdef int getsockopt(void * handle, void * target) nogil except -1:
         return -2
     
     rc = zmq_recv_sized_message(handle, &sz, sizeof(size_t), flags)
-    printf("Option = %d\n", sockopt)
-    printf("rc = %d\n", rc)
-    printf("Target = %p\n", target)
     optval = malloc(sz)
     rc = libzmq.zmq_getsockopt(target, sockopt, &optval, &sz)
-    printf("rc = %d\n", rc)
-    if rc == -1:
-        printf("zmq_getsockopt: %d\n", libzmq.zmq_errno())
     if rc == 0:
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &optval, sz, flags))
@@ -80,19 +72,12 @@ cdef int setsockopt(void * handle, void * target) nogil except -1:
     cdef libzmq.zmq_msg_t zmessage
     
     rc = zmq_recv_sized_message(handle, &sockopt, sizeof(int), flags)
-    printf("Option = %d\n", sockopt)
     if not zmq_recv_more(handle) == 1:
         return -2
-    
     rc = zmq_init_recv_msg_t(handle, flags, &zmessage)
-    printf("rc = %d\n", rc)
-    printf("Target = %p\n", target)
     rc = libzmq.zmq_setsockopt(target, sockopt, 
                                 libzmq.zmq_msg_data(&zmessage), 
                                 libzmq.zmq_msg_size(&zmessage))
-    printf("rc = %d\n", rc)
-    if rc == -1:
-        printf("zmq_setsockopt: %d\n", libzmq.zmq_errno())
     if rc == 0:
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &sockopt, sizeof(int), flags))
