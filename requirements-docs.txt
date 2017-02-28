@@ -1,0 +1,5 @@
+# This file contains requirements which are common to the core and python>=2.6
+astropy
+numpy
+Cython>=0.24
+-r requirements-core.txt
