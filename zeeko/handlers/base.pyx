@@ -200,6 +200,9 @@ cdef class SocketInfo:
         cdef libzmq.zmq_pollitem_t pollitem
         cdef int rc 
         
+        if socket is None:
+            socket = self.socket
+        
         pollitem.socket = socket.handle
         pollitem.revents = events
         pollitem.events = self.events
