@@ -6,9 +6,13 @@ from zmq.backend.cython.message cimport Frame
 from zmq.backend.cython.context cimport Context
 
 from libc.string cimport strlen
-from ..utils.rc cimport check_zmq_rc
+from ..utils.rc cimport check_zmq_rc, malloc, free
 from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_more
-from ..utils.msg cimport zmq_convert_sockopt
+from ..utils.msg cimport zmq_convert_sockopt, zmq_invert_sockopt, zmq_size_sockopt
+
+from libc.stdio cimport printf
+
+from cpython cimport PyBytes_FromStringAndSize
 
 # Python Imports
 # --------------
@@ -42,13 +46,24 @@ cdef int getsockopt(void * handle, void * target) nogil except -1:
     cdef int reply = GET
     cdef int errno
     cdef size_t sz = 255
-    cdef const char str_o [255]
+    cdef void * optval
 
     rc = zmq_recv_sized_message(handle, &sockopt, sizeof(int), flags)
-    rc = libzmq.zmq_getsockopt(target, sockopt, &str_o, &sz)
+    if not zmq_recv_more(handle) == 1:
+        return -2
+    
+    rc = zmq_recv_sized_message(handle, &sz, sizeof(size_t), flags)
+    printf("Option = %d\n", sockopt)
+    printf("rc = %d\n", rc)
+    printf("Target = %p\n", target)
+    optval = malloc(sz)
+    rc = libzmq.zmq_getsockopt(target, sockopt, &optval, &sz)
+    printf("rc = %d\n", rc)
+    if rc == -1:
+        printf("zmq_getsockopt: %d\n", libzmq.zmq_errno())
     if rc == 0:
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
-        rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &str_o, sz, flags))
+        rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &optval, sz, flags))
     else:
         reply = ERR
         errno = libzmq.zmq_errno()
@@ -65,23 +80,29 @@ cdef int setsockopt(void * handle, void * target) nogil except -1:
     cdef libzmq.zmq_msg_t zmessage
     
     rc = zmq_recv_sized_message(handle, &sockopt, sizeof(int), flags)
-    if zmq_recv_more(handle) == 1:
-        rc = zmq_init_recv_msg_t(handle, flags, &zmessage)
-        rc = libzmq.zmq_setsockopt(target, sockopt, 
-                                    libzmq.zmq_msg_data(&zmessage), 
-                                    libzmq.zmq_msg_size(&zmessage))
-        if rc == 0:
-            rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
-            rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &sockopt, sizeof(int), flags))
-        else:
-            reply = ERR
-            errno = libzmq.zmq_errno()
-            rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
-            rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &errno, sizeof(int), flags))
-        rc = check_zmq_rc(libzmq.zmq_msg_close(&zmessage))
-        return rc
-    else:
+    printf("Option = %d\n", sockopt)
+    if not zmq_recv_more(handle) == 1:
         return -2
+    
+    rc = zmq_init_recv_msg_t(handle, flags, &zmessage)
+    printf("rc = %d\n", rc)
+    printf("Target = %p\n", target)
+    rc = libzmq.zmq_setsockopt(target, sockopt, 
+                                libzmq.zmq_msg_data(&zmessage), 
+                                libzmq.zmq_msg_size(&zmessage))
+    printf("rc = %d\n", rc)
+    if rc == -1:
+        printf("zmq_setsockopt: %d\n", libzmq.zmq_errno())
+    if rc == 0:
+        rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
+        rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &sockopt, sizeof(int), flags))
+    else:
+        reply = ERR
+        errno = libzmq.zmq_errno()
+        rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
+        rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &errno, sizeof(int), flags))
+    rc = check_zmq_rc(libzmq.zmq_msg_close(&zmessage))
+    return rc
 
 cdef int cbsockopt(void * handle, short events, void * data, void * interrupt_handle) nogil except -1:
     cdef int rc = 0
@@ -142,17 +163,21 @@ cdef class SocketInfo:
         
     def _start(self):
         """Python function run as the loop starts."""
-        pass
+        self._inuse.acquire()
         
     def _close(self):
         """Close this socketinfo."""
         self.socket.close(linger=0)
         self._inuse.release()
         
-    def close(self):
+    def close(self, linger=1):
         """Safely close this socket wrapper"""
-        if not self.socket.closed:
-            self.socket.close()
+        with self._inuse.timeout(linger):
+            if not self.socket.closed:
+                self.socket.close(linger=1)
+            if self.opt is not None:
+                self.opt.close()
+        
             
     cdef int paused(self) nogil except -1:
         """Function called when the loop has paused."""
@@ -220,7 +245,6 @@ cdef class SocketInfo:
         
     def _register(self, ioloop_worker):
         """Register ownership of an IOLoop"""
-        self._inuse.acquire()
         self._loop_ref = weakref.ref(ioloop_worker.manager)
         self._bound = True
         
@@ -295,40 +319,58 @@ cdef class SocketOptions(SocketInfo):
     def _set_client_socket(self, Socket client_socket):
         self.client = client_socket
         self.data = client_socket.handle
+        
+    def check(self):
+        """Check this socketinfo object for safe c values.
+        """
+        assert isinstance(self.socket, zmq.Socket), "Socket is None"
+        assert self.socket.handle != NULL, "Socket handle is null"
+        assert self.callback != NULL, "Callback must be set."
+        assert isinstance(self.client, zmq.Socket), "Client must best."
+        assert self.data == self.client.handle, "Hanlde must be set"
     
     property context:
         def __get__(self):
             return self.client.context
     
-    def set(self, int option, str key, int timeout=1000):
+    def set(self, int option, object optval, int timeout=1000):
         """Set a specific socket option.
         
         :param int option: The option to set.
-        :param str key: The option value, as a bytestring.
+        :param key: The option value.
         :param int timeout: Response timeout, in milliseconds.
         
         """
+        cdef bytes optval_c
+        cdef bytes option_c
+        cdef bytes optctl_c
+        cdef int optctl = SET
+        
         if not self._is_loop_running():
-            with self._inuse:
-                return self.socket.setsockopt(option, key)
+            with self._inuse.timeout(timeout):
+                return self.socket.setsockopt(option, optval)
             # raise SocketOptionError("Can't set a socket option. The underlying I/O Loop is not running.")
         
+        optctl_c = PyBytes_FromStringAndSize(<char *>&optctl, sizeof(int))
+        option_c = PyBytes_FromStringAndSize(<char *>&option, sizeof(int))
+        optval_c = zmq_invert_sockopt(option, optval)
         sink = self.context.socket(zmq.REQ)
         sink.linger = 10
         with sink:
             sink.connect(self.address)
-            sink.send(s.pack("i", SET), flags=zmq.SNDMORE)
-            sink.send(s.pack("i", option), flags=zmq.SNDMORE)
-            sink.send(key)
+            sink.send(optctl_c, flags=zmq.SNDMORE)
+            sink.send(option_c, flags=zmq.SNDMORE)
+            sink.send(optval_c)
             
             if sink.poll(timeout=timeout, flags=zmq.POLLIN):
-                result = s.unpack("i",sink.recv())[0]
+                result = s.unpack("i", sink.recv())[0]
                 if result == SET:
-                    reply_option = s.unpack("i",sink.recv())[0]
+                    reply_option = s.unpack("i", sink.recv())[0]
                     if reply_option != option:
                         raise SocketOptionError("Reply did not match requested socket option.")
                 else:
-                    errno = s.unpack("i",sink.recv())[0]
+                    errno = s.unpack("i", sink.recv())[0]
+                    print("Sent {0} -> {1!r}".format(option, optval))
                     raise zmq.ZMQError(errno)
             else:
                 raise SocketOptionTimeout("Socket setoption timed out after {0} ms.".format(timeout))
@@ -341,17 +383,30 @@ cdef class SocketOptions(SocketInfo):
         :param int timeout: Response timeout, in milliseconds.
         
         """
+        cdef bytes optval_c
+        cdef bytes optsize_c
+        cdef bytes optctl_c
+        cdef size_t optsize
+        cdef int optctl = GET
+        
         if not self._is_loop_running():
-            with self._inuse:
+            with self._inuse.timeout(timeout):
                 return self.socket.getsockopt(option)
             # raise SocketOptionError("Can't get a socket option. The underlying I/O Loop is not running.")
+        
+        optctl_c = PyBytes_FromStringAndSize(<char *>&optctl, sizeof(int))
+        option_c = PyBytes_FromStringAndSize(<char *>&option, sizeof(int))
+        
+        optsize = zmq_size_sockopt(option)
+        optsize_c = PyBytes_FromStringAndSize(<char *>&optsize, sizeof(size_t))
         
         sink = self.context.socket(zmq.REQ)
         sink.linger = 10
         with sink:
-            sink.connect(self.subscription_address)
-            sink.send(s.pack("i", GET), flags=zmq.SNDMORE)
-            sink.send(s.pack("i", option))
+            sink.connect(self.address)
+            sink.send(optctl_c, flags=zmq.SNDMORE)
+            sink.send(option_c, flags=zmq.SNDMORE)
+            sink.send(optsize_c)
             
             if sink.poll(timeout=timeout, flags=zmq.POLLIN):
                 result = s.unpack("i",sink.recv())[0]
@@ -383,6 +438,7 @@ cdef class SocketOptions(SocketInfo):
     
     def _start(self):
         """Start the socket with subscriptions"""
+        super(SocketOptions, self)._start()
         if self.client.type == zmq.SUB:
             if self.autosubscribe:
                 self.client.subscribe("")

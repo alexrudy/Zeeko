@@ -7,6 +7,7 @@ from libc.string cimport memcpy
 from cpython cimport PyBytes_FromStringAndSize
 from .sandwich import unsandwich_unicode
 import zmq
+import struct as s
 
 cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1:
     cdef int rc = 0
@@ -69,6 +70,41 @@ cdef object zmq_convert_sockopt(int option, libzmq.zmq_msg_t * message):
         result = optval_int_c
     return result
     
+cdef bytes zmq_invert_sockopt(int option, object optval):
+    cdef libzmq.int64_t optval_int64_c
+    cdef int optval_int_c
+    cdef void * optval_c
+    if option in zmq.constants.bytes_sockopts:
+        if not isinstance(optval, bytes):
+            raise TypeError('expected bytes, got: %r' % optval)
+        return optval
+    elif option in zmq.constants.int64_sockopts:
+        if not isinstance(optval, int):
+            raise TypeError('expected int, got: %r' % optval)
+            
+        optval_int64_c = optval
+        optval_c = &optval_int64_c
+        return PyBytes_FromStringAndSize(<char *>optval_c, sizeof(libzmq.int64_t))
+    else:
+        # default is to assume int, which is what most new sockopts will be
+        # this lets pyzmq work with newer libzmq which may add constants
+        # pyzmq has not yet added, rather than artificially raising. Invalid
+        # sockopts will still raise just the same, but it will be libzmq doing
+        # the raising.
+        if not isinstance(optval, int):
+            raise TypeError('expected int, got: %r' % optval)
+        optval_int_c = optval
+        optval_c = &optval_int_c
+        return PyBytes_FromStringAndSize(<char *>optval_c, sizeof(int))
+
+cdef size_t zmq_size_sockopt(int option):
+    if option in zmq.constants.bytes_sockopts:
+        return 255
+    elif option in zmq.constants.int64_sockopts:
+        return sizeof(libzmq.int64_t)
+    else:
+        return sizeof(int)
+
 cdef int zmq_msg_from_str(libzmq.zmq_msg_t * zmsg, char[:] src):
     """Construct a ZMQ message from a string."""
     cdef int rc

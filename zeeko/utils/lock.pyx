@@ -7,6 +7,9 @@ from .clock cimport current_utc_time, timespec, microseconds_offset
 
 from posix.types cimport time_t
 
+class TimeoutError(Exception):
+    pass
+
 cdef int lock_acquire(lock * src) nogil except -1:
     """Acquire the lock without holding the GIL."""
     cdef int rc = 0
@@ -34,6 +37,7 @@ cdef int lock_acquire_timed(lock * src, long timeout) nogil except -1:
             src._owned[0] = 1
     finally:
         pthread.mutex_unlock(src.mutex)
+    pthread.check_rc(rc)
     return rc
     
 cdef int lock_release(lock * src) nogil except -1:
@@ -147,13 +151,16 @@ cdef class Lock:
     def acquire(self, timeout=None):
         """Acquire the lock"""
         cdef long to
+        cdef int rc
         if timeout is not None:
-           to = timeout
+           to = timeout * 1000
            with nogil:
-               self._acquire_timed(to)
+               rc = self._acquire_timed(to)
+           return (rc != errno.ETIMEDOUT)
         else:
             with nogil:
                 self._acquire()
+            return True
 
     cdef int _release(self) nogil except -1:
         cdef int rc
@@ -171,3 +178,25 @@ cdef class Lock:
     def __exit__(self, t, v, tb):
         self.release()
         return
+        
+    def timeout(self, timeout):
+        """Return a context which locks with a timeout."""
+        return LockTimeoutContext(self, timeout=timeout)
+        
+    
+class LockTimeoutContext(object):
+    
+    def __init__(self, lock, timeout):
+        super().__init__()
+        self._lock = lock
+        self._timeout = timeout
+    
+    def __enter__(self):
+        if not self._lock.acquire(timeout=self._timeout):
+            raise TimeoutError("Couldn't acquire lock {0}".format(self._lock))
+        return
+    
+    def __exit__(self, t, v, tb):
+        self._lock.release()
+        return
+        

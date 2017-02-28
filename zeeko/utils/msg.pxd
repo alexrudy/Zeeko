@@ -9,6 +9,9 @@ cdef libzmq.zmq_msg_t * zmq_recv_new_msg_t(void * socket, int flags) nogil excep
 
 # Wrappers for python-zmq api translations outside of pyzmq.
 cdef object zmq_convert_sockopt(int option, libzmq.zmq_msg_t * message)
+cdef bytes zmq_invert_sockopt(int option, object optval)
+cdef size_t zmq_size_sockopt(int option)
+
 cdef int zmq_msg_from_str(libzmq.zmq_msg_t * zmsg, char[:] src)
 cdef str zmq_msg_to_str(libzmq.zmq_msg_t * msg)
 

@@ -8,9 +8,10 @@ from pytest import approx
 from ...cyloop.throttle import Throttle
 from ...utils.stopwatch import Stopwatch
 from ..base import SocketInfo
+from ...tests.helpers import ZeekoTestBase
 
 
-class SocketInfoTestBase(object):
+class SocketInfoTestBase(ZeekoTestBase):
     """Base class for socket info tests."""
     
     cls = None
@@ -21,35 +22,20 @@ class SocketInfoTestBase(object):
         return self.cls()
     
     def test_socket(self, socketinfo):
-        """docstring for test_"""
+        """Test the basics of socketinfo."""
         assert isinstance(socketinfo, self.cls)
         assert isinstance(socketinfo.socket, zmq.Socket)
         assert socketinfo.events in [0, zmq.POLLIN, zmq.POLLOUT, zmq.POLLIN & zmq.POLLOUT, zmq.POLLERR]
         assert isinstance(socketinfo.throttle, Throttle)
-    
-    def run_loop_safely(self, ioloop, callback, n, timeout=0.1):
-        """Run the IOLoop safely."""
-        with ioloop.running(timeout=timeout):
-            ioloop.state.selected("RUN").wait(timeout=timeout)
-            for i in range(n):
-                callback()
-                time.sleep(timeout)
-        ioloop.state.selected("STOP").wait(timeout=timeout)
         
     def run_loop_throttle_test(self, ioloop, throttle, counter_callback, callback, frequency=100, nevents=100, timeout=0.1):
         """Test the throttle"""
         throttle.frequency = frequency
         throttle.active = True
-        sw = Stopwatch()
         timelimit = (1.1 * nevents / frequency)
-        sw.start()
-        print("Starting loop...")
-        with ioloop.running(timeout=timeout):
-            ioloop.state.selected("RUN").wait(timeout=timeout)
-            while counter_callback() < nevents and sw.stop() < timelimit:
-                callback()
-        duration = sw.stop()
-        print("Finished loop...")
+        
+        duration = self.run_loop_counter(ioloop, counter_callback, callback, timelimit=timelimit, nevents=nevents, timeout=timeout)
+        
         assert counter_callback() == approx(nevents, abs=5)
         framerate = (counter_callback() / duration)
         print(counter_callback(), duration)
@@ -61,7 +47,8 @@ class SocketInfoTestBase(object):
         snail.delay_max = 0.1 * timeout * (-1.0 if force else 1.0)
         callback()
         time.sleep(timeout)
-        with ioloop.running(timeout=timeout):
+        
+        with self.running_loop(ioloop, timeout):
             
             # Wait on the first message to come in.
             ioloop.state.selected("RUN").wait(timeout=timeout)
@@ -134,7 +121,6 @@ class SocketInfoTestBase(object):
             assert counter_callback() == n + 1
             
     
-    
     def test_repr(self, socketinfo):
         """Get the repr"""
         r = repr(socketinfo)
@@ -150,25 +136,52 @@ class SocketInfoTestBase(object):
         """Test client add to a loop."""
         ioloop.attach(socketinfo)
         assert not socketinfo._is_loop_running()
-        ioloop.start()
-        try:
+        with self.running_loop(ioloop, timeout=0.1):
             assert socketinfo._is_loop_running()
-            ioloop.state.selected("RUN").wait(timeout=0.1)
-            time.sleep(0.01)
-        finally:
-            ioloop.stop(timeout=0.1)
         assert not socketinfo._is_loop_running()
-            
         
+    def test_getsocketoptions(self, ioloop, socketinfo):
+        """Test socket options."""
+        if socketinfo.opt is None:
+            socketinfo.support_options()
+        affinity = socketinfo.opt.get(zmq.AFFINITY)
+        assert isinstance(affinity, int)
+        ioloop.attach(socketinfo)
+        recvmore = socketinfo.opt.get(zmq.RCVMORE)
+        assert isinstance(recvmore, int)
+        
+        with self.running_loop(ioloop, timeout=0.1):
+            # This should test against the REP/REQ pair
+            # which impelments live socket options
+            hwm = socketinfo.opt.get(zmq.RCVHWM)
+            assert isinstance(hwm, int)
+        
+    
+    def test_setsocketoptions(self, ioloop, socketinfo):
+        """Test set socket options"""
+        if socketinfo.opt is None:
+            socketinfo.support_options()
+        socketinfo.opt.set(zmq.RCVHWM, 10)
+        ioloop.attach(socketinfo)
+        hwm = socketinfo.opt.get(zmq.RCVHWM)
+        assert hwm == 10
+        
+        print("Starting setsocketoptions loop test")
+        with self.running_loop(ioloop, timeout=0.1):
+            # This should test against the REP/REQ pair
+            # which impelments live socket options
+            socketinfo.opt.set(zmq.RCVHWM, 100)
+            
+            hwm = socketinfo.opt.get(zmq.RCVHWM)
+            assert isinstance(hwm, int)
+            assert hwm == 100
+        
+        print("Finished setsocketoptions loop test")
+        
+    
     def test_check(self, socketinfo):
         """Test check should not raise"""
         socketinfo.check()
-        
-    def test_repr(self, socketinfo):
-        """Test that the repr works."""
-        value = repr(socketinfo)
-        assert socketinfo.__class__.__name__ in value
-        
 
 class TestSocketInfo(SocketInfoTestBase):
     
@@ -181,6 +194,16 @@ class TestSocketInfo(SocketInfoTestBase):
         si = self.cls(s, zmq.POLLIN)
         yield si
         si.close()
+        
+    def test_setsocketoptions(self, ioloop, socketinfo):
+        """Sockopts shouldn't work."""
+        with pytest.raises(AssertionError):
+            super(TestSocketInfo, self).test_setsocketoptions(ioloop, socketinfo)
+        
+    def test_getsocketoptions(self, ioloop, socketinfo):
+        """Sockopts shouldn't work."""
+        with pytest.raises(AssertionError):
+            super(TestSocketInfo, self).test_getsocketoptions(ioloop, socketinfo)
         
     def test_attach(self, ioloop, socketinfo):
         """Test attach this socket to an event loop."""
