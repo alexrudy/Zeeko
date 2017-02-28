@@ -3,7 +3,7 @@ import sys
 
 from .rc cimport realloc, malloc
 from libc.stdlib cimport free
-from libc.string cimport strncpy
+from libc.string cimport strncpy, memcpy
 from cpython.bytes cimport PyBytes_FromStringAndSize
 
 cdef hashvalue hash_data(char * data, size_t length) nogil except -1:
@@ -63,6 +63,37 @@ cdef class HashMap:
         cdef size_t length = len(key)
         return self.lookup(<char *>key, length)
         
+    def __contains__(self, keyv):
+        cdef bytes key = sandwich_unicode(keyv)
+        cdef size_t length = len(key)
+        return self.get(key, length) >= 0
+    
+    def __delitem__(self, keyv):
+        cdef bytes key = sandwich_unicode(keyv)
+        cdef size_t length = len(key)
+        cdef int rc = self.remove(key, length)
+        if rc == -1:
+            raise KeyError(keyv)
+            
+    cdef int _realloc(self) nogil except -1:
+        cdef size_t i,j, n = 0
+        cdef hashentry * old_hashes = self.hashes
+        cdef hashentry * new_hashes = NULL
+        
+        for i in range(self.n):
+            if old_hashes[i].value != 0:
+                n += 1
+        
+        j = 0
+        new_hashes = <hashentry *>realloc(<void*>new_hashes, sizeof(hashentry) * n)
+        for i in range(self.n):
+            if old_hashes[i].value != 0:
+                new_hashes[j] = old_hashes[i]
+                j += 1
+        self.hashes = new_hashes
+        self.n = n
+        return self.n
+        
     cdef int clear(self) nogil:
         if self.hashes != NULL:
             for i in range(self.n):
@@ -95,7 +126,7 @@ cdef class HashMap:
         
     cdef int get(self, char * data, size_t length) nogil:
         cdef hashvalue value = hash_data(data, length)
-        cdef size_t i
+        cdef int i
         for i in range(self.n):
             if self.hashes[i].value == value:
                 return i
@@ -110,5 +141,13 @@ cdef class HashMap:
         self.hashes[i].data = <char *>malloc(length)
         self.hashes[i].length = length
         strncpy(self.hashes[i].data, data, length)
+        return i
+        
+    cdef int remove(self, char * data, size_t length) nogil:
+        cdef int i = self.get(data, length)
+        if i == -1:
+            return i
+        self.hashes[i].value = 0
+        self._realloc()
         return i
         

@@ -112,3 +112,55 @@ class ZeekoMappingTests(ZeekoTestBase):
     
 class ZeekoMutableMappingTests(ZeekoMappingTests):
     """Include tests for the mutability of mappings"""
+    
+    @pytest.fixture
+    def value(self):
+        """Return an appropriate value for this mapping."""
+        return "mundo"
+        
+    @pytest.fixture
+    def key(self):
+        """The first key."""
+        return "hola"
+    
+    def test_setitem(self, mapping, key, value):
+        """Test setitem."""
+        mapping[key] = value
+        assert key in mapping
+        self.assert_value_for_key(key, mapping[key])
+    
+    def test_delitem(self, mapping, keys):
+        """Test delete an item."""
+        key = keys[0]
+        del mapping[key]
+        assert key not in mapping
+    
+    def test_pop(self, mapping, keys):
+        """Test pop an item."""
+        key = keys[0]
+        value = mapping.pop(key)
+        assert key not in mapping
+        self.assert_value_for_key(key, value)
+        default = object()
+        value = mapping.pop(key, default)
+        assert value is default
+    
+    def test_popitem(self, mapping, keys):
+        """Test iterator consuming pop item"""
+        key, value = mapping.popitem()
+        assert key not in mapping
+        self.assert_value_for_key(key, value)
+    
+    def test_update(self, mapping, key, value):
+        """Test update from another mapping."""
+        assert key not in mapping
+        mapping.update({key:value})
+        assert key in mapping
+        
+    def test_setdefault(self, mapping, key, value):
+        """Test setdefault."""
+        assert key not in mapping
+        value = mapping.setdefault(key, value)
+        assert key in mapping
+        dvalue = mapping.setdefault(key, value)
+        self.assert_value_for_key(key, dvalue)

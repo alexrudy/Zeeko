@@ -14,8 +14,10 @@ cdef class HashMap:
     cdef hashentry * hashes
     
     cdef int clear(self) nogil
+    cdef int _realloc(self) nogil except -1
     cdef int _allocate(self, size_t n) nogil except -1
     cdef void * reallocate(self, void * ptr, size_t sz) nogil except NULL
     cdef int get(self, char * data, size_t length) nogil
     cdef int insert(self, char * data, size_t length) nogil except -1
     cdef int lookup(self, char * data, size_t length) nogil except -1
+    cdef int remove(self, char * data, size_t length) nogil

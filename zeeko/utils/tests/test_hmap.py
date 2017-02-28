@@ -25,4 +25,13 @@ def test_hmap(items):
     assert len(h) == len(items)
     for i, item in enumerate(items):
         assert h[item] == i
+    
     assert repr(h) == "HashMap({0!r})".format(items)
+    
+    if len(items):
+        item = items[0]
+    
+        del h[item]
+        assert len(h) == len(items) - 1
+        assert item not in h
+    

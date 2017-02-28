@@ -477,20 +477,20 @@ cdef class SocketMutableMapping(SocketMapping):
     
     def pop(self, key, default=None):
         """If `key` is in the dictionary, remove it and return its `value`, else return `default`. If `default` is not given and `key` is not in the dictionary, a `KeyError` is raised."""
-        return collections.Mapping.pop(self.target, key, default)
+        return collections.MutableMapping.pop(self.target, key, default)
     
     def popitem(self):
         """Remove and return an arbitrary `(key, value)` pair from the dictionary."""
-        return collections.Mapping.popitem(self.target)
+        return collections.MutableMapping.popitem(self.target)
     
     def setdefault(self, key, value):
         """If `key` is in the dictionary, return its `value`. If not, insert `key` with a value of `default` and return `default`. `default` defaults to `None`."""
-        return collections.Mapping.setdefault(self.target, key, value)
+        return collections.MutableMapping.setdefault(self.target, key, value)
     
     def update(self, other):
         """Update the dictionary with the key/value pairs from `other`, overwriting existing keys. Return `None`."""
-        return collections.Mapping.update(self.target, other)
+        return collections.MutableMapping.update(self.target, other)
     
     def clear(self):
         """Remove all values from the dictionary."""
-        return collections.Mapping.clear(self.target)
+        return collections.MutableMapping.clear(self.target)
