@@ -8,6 +8,7 @@ import pytest
 import numpy as np
 import time
 import zmq
+import itertools
 
 from ..message import ArrayMessage
 from .. import Receiver
@@ -31,6 +32,13 @@ class ReceiverTestBase(ZeekoTestBase):
     """Tests for the basic recorder object."""
     
     cls = Receiver
+    
+    _framecount = itertools.count()
+    
+    @pytest.fixture
+    def framecount(self):
+        """Reutrn the framecount."""
+        return next(self._framecount)
     
     @pytest.fixture
     def receiver(self):
@@ -84,7 +92,10 @@ class ReceiverTestBase(ZeekoTestBase):
         for i, key in enumerate(receiver):
             data = receiver[key].array
             np.testing.assert_allclose(data, arrays[key])
-        
+    
+class ReceiverTests(ReceiverTestBase):
+    """Test methods for the receiver"""
+    
     def test_receiver_attrs(self, receiver):
         """Test receiver attributes after init"""
         assert receiver.framecount == 0
@@ -104,7 +115,7 @@ class ReceiverTestBase(ZeekoTestBase):
         self.recv_arrays(receiver, pull, arrays)
         self.assert_receiver_arrays_allclose(receiver, arrays)
         
-    def test_receiver_unbundled(self, receiver, push, pull, arrays):
+    def test_unbundled(self, receiver, push, pull, arrays):
         """Test an unbundled send."""
         self.send_unbundled_arrays(push, arrays)
         for key in arrays:
@@ -112,7 +123,7 @@ class ReceiverTestBase(ZeekoTestBase):
         self.recv_unbundled_arrays(receiver, pull, arrays)
         self.assert_receiver_arrays_allclose(receiver, arrays)
         
-    def test_receiver_multiple(self, receiver, push, pull, arrays, framecount):
+    def test_multiple(self, receiver, push, pull, arrays, framecount):
         """Test multiple consecutive packets."""
         self.send_arrays(push, arrays, framecount)
         arrays_2 = OrderedDict((key, data * 2.0) for key, data in arrays.items())
@@ -150,7 +161,7 @@ class ReceiverTestBase(ZeekoTestBase):
         self.recv_arrays(receiver, pull, arrays)
         assert self.cls.__name__ in repr(receiver)
     
-class TestReceiver(ReceiverTestBase):
+class TestReceiver(ReceiverTests):
     """Concrete implementation of tests for receivers."""
     pass
     

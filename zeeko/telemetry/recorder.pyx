@@ -6,10 +6,12 @@ cimport numpy as np
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
 from libc.stdlib cimport free
+from libc.string cimport memset
 
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr
 from ..utils.clock cimport current_time
 from ..utils.hmap cimport HashMap
+from ..utils.condition cimport event_init, event_trigger, event_destroy
 
 # from ..handlers.client cimport Client
 # I'd have to expose the client class?
@@ -24,11 +26,13 @@ from ..messages.carray cimport carray_message_info, carray_named, new_named_arra
 
 import zmq
 import logging
+from ..utils.sandwich import sandwich_unicode
 
 
 # This class should match the API of the Receiver, but should return chunks
 # instead of single messages.
 cdef class Recorder:
+    """A recorder receives messages, and coalesces them into chunks."""
     
     def __cinit__(self):
         
@@ -36,13 +40,17 @@ cdef class Recorder:
         self.map = HashMap()
         self._chunks = NULL
         
+        self._event_map = HashMap()
+        self._events = NULL
+        
         # Indicate that no offset has been detected.
         self.offset = -1
         self.counter = 0
+        self.framecount = 0
         
         # Accounting objects
         self._chunkcount = 0
-        self.chunksize = -1 # Will be re-initialized by __init__
+        self._chunksize = -1 # Will be re-initialized by __init__
         self.pushed = Event()
         self.log = logging.getLogger(".".join([__name__, self.__class__.__name__]))
         
@@ -74,6 +82,22 @@ cdef class Recorder:
     def clear(self):
         """Clear the chunk recorder object."""
         self._release_arrays()
+    
+    def event(self, name):
+        """Return the event details"""
+        cdef char[:] bname = bytearray(sandwich_unicode(name))
+        cdef int i = self._get_event(&bname[0], len(bname))
+        return Event._from_event(&self._events[i])
+        
+    cdef int _get_event(self, char * name, size_t sz) nogil except -1:
+        cdef int i, rc
+        i = self._event_map.get(name, sz)
+        if i == -1:
+            i = self._event_map.insert(name, sz)
+            self._events = <event *>self._event_map.reallocate(self._events, sizeof(event))
+            memset(&self._events[i], 0, sizeof(event))
+            rc = event_init(&self._events[i])
+        return i
     
     cdef int _release_arrays(self) nogil except -1:
         """Release ZMQ messages held for chunks."""
@@ -107,6 +131,7 @@ cdef class Recorder:
     cdef int _receive_message(self, void * socket, int flags, void * notify, int notify_flags) nogil except -1:
         cdef int rc = 0
         cdef int i # Index in the message list.
+        cdef int j # Index in the event list
         cdef long index
         cdef bint valid_index, initial_index
         cdef carray_named message
@@ -134,12 +159,15 @@ cdef class Recorder:
             self._notify_completion(notify, notify_flags)
             self.offset = info.framecount
         
+        self.framecount = info.framecount
+        
         # Update the chunk array
         i = self.map.get(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
         if i == -1:
             i = self.map.insert(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
             self._chunks = <array_chunk *>self.map.reallocate(self._chunks, sizeof(array_chunk))
-            rc = chunk_init_array(&self._chunks[i], &message, self.chunksize)
+            memset(&self._chunks[i], 0, sizeof(array_chunk))
+            rc = chunk_init_array(&self._chunks[i], &message, self._chunksize)
         
         # Save the message to the chunk array, initializing if necessary.
         index = (<long>info.framecount - <long>self.offset)
@@ -148,11 +176,26 @@ cdef class Recorder:
         if valid_index or initial_index:
             rc = chunk_append(&self._chunks[i], &message, <size_t>index)
         
+        # Trigger the event
+        j = self._get_event(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
+        event_trigger(&self._events[j])
+    
+        
         # Handle the case where this is the last message we needed to be done.
         if self._check_for_completion() == 1:
             self._notify_completion(notify, notify_flags)
         
         return rc
+        
+    property chunksize:
+        """The number of array messages to coalesce into a single chunk."""
+        def __get__(self):
+            return self._chunksize
+        
+        def __set__(self, value):
+            if not self.counter == 0:
+                raise ValueError("Can't set chunk size after receiver has allocated chunks.")
+            self._chunksize = value
         
     property complete:
         def __get__(self):
@@ -171,7 +214,7 @@ cdef class Recorder:
         
         # Complete if all arrays are full.
         for i in range(self.map.n):
-            if self._chunks[i].last_index < (self.chunksize - 1):
+            if self._chunks[i].last_index < (self._chunksize - 1):
                 return 0
         else:
             return 1

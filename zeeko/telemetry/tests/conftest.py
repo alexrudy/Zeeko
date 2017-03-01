@@ -1,6 +1,8 @@
 import pytest
 import numpy as np
 
+from ...messages import ArrayMessage
+
 from zmq.utils import jsonapi
 jsonify = lambda data : jsonapi.loads(jsonapi.dumps(data))
 
@@ -50,6 +52,9 @@ def assert_chunk_allclose(chunka, chunkb):
     
 def assert_chunk_array_allclose(chunk, array, index=None):
     """Assert that a chunk and an array are all close."""
+    if isinstance(array, np.ndarray):
+        array = ArrayMessage(chunk.name, array)
+    
     if index is None:
         index = chunk.lastindex
     assert jsonify(chunk.md) == jsonify(array.md)

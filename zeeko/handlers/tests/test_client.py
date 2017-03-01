@@ -8,7 +8,7 @@ from ..client import Client
 from zeeko.conftest import assert_canrecv
 from .test_base import SocketInfoTestBase
 from ...tests.test_helpers import ZeekoMappingTests
-from ...messages.tests.test_receiver import ReceiverTestBase
+from ...messages.tests.test_receiver import ReceiverTests
 
 class TestClientMapping(ZeekoMappingTests):
     """Test client mappings."""
@@ -31,7 +31,7 @@ class TestClientMapping(ZeekoMappingTests):
         return Publisher.keys()
     
 
-class TestClientReceiver(ReceiverTestBase):
+class TestClientReceiver(ReceiverTests):
     """Test client as a receiver."""
     
     cls = Client

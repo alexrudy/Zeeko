@@ -217,6 +217,10 @@ cdef class Telemetry(SocketMapping):
         """Unsubscribe"""
         self.opt.unsubscribe(key)
         
+    def event(self, key):
+        """Return an event which will be triggered when an array with that name is received."""
+        return self.recorder.event(key)
+        
     def _close(self):
         """Close this socketinfo."""
         self.socket.close(linger=0)
@@ -245,6 +249,11 @@ cdef class Telemetry(SocketMapping):
         the server."""
         def __get__(self):
             return self.recorder.counter
+            
+    property framecount:
+        """The sender's framecount, which helps determine ordering of incoming messages"""
+        def __get__(self):
+            return self.recorder.framecount
 
     property last_message:
         """A datetime object representing the last message received."""

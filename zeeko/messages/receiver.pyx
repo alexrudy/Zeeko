@@ -68,6 +68,18 @@ cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int fla
     return rc
 
 cdef class Receiver:
+    """Receive arrays streamed over ZeroMQ Sockets.
+
+    The receiver accepts messages from a ZeroMQ socket for arrays
+    streamed to it, and then makes those arrays available
+    to your python code. This is the raw data structure for
+    received messages. For an object which will manage receiving
+    arrays in a background thread, see :class:`~zeeko.handlers.client.Client`.
+    
+    This object behaves like a dictionary of received messages,
+    and can be indexed and accessed just like a read-only dictionary.
+    
+    """
     
     def __cinit__(self):
         self._failed_init = True

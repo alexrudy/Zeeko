@@ -7,6 +7,36 @@ import zmq
 from ..handlers import Telemetry, TelemetryWriter
 from zeeko.conftest import assert_canrecv
 from ...handlers.tests.test_base import SocketInfoTestBase
+from ...tests.test_helpers import ZeekoMappingTests
+from .test_recorder import RecorderTests
+
+class TestClientMapping(ZeekoMappingTests):
+    """Test client mapping"""
+    cls = Telemetry
+    
+    @pytest.fixture
+    def mapping(self, pull, push, Publisher):
+        """A client, set up for use as a mapping."""
+        c = self.cls(pull, zmq.POLLIN)
+        Publisher.publish(push)
+        while pull.poll(timeout=100, flags=zmq.POLLIN):
+            c.receive(pull)
+        yield c
+        c.close()
+        
+    @pytest.fixture
+    def keys(self, Publisher):
+        """Return keys which should be availalbe."""
+        return Publisher.keys()
+
+class TestClientReceiver(RecorderTests):
+    """Tests for telemetry client."""
+    cls = Telemetry
+    
+    @pytest.fixture
+    def receiver(self, pull, push, chunksize):
+        """The receiver object"""
+        return self.cls(pull, zmq.POLLIN, chunksize=chunksize)
 
 class TestRClient(SocketInfoTestBase):
     """Test the client socket."""

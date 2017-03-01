@@ -5,9 +5,11 @@ import itertools
 
 from .. import Recorder
 from ...messages import array as array_api
-from ...messages import Publisher
+from ...messages import Publisher, ArrayMessage
 from .conftest import assert_chunk_array_allclose, assert_chunk_allclose
 from zeeko.conftest import assert_canrecv
+from ...tests.test_helpers import ZeekoTestBase, ZeekoMappingTests, OrderedDict
+from ...messages.tests.test_receiver import ReceiverTests, ReceiverTestBase
 
 @pytest.fixture
 def notify(address2, context):
@@ -39,100 +41,82 @@ def test_recorder_construction(chunksize):
     """Test construction"""
     r = Recorder(chunksize)
     
-class TestRecorder(object):
+class RecorderTests(ReceiverTests):
     """Test case for recorders."""
     
-    _framecount = itertools.count()
-    
-    pytestmark = pytest.mark.usefixtures("rnotify")
+    @pytest.fixture
+    def receiver(self, chunksize):
+        """The receiver object"""
+        return self.cls(chunksize)
     
     @pytest.fixture
-    def recorder(self, push, pull, notify, chunksize):
+    def recorder(self, receiver):
         """Return a receiver"""
-        self._pull = pull
-        self._notify = notify
-        return Recorder(chunksize)
-    
-    @pytest.fixture
-    def framecount(self):
-        """Reutrn the framecount."""
-        return next(self._framecount)
-    
-    @pytest.fixture
-    def arrays(self, name, shape, n):
-        """Arrays to send over the socket."""
-        return [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
-    
-    @pytest.fixture
-    def publisher(self, push, arrays, framecount):
-        """Create a publisher."""
-        self._push = push
-        p = Publisher()
-        for name, array in arrays:
-            p[name] = array
-        p.framecount = framecount
-        return p
+        return receiver
         
-    def publisher2(self, publisher):
-        """Update the publisher."""
-        p2 = Publisher()
-        p2.framecount = publisher.framecount + 1
-        for key in publisher.keys():
-            p2[key] = np.random.randn(*publisher[key].shape)
-        return p2
+    def assert_receiver_arrays_allclose(self, receiver, arrays):
+        """Assert receiver and arrays are all close."""
+        assert len(receiver) == len(arrays)
+        assert set(receiver.keys()) == set(arrays.keys())
+        for i, key in enumerate(receiver):
+            chunk = receiver[key]
+            assert_chunk_array_allclose(chunk, arrays[key])
     
-    def recv(self, recorder):
-        """Receive recorder."""
-        assert_canrecv(self._pull)
-        while self._pull.poll(timeout=1):
-            recorder.receive(self._pull, self._notify)
-    
-    def send(self, publisher):
-        """Publish"""
-        publisher.publish(self._push)
-    
-    def test_once(self, publisher, recorder):
+    def test_once(self, recorder, push, pull, arrays, framecount):
         """Test the receiver system with a single message."""
-        self.send(publisher)
-        self.recv(recorder)
-        assert len(recorder) == len(publisher)
-        for key in recorder.keys():
-            chunk = recorder[key]
-            print(chunk)
-            assert_chunk_array_allclose(chunk, publisher[key])
+        self.send_arrays(push, arrays, framecount)
+        self.recv_arrays(recorder, pull, arrays)
+        self.assert_receiver_arrays_allclose(recorder, arrays)
     
-    def test_multiple(self, publisher, recorder):
+    def test_multiple(self, recorder, push, pull, arrays, framecount):
         """Test receive multiple messages."""
-        publisher2 = self.publisher2(publisher)
+        self.send_arrays(push, arrays, framecount)
+        arrays_2 = OrderedDict((key, data * 2.0) for key, data in arrays.items())
+        self.send_arrays(push, arrays_2, framecount + 1)
         
-        #TODO: Re-enable events?
-        # event = rcv.event("{:s}{:d}".format(name, 0))
-        # assert not event.is_set()
-        self.send(publisher)
-        self.send(publisher2)
-        self.recv(recorder)
-        assert len(recorder) == len(publisher)
-        for key in publisher.keys():
-            assert_chunk_array_allclose(recorder[key], publisher[key], 0)
-            assert_chunk_array_allclose(recorder[key], publisher2[key], 1)
+        self.recv_arrays(recorder, pull, arrays)
+        self.recv_arrays(recorder, pull, arrays)
+        assert len(recorder) == len(arrays)
+        for key in arrays:
+            assert_chunk_array_allclose(recorder[key], ArrayMessage(key, arrays[key]), 0)
+            assert_chunk_array_allclose(recorder[key], ArrayMessage(key, arrays[key] * 2.0), 1)
     
-    @pytest.mark.xfail
-    def test_retain_multiple(self, publisher, recorder):
+    def test_retain_multiple(self, recorder, push, pull, arrays, framecount):
         """Test retaining multiple references to a given array."""
-        publisher2 = self.publisher2(publisher)
+        self.send_arrays(push, arrays, framecount)
+        arrays_2 = OrderedDict((key, data * 2.0) for key, data in arrays.items())
+        self.send_arrays(push, arrays_2, framecount + 1)
         
-        self.send(publisher)
-        self.recv(recorder)
-        arrays = {}
-        for key in recorder.keys():
-            arrays[key] = recorder[key] 
-        self.send(publisher2)
-        self.recv(recorder)
-        arrays2 = {}
-        for key in recorder.keys():
-            arrays2[key] = recorder[key] 
-        assert len(recorder) == len(publisher)
-        for key in publisher.keys():
-            assert_chunk_allclose(arrays[key], arrays2[key])
-            assert_chunk_array_allclose(recorder[key], publisher[key], 0)
-            assert_chunk_array_allclose(recorder[key], publisher2[key], 1)
+        self.recv_arrays(recorder, pull, arrays)
+        got_arrays_1 = dict(recorder.items())
+        self.recv_arrays(recorder, pull, arrays)
+        got_arrays_2 = dict(recorder.items())
+        assert len(recorder) == len(arrays)
+        for key in arrays:
+            assert_chunk_allclose(got_arrays_1[key], got_arrays_2[key])
+            assert_chunk_array_allclose(got_arrays_1[key], ArrayMessage(key, arrays[key]), 0)
+            assert_chunk_array_allclose(got_arrays_2[key], ArrayMessage(key, arrays_2[key]), 1)
+        
+class TestRecorder(RecorderTests):
+    """Tests for just the recorder."""
+    pytestmark = pytest.mark.usefixtures("rnotify")
+    cls = Recorder
+        
+class TestRecorderMapping(ZeekoMappingTests, ReceiverTestBase):
+    """Test recorder behavior as a mapping."""
+    
+    cls = Recorder
+    
+    @pytest.fixture
+    def mapping(self, chunksize, push, pull, arrays, framecount):
+        """A client, set up for use as a mapping."""
+        recorder = self.cls(chunksize)
+        self.send_arrays(push, arrays, framecount)
+        self.recv_arrays(recorder, pull, arrays)
+        yield recorder
+        
+    @pytest.fixture
+    def keys(self, arrays):
+        """Return keys which should be availalbe."""
+        return arrays.keys()
+        
