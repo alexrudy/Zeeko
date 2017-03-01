@@ -14,7 +14,7 @@ def check_zeromq():
     cdef uint64_t affinity
     cdef size_t sz = sizeof(uint64_t)
     cdef int rc, errno
-    with zmq.Context.instance() as ctx:
+    with zmq.Context() as ctx:
         with ctx.socket(zmq.REQ) as socket:
             handle = (<Socket>socket).handle
             rc = libzmq.zmq_getsockopt(handle, libzmq.ZMQ_AFFINITY, &affinity, &sz)
