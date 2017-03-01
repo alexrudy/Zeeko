@@ -356,6 +356,11 @@ cdef class TelemetryWriter(SocketMapping):
         """The last recorded filename."""
         return self.last_filename
         
+    @property
+    def counter(self):
+        """Count the number of output values."""
+        return self.writer.counter
+        
     @classmethod
     def from_recorder(cls, str filename, rclient, enable_reconnections=True):
         obj = cls.at_address(rclient.notifications_address, 

@@ -125,6 +125,7 @@ cdef class Writer:
                 md = self.metadata_callback()
             pychunk.write(self.file, metadata=md)
             self.log.debug("Wrote chunk {0} to {1}".format(pychunk.name , self.file.name))
+            self.file.flush()
         
         return rc
     
