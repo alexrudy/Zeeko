@@ -40,6 +40,7 @@ class _RunningLoopContext(object):
 cdef class IOLoopWorker:
     """The running part of the I/O loop."""
     
+    cdef object __weakref__
     cdef object thread
     cdef object log
     cdef object _manager

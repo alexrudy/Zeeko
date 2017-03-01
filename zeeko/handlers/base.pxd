@@ -46,6 +46,8 @@ cdef class SocketInfo:
     """The :class:`~zeeko.cyloop.loop.IOLoop` object which manages this socket."""
     cdef object _loop_ref
     """Weakref to the :class:`~zeeko.cyloop.loop.IOLoop` object which manages this socket."""
+    cdef object _loop_worker
+    """Weakref to a loop worker."""
     
     
     cdef int paused(self) nogil except -1    

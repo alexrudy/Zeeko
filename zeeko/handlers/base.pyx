@@ -131,6 +131,7 @@ cdef class SocketInfo:
         self._bound = False
         self._inuse = Lock()
         self._loop_ref = lambda : None
+        self._loop_worker = lambda : None
         
     def __init__(self, socket, events, **kwargs):
         super().__init__()
@@ -195,18 +196,29 @@ cdef class SocketInfo:
         else:
             return -2
     
-    def __call__(self, Socket socket, int events, Socket interrupt_socket):
+    def __call__(self, Socket socket = None, events = None, Socket interrupt_socket = None, int timeout = 100):
         """Run the callback from python"""
         cdef libzmq.zmq_pollitem_t pollitem
-        cdef int rc 
+        cdef void * interrupt_handle = NULL
+        cdef int rc
         
         if socket is None:
             socket = self.socket
+        if events is None:
+            events = socket.poll(flags=self.events, timeout=timeout)
+        
+        if interrupt_socket is None:
+            worker = self._loop_worker()
+            if worker is not None:
+                interrupt_socket = worker._interrupt
+        
+        if interrupt_socket is not None:
+            interrupt_handle = interrupt_socket.handle
         
         pollitem.socket = socket.handle
         pollitem.revents = events
         pollitem.events = self.events
-        rc = self.fire(&pollitem, interrupt_socket.handle)
+        rc = self.fire(&pollitem, interrupt_handle)
         return rc
         
     def support_options(self):
@@ -234,6 +246,7 @@ cdef class SocketInfo:
     def _register(self, ioloop_worker):
         """Register ownership of an IOLoop"""
         self._loop_ref = weakref.ref(ioloop_worker.manager)
+        self._loop_worker = weakref.ref(ioloop_worker)
         self._bound = True
         
         

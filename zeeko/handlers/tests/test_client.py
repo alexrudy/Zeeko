@@ -79,7 +79,7 @@ class TestClient(SocketInfoTestBase):
         for i in range(3):
             Publisher.publish(push)
             assert_canrecv(socketinfo.socket)
-            socketinfo(socketinfo.socket, socketinfo.socket.poll(timeout=100), ioloop.worker._interrupt)
+            socketinfo()
         time.sleep(0.1)
         print(socketinfo.last_message)
         assert socketinfo.framecount != 0

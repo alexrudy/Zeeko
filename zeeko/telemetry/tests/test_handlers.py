@@ -74,7 +74,8 @@ class TestRClient(SocketInfoTestBase):
         for n in range(3):
             Publisher.publish(push)
             assert_canrecv(socketinfo.socket)
-            socketinfo(socketinfo.socket, socketinfo.socket.poll(timeout=100), ioloop.worker._interrupt)
+            socketinfo()
+            assert socketinfo.fired.is_set()
         print(socketinfo.last_message)
         assert socketinfo.framecounter != 0
         assert len(socketinfo) == 3
