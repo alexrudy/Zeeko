@@ -143,6 +143,7 @@ cdef class Writer:
             pychunk.write(self.file, metadata=md)
             self.log.debug("Wrote chunk {0} to {1}".format(pychunk.name , self.file.name))
             self.file.flush()
+            self.counter += 1
         
         self._event_map._trigger_event(<char *>libzmq.zmq_msg_data(&chunk.name), libzmq.zmq_msg_size(&chunk.name))
         chunk_close(&chunk)

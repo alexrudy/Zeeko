@@ -176,6 +176,8 @@ cdef class Telemetry(SocketMapping):
         
     cdef int paused(self) nogil except -1:
         """Function called when the loop has paused."""
+        if self.notify is not None:
+            self.recorder._notify_partial_completion(self.notify.handle, libzmq.ZMQ_NOBLOCK)
         if not self.use_reconnections:
             return 0
         with gil:
@@ -259,7 +261,12 @@ cdef class Telemetry(SocketMapping):
         """A datetime object representing the last message received."""
         def __get__(self):
             return dt.datetime.fromtimestamp(self.recorder.last_message)
-            
+    
+    property chunksize:
+        """Size of individual chunks"""
+        def __get__(self):
+            return self.recorder.chunksize
+    
     @property
     def pushed(self):
         """An event which is set when telemetry data is pushed to the writer."""
@@ -305,7 +312,7 @@ cdef class TelemetryWriter(SocketMapping):
     messages, and then reconnect."""
     
     cdef str address
-    cdef object counter
+    cdef object _counter
     
     cdef str last_filename
     
@@ -334,7 +341,7 @@ cdef class TelemetryWriter(SocketMapping):
         self.address = ""
         self.filename_template = "telemetry.{0:04d}.hdf5"
         self.last_filename = ""
-        self.counter = itertools.count()
+        self._counter = itertools.count()
         self.use_reconnections = False
 
     def __init__(self, *args, **kwargs):
@@ -355,6 +362,10 @@ cdef class TelemetryWriter(SocketMapping):
     def filename(self):
         """The last recorded filename."""
         return self.last_filename
+        
+    def set_file_number(self, value):
+        """Set the current file number."""
+        self._counter = itertools.count(value)
         
     @property
     def counter(self):
@@ -403,7 +414,7 @@ cdef class TelemetryWriter(SocketMapping):
         """Function called when the loop is resumed."""
         if self.writer.file is None:
             with gil:
-                self.last_filename = self.filename_template.format(next(self.counter))
+                self.last_filename = self.filename_template.format(next(self._counter))
                 self.writer.file = h5py.File(self.last_filename)
         
         if not self.use_reconnections:

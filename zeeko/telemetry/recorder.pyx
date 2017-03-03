@@ -105,6 +105,14 @@ cdef class Recorder:
         with nogil:
             self._receive(handle, flags, notify_handle, libzmq.ZMQ_NOBLOCK)
     
+    def notify(self, Socket notify = None, int flags = 0):
+        """Perform a partial notification."""
+        cdef void * notify_handle = NULL
+        if notify is not None:
+            notify_handle = notify.handle
+        with nogil:
+            self._notify_partial_completion(notify_handle, flags)
+    
     cdef int _receive(self, void * socket, int flags, void * notify, int notify_flags) nogil except -1:
         cdef int rc = 0
         cdef int value = 1
@@ -202,6 +210,11 @@ cdef class Recorder:
         else:
             return 1
             
+    cdef int _notify_partial_completion(self, void * socket, int flags) nogil except -1:
+        if self.offset == -1:
+            return 0
+        return self._notify_completion(socket, flags)
+    
     cdef int _notify_completion(self, void * socket, int flags) nogil except -1:
         """Message the writer to output chunks."""
         cdef int i, rc
