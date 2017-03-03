@@ -55,6 +55,10 @@ class ReceiverTestBase(ZeekoTestBase):
         """A fixture for the framecount."""
         return 5
         
+    def make_modified_arrays(self, arrays):
+        """Return modified arrays, where values have been multiplied by two."""
+        return OrderedDict((key, data * 2.0) for key, data in arrays.items())
+        
     def send_arrays(self, socket, arrays, framecount):
         """Send arrays."""
         assert socket.poll(timeout=100, flags=zmq.POLLOUT)
@@ -126,7 +130,7 @@ class ReceiverTests(ReceiverTestBase):
     def test_multiple(self, receiver, push, pull, arrays, framecount):
         """Test multiple consecutive packets."""
         self.send_arrays(push, arrays, framecount)
-        arrays_2 = OrderedDict((key, data * 2.0) for key, data in arrays.items())
+        arrays_2 = self.make_modified_arrays(arrays)
         self.send_arrays(push, arrays_2, framecount + 1)
         for key in arrays:
             assert not receiver.event(key).is_set()
@@ -140,7 +144,7 @@ class ReceiverTests(ReceiverTestBase):
     def test_retain_multiple(self, receiver, push, pull, arrays, framecount):
         """Test retain against multiple receiver array bodies."""
         self.send_arrays(push, arrays, framecount)
-        arrays_2 = OrderedDict((key, data * 2.0) for key, data in arrays.items())
+        arrays_2 = self.make_modified_arrays(arrays)
         self.send_arrays(push, arrays_2, framecount + 1)
         for key in arrays:
             assert not receiver.event(key).is_set()

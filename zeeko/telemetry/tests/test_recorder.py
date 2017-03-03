@@ -93,10 +93,14 @@ class RecorderTests(ReceiverTests):
         got_arrays_2 = dict(recorder.items())
         assert len(recorder) == len(arrays)
         for key in arrays:
+            assert np.may_share_memory(got_arrays_1[key].array, got_arrays_2[key].array)
+            assert np.may_share_memory(got_arrays_1[key].mask, got_arrays_2[key].mask)
             assert_chunk_allclose(got_arrays_1[key], got_arrays_2[key])
             assert_chunk_array_allclose(got_arrays_1[key], ArrayMessage(key, arrays[key]), 0)
             assert_chunk_array_allclose(got_arrays_2[key], ArrayMessage(key, arrays_2[key]), 1)
         
+    
+
 class TestRecorder(RecorderTests):
     """Tests for just the recorder."""
     pytestmark = pytest.mark.usefixtures("rnotify")
