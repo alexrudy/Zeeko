@@ -77,17 +77,23 @@ def initialize_group(chunk, h5group, axis=0):
     """Initialize groups to write this chunk"""
     shape = list(chunk.shape)
     shape.insert(axis, 0)
+    shape = tuple(shape)
     
     maxshape = list(chunk.shape)
     maxshape.insert(axis, None)
+    maxshape = tuple(maxshape)
     
-    chunks = list(chunk.shape)
-    chunks.insert(axis, chunk.chunksize)
+    if any(s == 0 for s in chunk.shape):
+        chunks = True
+    else:
+        chunks = list(chunk.shape)
+        chunks.insert(axis, chunk.chunksize)
+        chunks = tuple(chunks)
     
     d = h5group.create_dataset("data", 
-        shape=tuple(shape),
-        maxshape=tuple(maxshape),
-        chunks=tuple(chunks),
+        shape=shape,
+        maxshape=maxshape,
+        chunks=chunks,
         dtype=chunk.dtype,
         fillvalue=0.0)
     
