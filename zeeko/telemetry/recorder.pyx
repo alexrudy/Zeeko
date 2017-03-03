@@ -40,8 +40,7 @@ cdef class Recorder:
         self.map = HashMap()
         self._chunks = NULL
         
-        self._event_map = HashMap()
-        self._events = NULL
+        self._event_map = EventMap()
         
         # Indicate that no offset has been detected.
         self.offset = -1
@@ -85,19 +84,7 @@ cdef class Recorder:
     
     def event(self, name):
         """Return the event details"""
-        cdef char[:] bname = bytearray(sandwich_unicode(name))
-        cdef int i = self._get_event(&bname[0], len(bname))
-        return Event._from_event(&self._events[i])
-        
-    cdef int _get_event(self, char * name, size_t sz) nogil except -1:
-        cdef int i, rc
-        i = self._event_map.get(name, sz)
-        if i == -1:
-            i = self._event_map.insert(name, sz)
-            self._events = <event *>self._event_map.reallocate(self._events, sizeof(event))
-            memset(&self._events[i], 0, sizeof(event))
-            rc = event_init(&self._events[i])
-        return i
+        return self._event_map.event(name)
     
     cdef int _release_arrays(self) nogil except -1:
         """Release ZMQ messages held for chunks."""
@@ -177,9 +164,7 @@ cdef class Recorder:
             rc = chunk_append(&self._chunks[i], &message, <size_t>index)
         
         # Trigger the event
-        j = self._get_event(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
-        event_trigger(&self._events[j])
-    
+        self._event_map._trigger_event(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
         
         # Handle the case where this is the last message we needed to be done.
         if self._check_for_completion() == 1:
