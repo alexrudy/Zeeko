@@ -7,7 +7,7 @@ from zmq.backend.cython.socket cimport Socket
 from libc.stdlib cimport free
 from libc.string cimport memset
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr
-from ..utils.hmap cimport HashMap
+from ..utils.hmap cimport HashMap, hashentry
 
 # from ..handlers.client cimport Client
 # I'd have to expose the client class?
@@ -24,13 +24,17 @@ import zmq
 import h5py
 import logging
 
+cdef int dealloc_chunks(void * chunk, void * data) nogil except -1:
+    return chunk_close(<array_chunk *>chunk)
+
+
 cdef class Writer:
     
     def __cinit__(self):
         
         # Internal objects
-        self.map = HashMap()
-        self._chunks = NULL
+        self.map = HashMap(sizeof(array_chunk))
+        self.map._dcb = dealloc_chunks
         
         self._event_map = EventMap()
         
@@ -49,8 +53,10 @@ cdef class Writer:
         return self.map.n
 
     def __getitem__(self, key):
-        i = self.map[key]
-        return Chunk.from_chunk(&self._chunks[i])
+        cdef hashentry * h = self.map.pyget(key)
+        if h.vinit == 0:
+            raise KeyError(key)
+        return Chunk.from_chunk(<array_chunk *>(h.value))
     
     def __iter__(self):
         return iter(self.map.keys())
@@ -70,13 +76,7 @@ cdef class Writer:
     
     cdef int _release_arrays(self) nogil except -1:
         """Release ZMQ messages held for chunks."""
-        cdef size_t i
-        if self._chunks != NULL:
-            for i in range(self.map.n):
-                chunk_close(&self._chunks[i])
-            free(self._chunks)
-            self._chunks = NULL
-            self.map.clear()
+        self.map.clear()
     
     def receive(self, Socket socket not None, Socket notify = None, int flags = 0):
         """Receive a full message"""
@@ -123,20 +123,19 @@ cdef class Writer:
         cdef int i
         cdef unsigned int fc = 0
         cdef array_chunk chunk
+        cdef hashentry * entry
         
         rc = chunk_init(&chunk)
         chunk_recv(&chunk, socket, flags)
-        i = self.map.get(<char *>libzmq.zmq_msg_data(&chunk.name), libzmq.zmq_msg_size(&chunk.name))
-        if i == -1:
-            i = self.map.insert(<char *>libzmq.zmq_msg_data(&chunk.name), libzmq.zmq_msg_size(&chunk.name))
-            self._chunks = <array_chunk *>self.map.reallocate(self._chunks, sizeof(array_chunk))
-            memset(&self._chunks[i], 0, sizeof(array_chunk))
-            rc = chunk_init(&self._chunks[i])
-            
-        chunk_copy(&self._chunks[i], &chunk)
+        
+        entry = self.map.get(<char *>libzmq.zmq_msg_data(&chunk.name), libzmq.zmq_msg_size(&chunk.name))
+        if not entry.vinit:
+            rc = chunk_init(<array_chunk * >entry.value)
+            entry.vinit = 1
+        chunk_copy(<array_chunk * >entry.value, &chunk)
         
         with gil:
-            pychunk = Chunk.from_chunk(&self._chunks[i])
+            pychunk = Chunk.from_chunk(<array_chunk * >entry.value)
             if self.metadata_callback is None:
                 md = {}
             else:
@@ -146,6 +145,8 @@ cdef class Writer:
             self.file.flush()
         
         self._event_map._trigger_event(<char *>libzmq.zmq_msg_data(&chunk.name), libzmq.zmq_msg_size(&chunk.name))
+        chunk_close(&chunk)
+        
         return rc
     
     

@@ -10,7 +10,7 @@ from libc.string cimport memset
 
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr
 from ..utils.clock cimport current_time
-from ..utils.hmap cimport HashMap
+from ..utils.hmap cimport HashMap, hashentry
 from ..utils.condition cimport event_init, event_trigger, event_destroy
 
 # from ..handlers.client cimport Client
@@ -28,6 +28,8 @@ import zmq
 import logging
 from ..utils.sandwich import sandwich_unicode
 
+cdef int dealloc_chunks(void * chunk, void * data) nogil except -1:
+    return chunk_close(<array_chunk *>chunk)
 
 # This class should match the API of the Receiver, but should return chunks
 # instead of single messages.
@@ -37,8 +39,8 @@ cdef class Recorder:
     def __cinit__(self):
         
         # Internal objects
-        self.map = HashMap()
-        self._chunks = NULL
+        self.map = HashMap(sizeof(array_chunk))
+        self.map._dcb = dealloc_chunks
         
         self._event_map = EventMap()
         
@@ -66,8 +68,10 @@ cdef class Recorder:
         return self.map.n
     
     def __getitem__(self, key):
-        i = self.map[key]
-        return Chunk.from_chunk(&self._chunks[i])
+        cdef hashentry * h = self.map.pyget(key)
+        if h.vinit == 0:
+            raise KeyError(key)
+        return Chunk.from_chunk(<array_chunk *>(h.value))
         
     def __iter__(self):
         return iter(self.map.keys())
@@ -88,14 +92,9 @@ cdef class Recorder:
     
     cdef int _release_arrays(self) nogil except -1:
         """Release ZMQ messages held for chunks."""
-        cdef size_t i
-        if self._chunks is not NULL:
-            for i in range(self.map.n):
-                chunk_close(&self._chunks[i])
-            free(self._chunks)
-            self._chunks = NULL
-            self.map.clear()
-            self.offset = -1
+        self.offset = -1
+        self.map.clear()
+        return 0
     
     def receive(self, Socket socket not None, Socket notify = None, int flags = 0):
         """Receive a full message"""
@@ -123,6 +122,7 @@ cdef class Recorder:
         cdef bint valid_index, initial_index
         cdef carray_named message
         cdef carray_message_info * info
+        cdef hashentry * entry
         cdef libzmq.zmq_msg_t notification
         
         # Increment the message counter.
@@ -149,19 +149,17 @@ cdef class Recorder:
         self.framecount = info.framecount
         
         # Update the chunk array
-        i = self.map.get(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
-        if i == -1:
-            i = self.map.insert(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
-            self._chunks = <array_chunk *>self.map.reallocate(self._chunks, sizeof(array_chunk))
-            memset(&self._chunks[i], 0, sizeof(array_chunk))
-            rc = chunk_init_array(&self._chunks[i], &message, self._chunksize)
-        
+        entry = self.map.get(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
+        if not entry.vinit:
+            rc = chunk_init_array(<array_chunk * >entry.value, &message, self._chunksize)
+            entry.vinit = 1
+        chunk = <array_chunk * >entry.value
         # Save the message to the chunk array, initializing if necessary.
         index = (<long>info.framecount - <long>self.offset)
-        valid_index = (index > 0 and ((self._chunks[i].last_index < (<size_t>index))))
-        initial_index = (self._chunks[i].last_index == 0 and index == 0)
+        valid_index = (index > 0 and ((chunk.last_index < (<size_t>index))))
+        initial_index = (chunk.last_index == 0 and index == 0)
         if valid_index or initial_index:
-            rc = chunk_append(&self._chunks[i], &message, <size_t>index)
+            rc = chunk_append(chunk, &message, <size_t>index)
         
         # Trigger the event
         self._event_map._trigger_event(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
@@ -199,7 +197,7 @@ cdef class Recorder:
         
         # Complete if all arrays are full.
         for i in range(self.map.n):
-            if self._chunks[i].last_index < (self._chunksize - 1):
+            if (<array_chunk *>(self.map.index_get(i).value)).last_index < (self._chunksize - 1):
                 return 0
         else:
             return 1
@@ -222,8 +220,8 @@ cdef class Recorder:
             
             # Send individual messages as a single packet.
             for i in range(self.map.n - 1):
-                rc = chunk_send(&self._chunks[i], socket, flags|libzmq.ZMQ_SNDMORE)
-            rc = chunk_send(&self._chunks[self.map.n - 1], socket, flags)
+                rc = chunk_send(<array_chunk *>(self.map.index_get(i).value), socket, flags|libzmq.ZMQ_SNDMORE)
+            rc = chunk_send(<array_chunk *>(self.map.index_get(self.map.n - 1).value), socket, flags)
         
         with gil:
             self.log.debug("Sent chunks after completion")

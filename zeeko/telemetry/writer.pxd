@@ -9,7 +9,6 @@ cdef class Writer:
     
     cdef HashMap map
     cdef readonly size_t counter
-    cdef array_chunk * _chunks
     
     cdef EventMap _event_map
     

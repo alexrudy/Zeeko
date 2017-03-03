@@ -1,9 +1,9 @@
 # Re-usable hash map for char * pointers.
 import sys
 
-from .rc cimport realloc, malloc
+from .rc cimport realloc, malloc, calloc
 from libc.stdlib cimport free
-from libc.string cimport strncpy, memcpy
+from libc.string cimport strncpy, memcpy, memset
 from cpython.bytes cimport PyBytes_FromStringAndSize
 
 cdef hashvalue hash_data(char * data, size_t length) nogil except -1:
@@ -29,9 +29,12 @@ cdef object unsandwich_unicode(char * value, size_t length):
 cdef class HashMap:
     """A slow, simple hash map for binary data to integer indicies"""
     
-    def __cinit__(self):
+    def __cinit__(self, size_t itemsize):
         self.n = 0
         self.hashes = NULL
+        self._dcb = NULL
+        self._dcb_data = NULL
+        self.itemsize = itemsize
         
     def __dealloc__(self):
         self.clear()
@@ -41,7 +44,7 @@ cdef class HashMap:
     
     def __iter__(self):
         for i in range(self.n):
-            yield unsandwich_unicode(self.hashes[i].data, self.hashes[i].length)
+            yield unsandwich_unicode(self.hashes[i].key, self.hashes[i].length)
         
     def keys(self):
         return list(self)
@@ -49,24 +52,17 @@ cdef class HashMap:
     def add(self, keyv):
         cdef bytes key = sandwich_unicode(keyv)
         cdef size_t length = len(key)
-        cdef int rc = self.get(<char *>key, length)
-        if rc == -1:
-            rc = self.insert(<char *>key, length)
-        return rc
+        cdef hashentry * h = self.get(<char *>key, length)
+        return
     
     def __repr__(self):
         return "HashMap({0!r})".format(self.keys())
         
-    def __getitem__(self, keyv):
-        """Get the index for a single name."""
-        cdef bytes key = sandwich_unicode(keyv)
-        cdef size_t length = len(key)
-        return self.lookup(<char *>key, length)
-        
     def __contains__(self, keyv):
         cdef bytes key = sandwich_unicode(keyv)
         cdef size_t length = len(key)
-        return self.get(key, length) >= 0
+        cdef hashentry * h = self.get(key, length)
+        return (h != NULL)
     
     def __delitem__(self, keyv):
         cdef bytes key = sandwich_unicode(keyv)
@@ -81,73 +77,88 @@ cdef class HashMap:
         cdef hashentry * new_hashes = NULL
         
         for i in range(self.n):
-            if old_hashes[i].value != 0:
+            if old_hashes[i].hvalue != 0:
                 n += 1
+            else:
+                self._clear_hashentry(&old_hashes[i])
         
         j = 0
         new_hashes = <hashentry *>realloc(<void*>new_hashes, sizeof(hashentry) * n)
         for i in range(self.n):
-            if old_hashes[i].value != 0:
+            if old_hashes[i].hvalue != 0:
                 new_hashes[j] = old_hashes[i]
                 j += 1
+        
         self.hashes = new_hashes
         self.n = n
         return self.n
         
     cdef int clear(self) nogil:
+        cdef int i = 0
         if self.hashes != NULL:
             for i in range(self.n):
-                if self.hashes[i].data != NULL:
-                    free(self.hashes[i].data)
+                self._clear_hashentry(&self.hashes[i])
             free(self.hashes)
         self.hashes = NULL
         self.n = 0
         return 0
+    
+    cdef int _clear_hashentry(self, hashentry * entry) nogil except -1:
+        cdef int rc = 0
+        entry.hvalue = 0
+        if entry.key != NULL:
+            free(entry.key)
+        if entry.value != NULL:
+            if self._dcb != NULL and entry.vinit != 0:
+                self._dcb(entry.value, self._dcb_data)
+            free(entry.value)
+        return rc
         
     cdef int _allocate(self, size_t n) nogil except -1:
-        self.hashes = <hashentry *>realloc(<void*>self.hashes, sizeof(hashentry) * n)
-        self.n = n
+        cdef int i
+        if n > self.n:
+            self.hashes = <hashentry *>realloc(<void*>self.hashes, sizeof(hashentry) * n)
+            for i in range(self.n, n):
+                memset(&self.hashes[i], 0, sizeof(hashentry))
+            self.n = n
         return 0
-        
-    cdef void * reallocate(self, void * ptr, size_t sz) nogil except NULL:
-        return realloc(ptr, sz * self.n)
-        
-    cdef int lookup(self, char * data, size_t length) nogil except -1:
-        cdef hashvalue value = hash_data(data, length)
-        cdef size_t i
-        for i in range(self.n):
-            if self.hashes[i].value == value:
-                return i
-        else:
-            with gil:
-                raise KeyError("Can't find a key with value {0}".format(
-                    PyBytes_FromStringAndSize(data, length).decode('utf-8', 'backslashreplace')
-                ))
-        
-    cdef int get(self, char * data, size_t length) nogil:
+    
+    cdef hashentry * index_get(self, size_t index) nogil:
+        return &self.hashes[index]
+    
+    cdef hashentry * pyget(self, object keyv) except NULL:
+        cdef bytes key = sandwich_unicode(keyv)
+        cdef size_t length = len(key)
+        return self.get(key, length)
+    
+    cdef hashentry * get(self, char * data, size_t length) nogil except NULL:
         cdef hashvalue value = hash_data(data, length)
         cdef int i
         for i in range(self.n):
-            if self.hashes[i].value == value:
-                return i
-        return -1
+            if self.hashes[i].hvalue == value:
+                return &self.hashes[i]
+        return self.insert(data, length)
         
-    cdef int insert(self, char * data, size_t length) nogil except -1:
+    cdef hashentry * insert(self, char * data, size_t length) nogil except NULL:
         cdef hashvalue value = hash_data(data, length)
         cdef int rc = 0
         cdef size_t i = self.n
         rc = self._allocate(self.n + 1)
-        self.hashes[i].value = value
-        self.hashes[i].data = <char *>malloc(length)
-        self.hashes[i].length = length
-        strncpy(self.hashes[i].data, data, length)
-        return i
         
-    cdef int remove(self, char * data, size_t length) nogil:
-        cdef int i = self.get(data, length)
-        if i == -1:
-            return i
-        self.hashes[i].value = 0
+        self.hashes[i].hvalue = value
+        
+        self.hashes[i].key = <char *>calloc(length, sizeof(char))
+        self.hashes[i].length = length
+        strncpy(self.hashes[i].key, data, length)
+        
+        self.hashes[i].value = calloc(1, self.itemsize)
+        self.hashes[i].vinit = 0
+        return &self.hashes[i]
+        
+    cdef int remove(self, char * data, size_t length) nogil except -1:
+        cdef hashentry * h = self.get(data, length)
+        if h == NULL:
+            return -1
         self._realloc()
-        return i
+        return 0
         
