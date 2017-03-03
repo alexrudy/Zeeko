@@ -84,8 +84,7 @@ cdef class Receiver:
     def __cinit__(self):
         self._failed_init = True
         self._n_messages = 0
-        self._n_events = 0
-        self._events = NULL
+        self._events = EventMap()
         self._framecount = 0
         self._name_cache = {}
         self._name_cache_valid = 1
@@ -128,12 +127,6 @@ cdef class Receiver:
             self._messages = NULL
         if self._hashes is not NULL:
             free(self._hashes)
-        if self._events is not NULL:
-            for i in range(self._n_events):
-                event_destroy(&self._events[i].evt)
-            free(self._events)
-            self._events = NULL
-            self._n_events = 0
         if not self._failed_init:
             pthread.pthread_mutex_destroy(&self._mutex)
     
@@ -197,8 +190,8 @@ cdef class Receiver:
             else:
                 self._name_cache_valid = 0
                 i = self._update_messages(self._n_messages + 1) - 1
-                j = self._get_event(hashvalue)
-                rc = event_trigger(&self._events[j].evt)
+                self._events._trigger_event(<char *>libzmq.zmq_msg_data(&message.name), 
+                                            libzmq.zmq_msg_size(&message.name))
             
             self._hashes[i] = hashvalue
             copy_named_array(self._messages[i], &message)
@@ -228,36 +221,10 @@ cdef class Receiver:
             self._messages = NULL
             self._n_messages = 0
             self._name_cache_valid = 0
-        if self._events is not NULL:
-            for i in range(self._n_events):
-                event_destroy(&self._events[i].evt)
-            free(self._events)
-            self._events = NULL
-            self._n_events = 0
-    
-    cdef int _get_event(self, unsigned long hashvalue) nogil except -1:
-        cdef int j, rc
-        for j in range(self._n_events):
-            if self._events[j].hash == hashvalue:
-                return j
-        else:
-            j = self._n_events
-            self._events = <msg_event *>realloc(<void *>self._events, sizeof(msg_event) * (j + 1))
-            memset(&self._events[j], 0, sizeof(msg_event))
-            rc = event_init(&self._events[j].evt)
-            self._events[j].hash = hashvalue
-            self._n_events = j + 1
-        return j
         
     def event(self, name):
         """Get the event which corresponds to a particular name"""
-        cdef unsigned long hashvalue
-        cdef char[:] _name
-        cdef int j
-        _name = bytearray(sandwich_unicode(name))
-        hashvalue = hash_name(&_name[0], len(_name))
-        j = self._get_event(hashvalue)
-        return Event._from_event(&self._events[j].evt)
+        return self._events.event(name)
         
     def receive(self, Socket socket, int flags = 0, Socket notify = None):
         """Receive a full message"""
