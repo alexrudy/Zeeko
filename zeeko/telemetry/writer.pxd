@@ -2,6 +2,7 @@
 # Cython imports
 
 from ..utils.hmap cimport HashMap
+from ..messages.mevents cimport EventMap
 from .chunk cimport array_chunk
 
 cdef class Writer:
@@ -9,7 +10,10 @@ cdef class Writer:
     cdef HashMap map
     cdef readonly size_t counter
     cdef array_chunk * _chunks
-
+    
+    cdef EventMap _event_map
+    
+    cdef size_t _framecount
     cdef readonly int chunksize
     cdef readonly double last_message
     

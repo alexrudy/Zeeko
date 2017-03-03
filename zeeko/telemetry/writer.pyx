@@ -5,6 +5,7 @@ cimport numpy as np
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
 from libc.stdlib cimport free
+from libc.string cimport memset
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr
 from ..utils.hmap cimport HashMap
 
@@ -31,7 +32,10 @@ cdef class Writer:
         self.map = HashMap()
         self._chunks = NULL
         
+        self._event_map = EventMap()
+        
         self.counter = 0
+        self._framecount = 0
         self.last_message = 0.0
         
         self.file = None
@@ -50,11 +54,20 @@ cdef class Writer:
     
     def __iter__(self):
         return iter(self.map.keys())
+    
+    @property
+    def framecount(self):
+        """The count of frames received by this object."""
+        return self._framecount
 
     def clear(self):
         """Clear the chunk recorder object."""
         self._release_arrays()
-
+    
+    def event(self, name):
+        """Return an event for receipt of a message named."""
+        return self._event_map.event(name)
+    
     cdef int _release_arrays(self) nogil except -1:
         """Release ZMQ messages held for chunks."""
         cdef size_t i
@@ -65,11 +78,14 @@ cdef class Writer:
             self._chunks = NULL
             self.map.clear()
     
-    def receive(self, Socket socket not None, Socket notify not None, int flags = 0):
+    def receive(self, Socket socket not None, Socket notify = None, int flags = 0):
         """Receive a full message"""
         cdef int rc
         cdef void * handle = socket.handle
-        cdef void * notify_handle = notify.handle
+        cdef void * notify_handle = NULL
+        if notify is not None:
+            notify_handle = notify.handle
+        
         with nogil:
             rc = self._receive(handle, flags, notify_handle)
         return rc
@@ -99,6 +115,7 @@ cdef class Writer:
         while value == 1:
             rc = self._receive_chunk(socket, flags)
             rc = check_zmq_rc(libzmq.zmq_getsockopt(socket, libzmq.ZMQ_RCVMORE, &value, &optsize))
+        self._framecount = fc
         return rc
     
     cdef int _receive_chunk(self, void * socket, int flags) nogil except -1:
@@ -113,6 +130,7 @@ cdef class Writer:
         if i == -1:
             i = self.map.insert(<char *>libzmq.zmq_msg_data(&chunk.name), libzmq.zmq_msg_size(&chunk.name))
             self._chunks = <array_chunk *>self.map.reallocate(self._chunks, sizeof(array_chunk))
+            memset(&self._chunks[i], 0, sizeof(array_chunk))
             rc = chunk_init(&self._chunks[i])
             
         chunk_copy(&self._chunks[i], &chunk)
@@ -127,6 +145,7 @@ cdef class Writer:
             self.log.debug("Wrote chunk {0} to {1}".format(pychunk.name , self.file.name))
             self.file.flush()
         
+        self._event_map._trigger_event(<char *>libzmq.zmq_msg_data(&chunk.name), libzmq.zmq_msg_size(&chunk.name))
         return rc
     
     
