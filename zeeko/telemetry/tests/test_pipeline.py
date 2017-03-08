@@ -41,9 +41,16 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
     assert pipeline.write.fired.is_set()
     assert pipeline.record.framecounter == len(Publisher) * chunksize
     with h5py.File(filename, 'r') as f:
+        assert 'telemetry' in f
+        mg = f['telemetry']
         for name in Publisher.keys():
-            assert name in f
-            g = f[name]
-            assert g['data'].shape[0] == chunksize
-            np.testing.assert_allclose(g['data'][-1], Publisher[name].array)
+            assert name in mg
+            g = mg[name]
+            assert g['data'].shape[0] == (chunksize)
+            # Compute the last index
+            print(np.arange(g['mask'].shape[0])[g['mask'][...] == 1])
+            li = (np.arange(g['mask'].shape[0])[g['mask'][...] == 1]).max()
+            print(g['mask'][...])
+            assert li == g['mask'].shape[0] - 1
+            np.testing.assert_allclose(g['data'][li], Publisher[name].array)
     

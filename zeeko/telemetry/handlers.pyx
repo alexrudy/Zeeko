@@ -326,6 +326,11 @@ cdef class TelemetryWriter(SocketMapping):
     appended. By default, the filename contains a format field ``telemetry.{0:d}.hdf5``.
     """
     
+    cdef public str h5_group_name
+    """
+    Name of the root H5PY group to use.
+    """
+    
     cdef public bint use_reconnections
     """Whether the client should reconnect each time the I/O loop resumes processing messages."""
     
@@ -339,6 +344,8 @@ cdef class TelemetryWriter(SocketMapping):
         # Delay management
         self.snail = Snail()
         self.address = ""
+        # Filenames
+        self.h5_group_name = "telemetry"
         self.filename_template = "telemetry.{0:04d}.hdf5"
         self.last_filename = ""
         self._counter = itertools.count()
@@ -394,7 +401,7 @@ cdef class TelemetryWriter(SocketMapping):
         """Function called when the loop has paused."""
         if self.writer.file is not None: 
             with gil:
-                self.writer.file.close()
+                self.writer.file.file.close()
                 self.writer.file = None
         
         if not self.use_reconnections:
@@ -415,7 +422,10 @@ cdef class TelemetryWriter(SocketMapping):
         if self.writer.file is None:
             with gil:
                 self.last_filename = self.filename_template.format(next(self._counter))
-                self.writer.file = h5py.File(self.last_filename)
+                h5file = h5py.File(self.last_filename)
+                if self.h5_group_name:
+                    h5file = h5file.require_group(self.h5_group_name)
+                self.writer.file = h5file
         
         if not self.use_reconnections:
             return 0
@@ -434,5 +444,5 @@ cdef class TelemetryWriter(SocketMapping):
         """Close this socketinfo."""
         self.socket.close(linger=0)
         if self.writer.file is not None: 
-            self.writer.file.close()
+            self.writer.file.file.close()
             self.writer.file = None
