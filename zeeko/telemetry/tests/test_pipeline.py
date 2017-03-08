@@ -1,6 +1,7 @@
 import pytest
 import h5py
 import time
+import zmq
 import numpy as np
 from ..pipeline import create_pipeline
 
@@ -26,20 +27,23 @@ def test_create_pipeline(address, context, chunksize, filename):
 def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
     """Test running the pipeline."""
     with pipeline.running(timeout=0.1):
+        print("Waiting on start.")
         pipeline.state.selected("RUN").wait(timeout=0.1)
         while not pipeline.record.pushed.is_set():
             Publisher.update()
-            Publisher.publish(pub)
+            Publisher.publish(pub, flags=zmq.NOBLOCK)
             time.sleep(0.1)
+        print("Waiting on publishing events")
         pipeline.record.pushed.wait(timeout=3.0)
         pipeline.write.fired.wait(timeout=3.0)
+        
     pipeline.state.selected("STOP").wait(timeout=1.0)
+    print("Finished loop work.")
     print(pipeline.record.complete)
     for chunk in pipeline.record:
         print("{0}: {1}".format(chunk, pipeline.record[chunk].lastindex))
-    assert pipeline.record.pushed.is_set()
     assert pipeline.write.fired.is_set()
-    assert pipeline.record.framecounter == len(Publisher) * chunksize
+    assert pipeline.record.framecounter == len(Publisher) * (chunksize)
     with h5py.File(filename, 'r') as f:
         assert 'telemetry' in f
         mg = f['telemetry']
@@ -53,4 +57,44 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
             print(g['mask'][...])
             assert li == g['mask'].shape[0] - 1
             np.testing.assert_allclose(g['data'][li], Publisher[name].array)
+            
+    
+def test_final_write(pipeline, Publisher, pub, filename, chunksize):
+    """Test running the pipeline."""
+    with pipeline.running(timeout=0.1):
+        print("Waiting on start.")
+        pipeline.state.selected("RUN").wait(timeout=0.1)
+        while not pipeline.record.pushed.is_set():
+            Publisher.update()
+            Publisher.publish(pub, flags=zmq.NOBLOCK)
+            time.sleep(0.1)
+        print("Waiting on publishing events")
+        pipeline.record.pushed.wait(timeout=3.0)
+        pipeline.write.fired.wait(timeout=3.0)
+        
+        assert pipeline.record.pushed.is_set()
+        pipeline.record.pushed.clear()
+        
+        for i in range(3):
+            Publisher.update()
+            Publisher.publish(pub, flags=zmq.NOBLOCK)
+            time.sleep(0.1)
+        pipeline.pause()
+        pipeline.record.pushed.wait(timeout=3.0)
+        
+    pipeline.state.selected("STOP").wait(timeout=1.0)
+    print("Finished loop work.")
+    print(pipeline.record.complete)
+    for chunk in pipeline.record:
+        print("{0}: {1}".format(chunk, pipeline.record[chunk].lastindex))
+    assert pipeline.write.fired.is_set()
+    assert pipeline.record.framecounter == len(Publisher) * (chunksize + 3)
+    with h5py.File(filename, 'r') as f:
+        assert 'telemetry' in f
+        mg = f['telemetry']
+        for name in Publisher.keys():
+            assert name in mg
+            g = mg[name]
+            assert g['data'].shape[0] == (chunksize * 2)
+
     

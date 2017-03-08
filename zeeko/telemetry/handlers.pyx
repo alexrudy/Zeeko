@@ -316,6 +316,11 @@ cdef class TelemetryWriter(SocketMapping):
     
     cdef str last_filename
     
+    cdef int pause_timeout
+    """Timeout to wait for one last writing message on pause.
+    This will not be interrupted by state changes, so it should be pretty small.
+    """
+    
     cdef public str filename_template
     """
     
@@ -341,15 +346,20 @@ cdef class TelemetryWriter(SocketMapping):
         self.writer = self.target = Writer()
         self.callback = writer_callback
         
+        self.pause_timeout = 100
+        
         # Delay management
         self.snail = Snail()
+        
+        # Address for connections
         self.address = ""
+        self.use_reconnections = False
+        
         # Filenames
         self.h5_group_name = "telemetry"
         self.filename_template = "telemetry.{0:04d}.hdf5"
         self.last_filename = ""
         self._counter = itertools.count()
-        self.use_reconnections = False
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -399,6 +409,10 @@ cdef class TelemetryWriter(SocketMapping):
 
     cdef int paused(self) nogil except -1:
         """Function called when the loop has paused."""
+        # Handle one last message.
+        with gil:
+            self(timeout=self.pause_timeout)
+        
         if self.writer.file is not None: 
             with gil:
                 self.writer.file.file.close()
