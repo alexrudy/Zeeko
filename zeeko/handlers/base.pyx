@@ -218,7 +218,8 @@ cdef class SocketInfo:
         pollitem.socket = socket.handle
         pollitem.revents = events
         pollitem.events = self.events
-        rc = self.fire(&pollitem, interrupt_handle)
+        with nogil:
+            rc = self.fire(&pollitem, interrupt_handle)
         return rc
         
     def support_options(self):
