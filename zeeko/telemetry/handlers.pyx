@@ -373,7 +373,7 @@ cdef class TelemetryWriter(SocketMapping):
         return self.writer.counter
         
     @classmethod
-    def from_recorder(cls, str filename, rclient, enable_reconnections=True):
+    def from_recorder(cls, str filename, rclient, enable_reconnections=False):
         obj = cls.at_address(rclient.notifications_address, 
                              rclient.notify.context, kind=zmq.PULL,
                              enable_reconnections=enable_reconnections)
@@ -382,7 +382,7 @@ cdef class TelemetryWriter(SocketMapping):
         return obj
     
     @classmethod
-    def at_address(cls, str address, Context ctx, int kind = zmq.PULL, enable_reconnections=True):
+    def at_address(cls, str address, Context ctx, int kind = zmq.PULL, enable_reconnections=False):
         socket = ctx.socket(kind)
         socket.connect(address)
         obj = cls(socket, zmq.POLLIN)
