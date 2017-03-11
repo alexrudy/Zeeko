@@ -48,6 +48,7 @@ cdef class Recorder:
         self.offset = -1
         self.counter = 0
         self.framecount = 0
+        self.counter_at_done = 0
         
         # Accounting objects
         self._chunkcount = 0
@@ -93,6 +94,7 @@ cdef class Recorder:
     cdef int _release_arrays(self) nogil except -1:
         """Release ZMQ messages held for chunks."""
         self.offset = -1
+        self.counter_at_done = 0
         self.map.clear()
         return 0
     
@@ -167,7 +169,8 @@ cdef class Recorder:
         valid_index = (index > 0 and ((chunk.last_index < (<size_t>index))))
         initial_index = (chunk.last_index == 0 and index == 0)
         if valid_index or initial_index:
-            rc = chunk_append(chunk, &message, <size_t>index)
+            if index < chunk.chunksize:
+                rc = chunk_append(chunk, &message, <size_t>index)
         
         # Trigger the event
         self._event_map._trigger_event(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
@@ -199,14 +202,29 @@ cdef class Recorder:
     cdef int _check_for_completion(self) nogil except -1:
         """This method checks to see if the chunks have completed."""
         cdef int rc = 0
-        cdef size_t i
+        cdef size_t i, n = 0
         if self.map.n == 0:
             return 0
         
         # Complete if all arrays are full.
         for i in range(self.map.n):
             if (<array_chunk *>(self.map.index_get(i).value)).last_index < (self._chunksize - 1):
-                return 0
+                n += 1
+            else:
+                with gil:
+                    self.log.debug("{0:s} done".format(self.map.keys()[i]))
+                if self.counter_at_done == 0:
+                    self.counter_at_done = self.counter
+                elif (self.counter_at_done + (2 * self.map.n) < self.counter):
+                    return 1
+        if n != 0:
+            if n < self.map.n:
+                with gil:
+                    self.log.debug(",".join(self.map.keys()))
+                    self.log.debug("n={0:d} nn={1:d} {2:s} not finished.".format(n, self.map.n, ",".join(key for i,key in enumerate(self.map.keys()) if (<array_chunk *>(self.map.index_get(i).value)).last_index < (self._chunksize - 1))))
+                    self.log.debug("n={0:d} {1:s} finished.".format(n, ",".join(key for i,key in enumerate(self.map.keys()) if (<array_chunk *>(self.map.index_get(i).value)).last_index >= (self._chunksize - 1))))
+                    
+            return 0
         else:
             return 1
             

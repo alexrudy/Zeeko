@@ -11,6 +11,8 @@ from .chunk cimport array_chunk
 cdef class Recorder:
     
     cdef HashMap map
+    
+    cdef size_t counter_at_done
     cdef readonly size_t counter
     """Number of messages received by the Recorder."""
     
