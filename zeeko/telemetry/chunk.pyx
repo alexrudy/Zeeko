@@ -119,21 +119,23 @@ cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index) n
     size = libzmq.zmq_msg_size(&chunk.metadata)
     if libzmq.zmq_msg_size(&array.array.metadata) != size:
         with gil:
-            raise ValueError("Metadata size is different. {!r} -> {!r}".format(
-                zmq_msg_to_str(&chunk.metadata), zmq_msg_to_str(&array.array.metadata)))
+            raise ValueError("Metadata size is different. ({0:s}) {1!r} -> {2!r}".format(
+                zmq_msg_to_str(&chunk.name), zmq_msg_to_str(&chunk.metadata), zmq_msg_to_str(&array.array.metadata)))
     rc = memcmp(libzmq.zmq_msg_data(&chunk.metadata), libzmq.zmq_msg_data(&array.array.metadata), size)
     if rc != 0:
         with gil:
-            raise ValueError("Metadata does not match! {!r} -> {!r}".format(
-                zmq_msg_to_str(&chunk.metadata), zmq_msg_to_str(&array.array.metadata)))
+            raise ValueError("Metadata does not match! ({0:s}) {1!r} -> {2!r}".format(
+                zmq_msg_to_str(&chunk.name), zmq_msg_to_str(&chunk.metadata), zmq_msg_to_str(&array.array.metadata)))
     
     size = libzmq.zmq_msg_size(&array.array.data)
     if index >= chunk.chunksize:
         with gil:
-            raise IndexError("Trying to append beyond end of chunk. {:d} > {:d}".format(index, chunk.chunksize))
+            raise IndexError("Trying to append beyond end of chunk ({0:s}). {1:d} > {2:d} (l={3:d})".format(
+                             zmq_msg_to_str(&chunk.name), index, chunk.chunksize, chunk.last_index))
     if size > chunk.stride:
         with gil:
-            raise IndexError("Trying to append an array larger than the stride. {:d} > {:d}".format(size, chunk.stride))
+            raise IndexError("Trying to append an array larger than the stride ({0:s}). {1:d} > {2:d}".format(
+                             zmq_msg_to_str(&chunk.name), size, chunk.stride))
     
     
     data = libzmq.zmq_msg_data(&chunk.data)
@@ -329,7 +331,7 @@ cdef class Chunk:
         try:
             meta = jsonapi.loads(self.metadata)
         except ValueError as e:
-            raise ValueError("Can't decode JSON in {!r}".format(self.metadata))
+            raise ValueError("Can't decode JSON in {0!r}".format(self.metadata))
         self._shape = tuple(meta['shape'])
         self._dtype = np.dtype(meta['dtype'])
     
