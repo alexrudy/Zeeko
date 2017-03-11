@@ -80,6 +80,9 @@ def initialize_group(chunk, h5group, axis=0):
     shape = tuple(shape)
     
     maxshape = list(chunk.shape)
+    for i,s in enumerate(chunk.shape):
+        if s == 0:
+            maxshape[i] = None
     maxshape.insert(axis, None)
     maxshape = tuple(maxshape)
     
@@ -89,6 +92,8 @@ def initialize_group(chunk, h5group, axis=0):
         chunks = list(chunk.shape)
         chunks.insert(axis, chunk.chunksize)
         chunks = tuple(chunks)
+    
+    print("Shape: {0} Maxshape: {1} Chunks: {2}".format(shape, maxshape, chunks))
     
     d = h5group.create_dataset("data", 
         shape=shape,
