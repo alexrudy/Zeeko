@@ -186,6 +186,7 @@ cdef class Telemetry(SocketMapping):
     
     cdef int resumed(self) nogil except -1:
         """Function called when the loop is resumed."""
+        self.recorder._release_arrays()
         if not self.use_reconnections:
             return 0
         with gil:
