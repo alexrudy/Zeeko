@@ -12,7 +12,7 @@ cdef class Writer:
     
     cdef EventMap _event_map
     
-    cdef size_t _framecount
+    cdef unsigned long _framecount
     cdef readonly int chunksize
     cdef readonly double last_message
     

@@ -178,7 +178,7 @@ def send_array_packet_header(socket, topic, narrays, framecount=0, timestamp=Non
         timestamp = time.time()
     
     m1 = socket.send(sandwich_unicode(topic), flags=bflags, copy=copy, track=False)
-    m2 = socket.send(struct.pack("I", framecount), flags=bflags, copy=copy, track=False)
+    m2 = socket.send(struct.pack("L", framecount), flags=bflags, copy=copy, track=False)
     m3 = socket.send(struct.pack("i", narrays), flags=bflags, copy=copy, track=False)
     m4 = socket.send(struct.pack("d", timestamp), flags=flags, copy=copy, track=False)
     return [m1, m2, m3, m4]

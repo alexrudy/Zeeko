@@ -32,7 +32,7 @@ from .. import ZEEKO_PROTOCOL_VERSION
 
 __all__ = ['Publisher']
 
-cdef int MAXFRAMECOUNT = (2**30)
+cdef long MAXFRAMECOUNT = (2**15)
 
 cdef int send_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int fc, int nm, int flags) nogil except -1:
     """Send the message header for a publisher. Sent as:
@@ -65,7 +65,6 @@ cdef class Publisher:
     
     def __cinit__(self):
         cdef int rc
-        cdef unsigned int * _framecounter
         self._failed_init = True
         rc = pthread.pthread_mutex_init(&self._mutex, NULL)
         pthread.check_rc(rc)
