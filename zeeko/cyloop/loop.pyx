@@ -52,6 +52,7 @@ cdef class IOLoopWorker:
     
     cdef str _internal_address_interrupt
     cdef str _next_address_interrupt
+    cdef Event _next_address_started
     cdef list _sockets
     cdef void ** _socketinfos
     
@@ -99,8 +100,9 @@ cdef class IOLoopWorker:
         return self._internal_address_interrupt
     
     # Allow chaining workers
-    def set_chained_address(self, address):
+    def set_chained_address(self, address, event):
         self._next_address_interrupt = address
+        self._next_address_started = event
     
     # Proxy certain threading.Thread methods
     def is_alive(self):
@@ -218,6 +220,8 @@ cdef class IOLoopWorker:
                 while True:
                     if self._next_address_interrupt != None:
                         with gil:
+                            if self._next_address_started != None:
+                                self._next_address_started.wait(timeout=0.1)
                             self.state.signal(self.state.name, self._next_address_interrupt, context=self.context, timeout=100)
                     if self.state.check(STOP):
                         break
@@ -327,10 +331,11 @@ cdef class IOLoop:
         
         Each I/O loop by default has a single worker thread. This adds an additional
         worker thread which can run an addtional polling loop."""
+        cdef IOLoopWorker worker
         if len(self.workers):
             worker = IOLoopWorker(self, self.context, StateMachine(), len(self.workers))
             prev_worker = self.workers[-1]
-            prev_worker.set_chained_address(worker._chain_address)
+            prev_worker.set_chained_address(worker._chain_address, worker._started)
         else:
             worker = IOLoopWorker(self, self.context, self.state, len(self.workers))
         self.workers.append(worker)
@@ -361,6 +366,8 @@ cdef class IOLoop:
         for worker in self.workers:
             if not worker._started.is_set():
                 worker.start()
+        for worker in self.workers:
+            worker._started.wait(timeout=timeout)
         if len(self.workers):
             self.workers[0]._signal_state(state, timeout=timeout)
             self.workers[-1].state.selected(state).wait(timeout=timeout)
