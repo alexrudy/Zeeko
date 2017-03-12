@@ -51,6 +51,7 @@ cdef class IOLoopWorker:
     cdef void * _interrupt_handle
     
     cdef str _internal_address_interrupt
+    cdef str _next_address_interrupt
     cdef list _sockets
     cdef void ** _socketinfos
     
@@ -92,13 +93,24 @@ cdef class IOLoopWorker:
     @property
     def manager(self):
         return self._manager()
+        
+    @property
+    def _chain_address(self):
+        return self._internal_address_interrupt
+    
+    # Allow chaining workers
+    def set_chained_address(self, address):
+        self._next_address_interrupt = address
     
     # Proxy certain threading.Thread methods
     def is_alive(self):
         return self.thread.is_alive()
     
     def join(self, timeout=None):
-        return self.thread.join(timeout=timeout)
+        try:
+            return self.thread.join(timeout=timeout)
+        except RuntimeError:
+            pass
     
     def start(self):
         return self.thread.start()
@@ -151,6 +163,8 @@ cdef class IOLoopWorker:
     
         This method should only be called from the internal worker thread.
         """
+        self.log.debug("Closing {0}".format(self.thread.name))
+        
         try:
             self._internal.disconnect(self._internal_address_interrupt)
         except (zmq.ZMQError, zmq.Again) as e:
@@ -173,6 +187,7 @@ cdef class IOLoopWorker:
     def _start(self):
         """Thread initialization function."""
         self.state.set(START)
+        self.log.debug("Starting {0}".format(self.thread.name))
         self._internal = self.context.socket(zmq.PULL)
         self._internal.bind(self._internal_address_interrupt)
 
@@ -192,6 +207,7 @@ cdef class IOLoopWorker:
 
         self.throttle.reset()
         self._started.set()
+        self.log.debug("Paused {0}".format(self.thread.name))
         self.state.set(PAUSE)
 
     def _work(self):
@@ -200,13 +216,17 @@ cdef class IOLoopWorker:
         try:
             with nogil:
                 while True:
-                    if self.state.check(RUN):
+                    if self._next_address_interrupt != None:
+                        with gil:
+                            self.state.signal(self.state.name, self._next_address_interrupt, context=self.context, timeout=100)
+                    if self.state.check(STOP):
+                        break
+                    elif self.state.check(RUN):
                         self._run()
                     elif self.state.check(PAUSE):
                         self._pause()
-                    elif self.state.check(STOP):
-                        break
         except Exception as e:
+            self.log.exception("Exception in worker thread {0}.".format(self.thread.name))
             raise
         finally:
             self._close()
@@ -307,7 +327,13 @@ cdef class IOLoop:
         
         Each I/O loop by default has a single worker thread. This adds an additional
         worker thread which can run an addtional polling loop."""
-        self.workers.append(IOLoopWorker(self, self.context, self.state, len(self.workers)))
+        if len(self.workers):
+            worker = IOLoopWorker(self, self.context, StateMachine(), len(self.workers))
+            prev_worker = self.workers[-1]
+            prev_worker.set_chained_address(worker._chain_address)
+        else:
+            worker = IOLoopWorker(self, self.context, self.state, len(self.workers))
+        self.workers.append(worker)
         
     def attach(self, socketinfo, index=0):
         """Attach a socket to the I/O Loop.
@@ -326,13 +352,18 @@ cdef class IOLoop:
         for worker in self.workers:
             worker.throttle.configure(**kwargs)
     
-    def signal(self, state, timeout=1.0):
+    def signal(self, state, timeout=100):
         """Signal a specific state to each worker.
         
         :param str state: The name of the state for signaling.
         """
+        cdef IOLoopWorker worker
         for worker in self.workers:
-            worker._signal_state(state, timeout=timeout * 1000)
+            if not worker._started.is_set():
+                worker.start()
+        if len(self.workers):
+            self.workers[0]._signal_state(state, timeout=timeout)
+            self.workers[-1].state.selected(state).wait(timeout=timeout)
     
     def start(self, timeout=1.0):
         """Start the workers."""
