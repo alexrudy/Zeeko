@@ -29,7 +29,9 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
     with pipeline.running(timeout=0.1):
         print("Waiting on start.")
         pipeline.state.selected("RUN").wait(timeout=0.1)
-        while not pipeline.record.pushed.is_set():
+        for i in range(chunksize * 2):
+            if pipeline.record.pushed.is_set():
+                break
             Publisher.update()
             Publisher.publish(pub, flags=zmq.NOBLOCK)
             time.sleep(0.1)
@@ -64,7 +66,9 @@ def test_final_write(pipeline, Publisher, pub, filename, chunksize):
     with pipeline.running(timeout=0.1):
         print("Waiting on start.")
         pipeline.state.selected("RUN").wait(timeout=0.1)
-        while not pipeline.record.pushed.is_set():
+        for i in range(chunksize * 2):
+            if pipeline.record.pushed.is_set():
+                break
             Publisher.update()
             Publisher.publish(pub, flags=zmq.NOBLOCK)
             time.sleep(0.1)
@@ -83,8 +87,9 @@ def test_final_write(pipeline, Publisher, pub, filename, chunksize):
         pipeline.record.pushed.wait(timeout=3.0)
         
     pipeline.state.selected("STOP").wait(timeout=1.0)
+    assert pipeline.state.selected("STOP").is_set()
     print("Finished loop work.")
-    print(pipeline.record.complete)
+    print("Complete = {0}".format(pipeline.record.complete))
     for chunk in pipeline.record:
         print("{0}: {1}".format(chunk, pipeline.record[chunk].lastindex))
     assert pipeline.write.fired.is_set()
