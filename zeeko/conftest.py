@@ -120,7 +120,10 @@ class Context(zmq.Context):
 def context(request):
     """The ZMQ context."""
     ctx = Context(io_threads=0)
+    t = threading.Timer(10.0, try_term, args=(ctx,))
+    t.start()
     yield ctx
+    t.cancel()
     try_term(ctx)
     
 def socket_pair(context, left, right):
