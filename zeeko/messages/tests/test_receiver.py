@@ -33,7 +33,7 @@ class ReceiverTestBase(ZeekoTestBase):
     
     cls = Receiver
     
-    _framecount = itertools.count()
+    _framecount = itertools.count(2**18)
     
     @pytest.fixture
     def framecount(self):
@@ -118,6 +118,7 @@ class ReceiverTests(ReceiverTestBase):
             assert not receiver.event(key).is_set()
         self.recv_arrays(receiver, pull, arrays)
         self.assert_receiver_arrays_allclose(receiver, arrays)
+        assert receiver.framecount == framecount
         
     def test_unbundled(self, receiver, push, pull, arrays):
         """Test an unbundled send."""

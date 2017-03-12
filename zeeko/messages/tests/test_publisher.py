@@ -88,6 +88,7 @@ class TestPublisher(BasePublisherTests):
         """Return the publisher, with arrays."""
         publishers = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
         pub = Publisher([])
+        pub.framecount = 2**18
         for name, array in publishers:
             pub[name] = array
         return pub
