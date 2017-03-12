@@ -19,7 +19,7 @@ def ioloop(context, *sockets):
     from zeeko.cyloop.loop import DebugIOLoop
     loop = DebugIOLoop(context)
     for socket in sockets:
-        socket.attach(loop)
+        loop.attach(socket)
     with loop.running():
         yield loop
     
@@ -27,13 +27,16 @@ def ioloop(context, *sockets):
 def to_bind(address):
     """Parse an address to a bind address."""
     parsed = urlparse.urlparse(address)
-    hostname = socket.gethostbyname(parsed.hostname)
+    if parsed.hostname == "*":
+        hostname = "*"
+    else:
+        hostname = socket.gethostbyname(parsed.hostname)
     return "{0.scheme}://{hostname}:{0.port:d}".format(parsed, hostname=hostname)
 
 def setup_logging():
     """Initialize logging."""
     h = logging.StreamHandler()
-    f = logging.Formatter("--> %(message)s [%(name)s]")
+    f = logging.Formatter("%(levelname)-8s --> %(message)s [%(name)s]")
     h.setLevel(logging.DEBUG)
     h.setFormatter(f)
     
@@ -65,17 +68,14 @@ def main(ctx, port, host, scheme):
 @click.pass_context
 def client(ctx, interval):
     """Make a client"""
-    from zeeko.workers.client import Client
-    c = Client(ctx.obj.zcontext, ctx.obj.addr)
-    c.start()
-    count = c.counter
-    try:
+    from zeeko.handlers.client import Client
+    c = Client.at_address(ctx.obj.addr, ctx.obj.zcontext)
+    with ioloop(ctx.obj.zcontext, c) as loop:
+        count = c.framecount
         while True:
             time.sleep(interval)
-            ctx.obj.log.info("Receiving {:.1f} msgs per second. Delay: {:.3g}".format((c.counter - count) / float(interval), c.delay))
-            count = c.counter
-    finally:
-        c.stop()
+            ctx.obj.log.info("Receiving {:.1f} msgs per second. Delay: {:.3g}".format((c.framecount - count) / float(interval), c.snail.delay))
+            count = c.framecount
 
 @main.command()
 @click.option("--interval", type=int, help="Polling interval for server status.", default=3)
@@ -89,23 +89,23 @@ def server(ctx, frequency, interval):
     s = Server.at_address(ctx.obj.bind, ctx.obj.zcontext)
     s.throttle.frequency = frequency
     s.throttle.active = True
-    s.publisher['image'] = np.random.randn(180,180)
-    s.publisher['grid'] = np.random.randn(32, 32)
-    s.publisher['array'] = np.random.randn(52)
+    s['image'] = np.random.randn(180,180)
+    s['grid'] = np.random.randn(32, 32)
+    s['array'] = np.random.randn(52)
     
-    click.echo("Publishing {:d} array(s) to '{:s}' at {:.0f}Hz".format(len(s.publisher), ctx.obj.bind, s.throttle.frequency))
+    click.echo("Publishing {:d} array(s) to '{:s}' at {:.0f}Hz".format(len(s), ctx.obj.bind, s.throttle.frequency))
     click.echo("^C to stop.")
     with ioloop(ctx.obj.zcontext, s) as loop:
-        count = s.publisher.framecount
+        count = s.framecount
         while loop.is_alive():
             time.sleep(interval)
-            s.publisher['image'] = np.random.randn(180,180)
-            s.publisher['grid'] = np.random.randn(32, 32)
-            s.publisher['array'] = np.random.randn(52)
-            ncount = s.publisher.framecount
+            s['image'] = np.random.randn(180,180)
+            s['grid'] = np.random.randn(32, 32)
+            s['array'] = np.random.randn(52)
+            ncount = s.framecount
             ctx.obj.log.info("Sending {:.1f} msgs per second. N={:d}, to={:.4f}".format(
-                            (ncount - count) / float(interval) * len(s.publisher), ncount, s.throttle._delay))
-            count = s.publisher.framecount
+                            (ncount - count) / float(interval) * len(s), ncount, s.throttle._delay))
+            count = s.framecount
     
 
 @main.command()
@@ -119,31 +119,33 @@ def sprofile(ctx, frequency):
     s = Server.at_address(ctx.obj.bind, ctx.obj.zcontext)
     # s.throttle.frequency = frequency
     # s.throttle.active = True
-    s.publisher['image'] = np.random.randn(180,180)
-    s.publisher['grid'] = np.random.randn(32, 32)
-    s.publisher['array'] = np.random.randn(52)
+    s['image'] = np.random.randn(180,180)
+    s['grid'] = np.random.randn(32, 32)
+    s['array'] = np.random.randn(52)
     
-    click.echo("Publishing {:d} array(s) to '{:s}' at {:.0f}Hz".format(len(s.publisher), ctx.obj.bind, s.throttle.frequency))
+    click.echo("Publishing {:d} array(s) to '{:s}' at {:.0f}Hz".format(len(s), ctx.obj.bind, s.throttle.frequency))
     click.echo("^C to stop.")
     start = time.time()
     with ioloop(ctx.obj.zcontext, s) as loop:
-        count = s.publisher.framecount
-        loop.throttle.frequency = frequency
-        loop.throttle.active = True
-        
-        while loop.is_alive() and s.publisher.framecount < 1000:
+        count = s.framecount
+        throttle = loop.worker.throttle
+        throttle.frequency = frequency
+        throttle.active = True
+        while loop.is_alive() and s.framecount < 1000:
             time.sleep(interval)
-            s.publisher['image'] = np.random.randn(180,180)
-            s.publisher['grid'] = np.random.randn(32, 32)
-            s.publisher['array'] = np.random.randn(52)
-            ncount = s.publisher.framecount
+            s['image'] = np.random.randn(180,180)
+            s['grid'] = np.random.randn(32, 32)
+            s['array'] = np.random.randn(52)
+            ncount = s.framecount
             ctx.obj.log.info("Sending {:.1f} msgs per second. N={:d}, to={:.4f}".format(
-                            (ncount - count) / float(interval) * len(s.publisher), ncount, loop.throttle._delay))
-            count = s.publisher.framecount
+                            (ncount - count) / float(interval) * len(s), ncount, throttle._delay))
+            count = s.framecount
         end = time.time()
-    print(s.publisher.framecount / (end - start))
+    click.echo("Effective Framerate = {0:.1f}Hz".format(s.framecount / (end - start)))
     import matplotlib.pyplot as plt
-    plt.plot(loop.throttle.record)
+    plt.plot(throttle._history)
+    plt.xlabel("Timestep")
+    plt.ylabel("Timeout")
     plt.show()
 
 class Namespace(object):
