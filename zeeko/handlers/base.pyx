@@ -445,6 +445,19 @@ cdef class SocketOptions(SocketInfo):
             if self.autosubscribe:
                 self.client.subscribe("")
     
+    cdef int paused(self) nogil except -1:
+        """Function called when the loop has paused."""
+        return 0
+
+    cdef int resumed(self) nogil except -1:
+        """Function called when the loop is resumed."""
+        with gil:
+            if self.client.type == zmq.SUB:
+                if self.subscriptions:
+                    for s in self.subscriptions:
+                        self.client.subscribe("")
+                elif self.autosubscribe:
+                    self.client.subscribe("")
 
 cdef class SocketMapping(SocketInfo):
     
