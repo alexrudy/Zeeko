@@ -101,6 +101,8 @@ def initialize_group(chunk, h5group, axis=0):
         chunks=chunks,
         dtype=chunk.dtype,
         fillvalue=0.0)
+        
+    d.attrs['TAXIS'] = axis
     
     m = h5group.create_dataset("mask",
         shape=(0,),
@@ -108,6 +110,8 @@ def initialize_group(chunk, h5group, axis=0):
         chunks=(chunk.chunksize,),
         dtype=chunk.mask.dtype,
         fillvalue=0)
+    
+    m.attrs['TAXIS'] = 0
     h5group.attrs['index'] = 0
 
 def write(chunk, h5group, truncate=False, axis=0, metadata=dict()):
