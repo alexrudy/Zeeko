@@ -126,7 +126,7 @@ cdef class IOLoopWorker:
         self.log.debug("state.signal({0}) [DONE]".format(state))
     
     def _not_done(self):
-        if self.state.check(STOP):
+        if self.state._check(STOP):
             return
         if not self.is_alive():
             self.log.debug("thread.start()")
