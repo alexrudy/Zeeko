@@ -64,6 +64,9 @@ cdef class Recorder:
     
     def __dealloc__(self):
         self._release_arrays()
+        
+    def __repr__(self):
+        return "<Recorder frame={0:d} count={1:d} offset={2:d} keys=[{3:s}]>".format(self.framecount, self.counter, self.offset, ",".join(self.keys()))
     
     def __len__(self):
         return self.map.n
