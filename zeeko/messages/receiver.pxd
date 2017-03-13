@@ -17,7 +17,7 @@ from .mevents cimport EventMap
 
 
 cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1
-cdef int receive_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int * fc, int * nm, double * ts, int flags) nogil except -1
+cdef int receive_header(void * socket, libzmq.zmq_msg_t * topic, unsigned long * fc, int * nm, double * ts, int flags) nogil except -1
 
 ctypedef struct msg_event:
     event evt
@@ -25,7 +25,7 @@ ctypedef struct msg_event:
 
 cdef class Receiver:
     cdef int _n_messages
-    cdef unsigned int _framecount
+    cdef unsigned long _framecount
     cdef readonly double last_message
     cdef int _n_events
     cdef EventMap _events

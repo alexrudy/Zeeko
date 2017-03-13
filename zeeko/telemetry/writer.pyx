@@ -94,7 +94,7 @@ cdef class Writer:
         cdef int rc = 0
         cdef int value = 1
         cdef size_t optsize = sizeof(int)
-        cdef unsigned int fc = 0
+        cdef unsigned long fc = 0
         cdef int nm = 0
         cdef double tm = 0.0
         cdef libzmq.zmq_msg_t topic

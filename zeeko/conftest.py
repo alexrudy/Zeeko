@@ -120,7 +120,10 @@ class Context(zmq.Context):
 def context(request):
     """The ZMQ context."""
     ctx = Context(io_threads=0)
+    t = threading.Timer(10.0, try_term, args=(ctx,))
+    t.start()
     yield ctx
+    t.cancel()
     try_term(ctx)
     
 def socket_pair(context, left, right):
@@ -252,6 +255,11 @@ def n():
     """Number of arrays"""
     return 3
     
+@pytest.fixture
+def framecount():
+    """Return the framecounter value."""
+    return 2**22 + 35
+    
 from .messages import Publisher as _Publisher
 
 class MockPublisher(_Publisher):
@@ -264,9 +272,10 @@ class MockPublisher(_Publisher):
             array.array[...] = np.random.randn(*array.shape)
 
 @pytest.fixture
-def Publisher(name, n, shape):
+def Publisher(name, n, shape, framecount):
     """Make an array publisher."""
     p = MockPublisher([])
+    p.framecount = framecount
     for i in range(n):
         p["{0:s}{1:d}".format(name, i)] = np.random.randn(*shape)
     return p

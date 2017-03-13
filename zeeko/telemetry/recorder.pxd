@@ -24,10 +24,10 @@ cdef class Recorder:
     cdef readonly Event pushed
     """Event which is set once messages have been pushed to the writer."""
     
-    cdef long offset
+    cdef long long offset
     cdef int _chunksize
     
-    cdef readonly int framecount
+    cdef readonly unsigned long framecount
     """Current frame counter value for recorded messages"""
     
     cdef readonly double last_message
@@ -42,3 +42,4 @@ cdef class Recorder:
     cdef int _notify_partial_completion(self, void * socket, int flags) nogil except -1
     cdef int _notify_completion(self, void * socket, int flags) nogil except -1
     cdef int _notify_close(self, void * socket, int flags) nogil except -1
+    cdef void _log_state(self) nogil

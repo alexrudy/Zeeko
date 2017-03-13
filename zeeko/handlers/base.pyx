@@ -278,6 +278,7 @@ cdef class SocketInfo:
         
     cdef int _disconnect(self, str url) except -1:
         try:
+            self.socket.set(zmq.LINGER, 100)
             self.socket.disconnect(url)
         except zmq.ZMQError as e:
             if e.errno in (zmq.ENOTCONN, zmq.EAGAIN, errno.ENOENT):

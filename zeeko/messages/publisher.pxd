@@ -35,7 +35,8 @@ cdef inline int zmq_msg_from_unsigned_int(libzmq.zmq_msg_t * message, unsigned i
 
 cdef class Publisher:
     
-    cdef int _n_messages, _framecount
+    cdef int _n_messages
+    cdef unsigned long _framecount
     cdef carray_named ** _messages
     cdef pthread.pthread_mutex_t _mutex
     cdef libzmq.zmq_msg_t _infomessage
