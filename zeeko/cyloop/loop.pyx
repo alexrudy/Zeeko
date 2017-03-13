@@ -211,24 +211,25 @@ cdef class IOLoopWorker:
         self._started.set()
         self.log.debug("Paused {0}".format(self.thread.name))
         self.state.set(PAUSE)
-
+    
     def _work(self):
         """Thread Worker Function"""
         self._start()
         try:
             with nogil:
                 while True:
-                    if self._next_address_interrupt != None:
-                        with gil:
-                            if self._next_address_started != None:
-                                self._next_address_started.wait(timeout=0.1)
-                            self.state.signal(self.state.name, self._next_address_interrupt, context=self.context, timeout=100)
                     if self.state.check(STOP):
                         break
                     elif self.state.check(RUN):
                         self._run()
                     elif self.state.check(PAUSE):
                         self._pause()
+                    
+                    #NOTE: It is important that this call happen *last*
+                    # so that we don't send the initial state of the loop
+                    # onwards. It will still propogate the STOP command
+                    # becasue that will happen on exiting _run() or _pause().
+                    self._propogate()
         except Exception as e:
             self.log.exception("Exception in worker thread {0}.".format(self.thread.name))
             raise
@@ -247,7 +248,16 @@ cdef class IOLoopWorker:
                 if si_timeout < timeout:
                     timeout = si_timeout
         return timeout
-
+    
+    cdef int _propogate(self) nogil except -1:
+        if self._next_address_interrupt != None:
+            with gil:
+                if self._next_address_started != None:
+                    self._next_address_started.wait(timeout=0.1)
+                self.log.debug("{0} -> {1} {2}".format(self.thread.name, self._next_address_interrupt, self.state.name))
+                self.state.signal(self.state.name, self._next_address_interrupt, context=self.context, timeout=100)
+        return 0
+    
     cdef int _pause(self) nogil except -1:
         cdef int rc = 0
         cdef int i
