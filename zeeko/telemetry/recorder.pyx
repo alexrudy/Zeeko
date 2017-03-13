@@ -138,6 +138,7 @@ cdef class Recorder:
         cdef hashentry * entry
         cdef libzmq.zmq_msg_t notification
         
+        self._log_state()
         # Increment the message counter.
         self.counter += 1
         
@@ -178,6 +179,7 @@ cdef class Recorder:
         # Trigger the event
         self._event_map._trigger_event(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
         
+        self._log_state()
         # Handle the case where this is the last message we needed to be done.
         if self._check_for_completion() == 1:
             self._notify_completion(notify, notify_flags)
@@ -207,6 +209,8 @@ cdef class Recorder:
         cdef int rc = 0
         cdef size_t i, n = 0
         if self.map.n == 0:
+            with gil:
+                self.log.debug("Not finished, map.n == 0")
             return 0
         
         # Complete if all arrays are full.
@@ -219,6 +223,8 @@ cdef class Recorder:
                 if self.counter_at_done == 0:
                     self.counter_at_done = self.counter
                 elif (self.counter_at_done + (2 * self.map.n) < self.counter):
+                    with gil:
+                        self.log.debug("Finished, receieved 2*n messages after first array was done.")
                     return 1
         if n != 0:
             if n < self.map.n:
@@ -226,9 +232,13 @@ cdef class Recorder:
                     self.log.debug(",".join(self.map.keys()))
                     self.log.debug("n={0:d} nn={1:d} {2:s} not finished.".format(n, self.map.n, ",".join(key for i,key in enumerate(self.map.keys()) if (<array_chunk *>(self.map.index_get(i).value)).last_index < (self._chunksize - 1))))
                     self.log.debug("n={0:d} {1:s} finished.".format(n, ",".join(key for i,key in enumerate(self.map.keys()) if (<array_chunk *>(self.map.index_get(i).value)).last_index >= (self._chunksize - 1))))
-                    
+            
+            with gil:
+                self.log.debug("Not Finished, {0:d} arrays were not done.".format(n))
             return 0
         else:
+            with gil:
+                self.log.debug("Finished, All arrays are done..")
             return 1
             
     cdef int _notify_partial_completion(self, void * socket, int flags) nogil except -1:
@@ -245,6 +255,8 @@ cdef class Recorder:
         self._chunkcount += 1
         
         if socket is not NULL:
+            with gil:
+                self.log.debug("Notifying writer. {0!r}".format(self))
             # Send the topic message.
             rc = check_zmq_rc(libzmq.zmq_msg_init_size(&topic, 0))
             try:
@@ -262,6 +274,8 @@ cdef class Recorder:
         
         # Notify listeners that something was sent.
         self.pushed._set()
+        with gil:
+            self.log.debug("Pushed {0!r}".format(self))
         
         # Release the memory held by the sent chunks
         self._release_arrays()
@@ -282,10 +296,15 @@ cdef class Recorder:
             
         # Notify listeners that something was sent.
         self.pushed._set()
-        
         # Release the memory held by arrays
         self._release_arrays()
+        with gil:
+            self.log.debug("Closed {0!r}".format(self))
         return rc
+    
+    cdef void _log_state(self) nogil:
+        with gil:
+            self.log.debug("{0!r}".format(self))
     
 
         

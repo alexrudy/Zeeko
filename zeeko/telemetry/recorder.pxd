@@ -42,3 +42,4 @@ cdef class Recorder:
     cdef int _notify_partial_completion(self, void * socket, int flags) nogil except -1
     cdef int _notify_completion(self, void * socket, int flags) nogil except -1
     cdef int _notify_close(self, void * socket, int flags) nogil except -1
+    cdef void _log_state(self) nogil
