@@ -251,7 +251,9 @@ cdef class IOLoopWorker:
     cdef int _pause(self) nogil except -1:
         cdef int rc = 0
         cdef int i
-
+        
+        with gil:
+            self.log.debug("{0} paused".format(self.thread.name))
         self._lock._acquire()
         try:
             for i in range(1, self._n_pollitems):
@@ -265,6 +267,9 @@ cdef class IOLoopWorker:
                 rc = check_zmq_rc(libzmq.zmq_poll(self._pollitems, 1, self.throttle.get_timeout()))
                 self.throttle.start()
                 rc = self.state.sentinel(&self._pollitems[0])
+                if rc == 1:
+                    with gil:
+                        self.log.debug("{0} -> {1}".format(self.thread.name, self.state.name))
             finally:
                 self.throttle.mark()
                 self._lock._release()
@@ -274,6 +279,8 @@ cdef class IOLoopWorker:
         cdef size_t i
         cdef int rc = 0
         cdef double now = current_time()
+        with gil:
+            self.log.debug("{0} run".format(self.thread.name))
 
         self._lock._acquire()
         try:
@@ -293,6 +300,9 @@ cdef class IOLoopWorker:
                 if self.state.sentinel(&self._pollitems[0]) != 1:
                     for i in range(1, self._n_pollitems):
                         rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)
+                else:
+                    with gil:
+                        self.log.debug("{0} -> {1}".format(self.thread.name, self.state.name))
                 now = current_time()
                 self.throttle.mark_at(now)
             finally:
