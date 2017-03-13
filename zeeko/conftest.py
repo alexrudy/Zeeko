@@ -255,6 +255,11 @@ def n():
     """Number of arrays"""
     return 3
     
+@pytest.fixture
+def framecount():
+    """Return the framecounter value."""
+    return 2**22 + 35
+    
 from .messages import Publisher as _Publisher
 
 class MockPublisher(_Publisher):
@@ -267,9 +272,10 @@ class MockPublisher(_Publisher):
             array.array[...] = np.random.randn(*array.shape)
 
 @pytest.fixture
-def Publisher(name, n, shape):
+def Publisher(name, n, shape, framecount):
     """Make an array publisher."""
     p = MockPublisher([])
+    p.framecount = framecount
     for i in range(n):
         p["{0:s}{1:d}".format(name, i)] = np.random.randn(*shape)
     return p

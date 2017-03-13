@@ -53,7 +53,7 @@ class SocketInfoTestBase(ZeekoTestBase):
             # Wait on the first message to come in.
             ioloop.state.selected("RUN").wait(timeout=timeout)
             time.sleep(0.1 * timeout)
-            assert counter_callback() == 1
+            assert counter_callback() == 36
             assert snail.nlate == narrays
             
             # Pause, so we can send the second message with a delay.
@@ -118,7 +118,7 @@ class SocketInfoTestBase(ZeekoTestBase):
             print("Waiting on PAUSE")
             ioloop.state.selected("PAUSE").wait(timeout=timeout)
             time.sleep(0.1 * timeout)
-            assert counter_callback() == n + 1
+            assert counter_callback() == 36 + n + 1
             
     
     def test_repr(self, socketinfo):
