@@ -13,11 +13,14 @@ utilities = [pxd("..utils.rc"),
              pxd("..utils.condition"), 
              pxd("..utils.clock")]
 
+base = [ pxd("..cyloop.throttle"), pxd("..cyloop.statemachine"), pxd(".snail"), pxd(".base")]
+
+
 dependencies = {
     'base'    : utilities + [ pxd("..cyloop.throttle") ],
     'snail'   : utilities + [ pxd("..cyloop.throttle"), pxd("..cyloop.statemachine") ],
-    'client'  : utilities + [ pxd("..cyloop.throttle"), pxd("..cyloop.statemachine"), pxd(".snail"), pxd(".base") ],
-    'server'  : utilities + [ pxd("..cyloop.throttle"), pxd("..cyloop.statemachine"), pxd(".snail"), pxd(".base") ],
+    'client'  : utilities + base + [ pxd("..messages.receiver") ],
+    'server'  : utilities + base + [ pxd("..messages.publisher") ],
 }
 
 def get_extensions(**kwargs):

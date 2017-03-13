@@ -36,14 +36,14 @@ cdef unsigned long hash_name(char * name, size_t length) nogil except -1:
         hashvalue = ((hashvalue << 5) + hashvalue) + c
     return hashvalue
 
-cdef int receive_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int * fc, int * nm, double * ts, int flags) nogil except -1:
+cdef int receive_header(void * socket, libzmq.zmq_msg_t * topic, unsigned long * fc, int * nm, double * ts, int flags) nogil except -1:
     cdef int rc = 0
     
     # Receive topic message.
     rc = libzmq.zmq_msg_recv(topic, socket, flags)
     check_zmq_rc(rc)
     
-    rc = zmq_recv_sized_message(socket, fc, sizeof(unsigned int), flags)
+    rc = zmq_recv_sized_message(socket, fc, sizeof(unsigned long), flags)
     check_zmq_rc(rc)
     
     rc = zmq_recv_sized_message(socket, nm, sizeof(int), flags)

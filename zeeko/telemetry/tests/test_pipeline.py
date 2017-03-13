@@ -46,6 +46,34 @@ class TestPipeline(ZeekoTestBase):
                 g = mg[name]
                 assert g['data'].shape[0] == (chunksize * 6)
             
+    
+    def test_multiple_pipeline_writes_change_items(self, pipeline, filename, pub, Publisher, chunksize):
+        """Test the multi-write ability of the pipeline."""
+        with self.running_loop(pipeline):
+            
+            for i in range(chunksize * 3):
+                Publisher.update()
+                Publisher.publish(pub, flags=zmq.NOBLOCK)
+                time.sleep(0.1)
+            
+            pipeline.pause()
+            pipeline.resume()
+            
+            # Consume and remove a single item.
+            Publisher.popitem()
+            
+            for i in range(chunksize * 3):
+                Publisher.update()
+                Publisher.publish(pub, flags=zmq.NOBLOCK)
+                time.sleep(0.1)
+            
+        with h5py.File(filename, 'r') as f:
+            assert 'telemetry' in f
+            mg = f['telemetry']
+            for name in Publisher.keys():
+                assert name in mg
+                g = mg[name]
+                assert g['data'].shape[0] == (chunksize * 6)
 
 def test_create_pipeline(address, context, chunksize, filename):
     """Test creating a pipeline."""
