@@ -6,12 +6,16 @@ import os
 from zeeko._build_helpers import get_utils_extension_args, get_zmq_extension_args, _generate_cython_extensions, pxd, get_package_data
 from astropy_helpers import setup_helpers
 
+condition = [pxd("..utils.pthread"), pxd("..utils.condition")]
+carray = [pxd(".carray"), pxd(".utils")]
+message = [pxd('.message')] + carray
+
 dependencies = {
     'carray'    : [ pxd(".utils") ],
-    'mevents'   : [ pxd("..utils.hmap"), pxd("..utils.condition")],
-    'message'   : [ pxd(".carray"), pxd(".utils"), pxd("..utils.clock")],
-    'receiver'  : [ pxd(".carray"), pxd(".utils"), pxd('.message'), pxd("..utils.pthread"), pxd("..utils.condition")],
-    'publisher' : [ pxd(".carray"), pxd(".utils"), pxd('.message'), pxd("..utils.pthread"), pxd("..utils.clock"), pxd(".receiver")]
+    'mevents'   : [ pxd("..utils.hmap") ] + condition,
+    'message'   : carray + [ pxd("..utils.clock")],
+    'receiver'  : message + [ pxd('.mevents') ] + condition,
+    'publisher' : message + [ pxd("..utils.clock"), pxd(".receiver") ] + condition
 }
 
 def get_extensions(**kwargs):
