@@ -20,12 +20,18 @@ def get_parent_module():
     """Get parent filename."""
     frame = inspect.currentframe()
     module = inspect.getmodule(frame)
-    
     while module.__name__ == __name__:
         if frame.f_back is None:
             raise ValueError("Fell off the top of the stack.")
         frame = frame.f_back
         module = inspect.getmodule(frame)
+        if module.__name__.split(".")[0] == 'astropy_helpers':
+            try:
+                module = frame.f_locals['setuppkg']
+            except KeyError:
+                raise ValueError("Got to astropy helpers. Problem.")
+            else:
+                break
     return module
 
 def get_parent_filename():
@@ -35,7 +41,7 @@ def get_parent_filename():
 def get_package_data():
     """A basic get-package-data."""
     package = ".".join(get_parent_module().__name__.split(".")[:-1])
-    return {package:['*.pxd', '*.h']}
+    return { package: ['*.pxd', '*.h'] }
 
 def module_to_path(module):
     """docstring for module_to_path"""
