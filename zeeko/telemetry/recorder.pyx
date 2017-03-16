@@ -21,13 +21,14 @@ from .chunk cimport Chunk, array_chunk, chunk_append, chunk_init_array, chunk_se
 from ..messages.publisher cimport send_header
 from ..messages.carray cimport carray_message_info, carray_named, new_named_array, receive_named_array
 
-
 # -----------------
 # Python imports
 
 import zmq
 import logging
 from ..utils.sandwich import sandwich_unicode
+
+DEF DEBUGMSG = 0
 
 cdef int dealloc_chunks(void * chunk, void * data) nogil except -1:
     return chunk_close(<array_chunk *>chunk)
@@ -255,8 +256,9 @@ cdef class Recorder:
                     self.log.debug("n={0:d} nn={1:d} {2:s} not finished.".format(n, self.map.n, ",".join(key for i,key in enumerate(self.map.keys()) if (<array_chunk *>(self.map.index_get(i).value)).last_index < (self._chunksize - 1))))
                     self.log.debug("n={0:d} {1:s} finished.".format(n, ",".join(key for i,key in enumerate(self.map.keys()) if (<array_chunk *>(self.map.index_get(i).value)).last_index >= (self._chunksize - 1))))
             
-            with gil:
-                self.log.debug("Not Finished, {0:d} arrays were not done.".format(n))
+            IF DEBUGMSG == 1:
+                with gil:
+                    self.log.debug("Not Finished, {0:d} arrays were not done.".format(n))
             return 0
         else:
             with gil:
@@ -329,9 +331,9 @@ cdef class Recorder:
         return rc
     
     cdef void _log_state(self) nogil:
-        with gil:
-            self.log.debug("{0!r}".format(self))
-    
+        IF DEBUGMSG == 1:
+            with gil:
+                self.log.debug("{0!r}".format(self))
+        pass
 
-        
     
