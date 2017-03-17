@@ -21,59 +21,56 @@ def pipeline(address, context, chunksize, filename):
 class TestPipeline(ZeekoTestBase):
     """Tests for the pipeline."""
     
-    def test_multiple_pipeline_writes(self, pipeline, filename, pub, Publisher, chunksize):
-        """Test the multi-write ability of the pipeline."""
-        with self.running_loop(pipeline):
-            
-            for i in range(chunksize * 3):
-                Publisher.update()
-                Publisher.publish(pub, flags=zmq.NOBLOCK)
-                time.sleep(0.1)
-            
-            pipeline.pause()
-            pipeline.resume()
-            
-            for i in range(chunksize * 3):
-                Publisher.update()
-                Publisher.publish(pub, flags=zmq.NOBLOCK)
-                time.sleep(0.1)
-            
-        with h5py.File(filename, 'r') as f:
+    def check_filename(self, filename, n, chunksize, nchunks, publisher):
+        """docstring for check_filename"""
+        with h5py.File(filename.format(n), 'r') as f:
             assert 'telemetry' in f
             mg = f['telemetry']
-            for name in Publisher.keys():
+            for name in publisher.keys():
                 assert name in mg
                 g = mg[name]
-                assert g['data'].shape[0] == (chunksize * 6)
-            
+                assert g['data'].shape[0] == (chunksize * nchunks)
+                assert g['mask'][...].sum() == (chunksize * nchunks)
+    
+    def publish_chunks(self, publisher, pub, chunksize, n=1):
+        """Publish chunks."""
+        for i in range(n):
+            for j in range(chunksize):
+                publisher.update()
+                publisher.publish(pub, flags=zmq.NOBLOCK)
+                time.sleep(0.01)
+    
+    def run_n_chunks(self, pipeline, publisher, pub, chunksize, n, groups=1):
+        """Run a pipeline through n chunks"""
+        with self.running_loop(pipeline):
+            for i in range(groups):
+                self.publish_chunks(publisher, pub, chunksize, n=n)
+                # Pause and resume to roll over files.
+                pipeline.pause()
+                self.publish_chunks(publisher, pub, chunksize, n=n)
+                pipeline.resume()
+    
+    def test_multiple_pipeline_writes(self, pipeline, filename, pub, Publisher, chunksize):
+        """Test the multi-write ability of the pipeline."""
+        self.run_n_chunks(pipeline, Publisher, pub, chunksize, 6, 2)
+        for n in range(2):
+            self.check_filename(filename, n, chunksize, 6, Publisher)
     
     def test_multiple_pipeline_writes_change_items(self, pipeline, filename, pub, Publisher, chunksize):
         """Test the multi-write ability of the pipeline."""
         with self.running_loop(pipeline):
             
-            for i in range(chunksize * 3):
-                Publisher.update()
-                Publisher.publish(pub, flags=zmq.NOBLOCK)
-                time.sleep(0.1)
-            
+            self.publish_chunks(Publisher, pub, chunksize, n=3)
             pipeline.pause()
             pipeline.resume()
             
             # Consume and remove a single item.
             Publisher.popitem()
             
-            for i in range(chunksize * 3):
-                Publisher.update()
-                Publisher.publish(pub, flags=zmq.NOBLOCK)
-                time.sleep(0.1)
+            self.publish_chunks(Publisher, pub, chunksize, n=3)
             
-        with h5py.File(filename, 'r') as f:
-            assert 'telemetry' in f
-            mg = f['telemetry']
-            for name in Publisher.keys():
-                assert name in mg
-                g = mg[name]
-                assert g['data'].shape[0] == (chunksize * 6)
+        for n in range(2):
+            self.check_filename(filename, n, chunksize, 3, Publisher)
 
 def test_create_pipeline(address, context, chunksize, filename):
     """Test creating a pipeline."""
@@ -104,7 +101,7 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
         print("{0}: {1}".format(chunk, pipeline.record[chunk].lastindex))
     assert pipeline.write.fired.is_set()
     assert pipeline.record.framecounter == len(Publisher) * (chunksize)
-    with h5py.File(filename, 'r') as f:
+    with h5py.File(filename.format(0), 'r') as f:
         assert 'telemetry' in f
         mg = f['telemetry']
         for name in Publisher.keys():
@@ -152,7 +149,7 @@ def test_final_write(pipeline, Publisher, pub, filename, chunksize):
         print("{0}: {1}".format(chunk, pipeline.record[chunk].lastindex))
     assert pipeline.write.fired.is_set()
     assert pipeline.record.framecounter == len(Publisher) * (chunksize + 3)
-    with h5py.File(filename, 'r') as f:
+    with h5py.File(filename.format(0), 'r') as f:
         assert 'telemetry' in f
         mg = f['telemetry']
         for name in Publisher.keys():

@@ -24,7 +24,7 @@ def lastindex():
 @pytest.fixture
 def filename(tmpdir):
     """Filename for telemetry recording."""
-    return str(tmpdir.join("telemetry.hdf5"))
+    return str(tmpdir.join("telemetry_{0:02d}.hdf5"))
     
 @pytest.fixture
 def chunk_array(shape, dtype, chunksize, lastindex):
