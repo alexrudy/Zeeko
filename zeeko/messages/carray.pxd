@@ -31,6 +31,9 @@ cdef int close_named_array(carray_named * message) nogil except -1
 cdef int copy_array(carray_message * dest, carray_message * src) nogil except -1
 cdef int copy_named_array(carray_named * dest, carray_named * src) nogil except -1
 
+cdef int copy_array_hard(carray_message * dst, carray_message * src) nogil except -1
+cdef int copy_named_array_hard(carray_named * dst, carray_named * src) nogil except -1
+
 cdef int send_array(carray_message * message, void * socket, int flags) nogil except -1
 cdef int send_named_array(carray_named * msg, void * socket, int flags) nogil except -1
 cdef int receive_array(carray_message * message, void * socket, int flags) nogil except -1

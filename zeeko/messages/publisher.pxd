@@ -43,6 +43,7 @@ cdef class Publisher:
     cdef object _publishers
     cdef list _active_publishers
     cdef bint _failed_init
+    cdef bint _hard_copy_on_send
     
     
     cdef int lock(self) nogil except -1

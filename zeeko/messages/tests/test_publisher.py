@@ -83,11 +83,18 @@ class TestPublisher(BasePublisherTests):
     
     cls = Publisher
     
+    @pytest.fixture(params=[True, False], ids=['hardcopy', 'softcopy'])
+    def hardcopy(self, request):
+        """Whether to hardcopy or not."""
+        return request.param
+    
     @pytest.fixture
-    def obj(self, name, n, shape):
+    def obj(self, name, n, shape, hardcopy):
         """Return the publisher, with arrays."""
         publishers = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
         pub = Publisher([])
+        if hardcopy:
+            pub.enable_hardcopy()
         pub.framecount = 2**18
         for name, array in publishers:
             pub[name] = array

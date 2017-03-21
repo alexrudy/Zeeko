@@ -25,6 +25,7 @@ from zmq.backend.cython.message cimport Frame
 
 
 from .carray cimport send_named_array, empty_named_array, close_named_array, carray_message_info
+from .carray cimport copy_named_array_hard, copy_named_array
 from .message cimport ArrayMessage, zmq_msg_to_str
 from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
@@ -66,6 +67,7 @@ cdef class Publisher:
     def __cinit__(self):
         cdef int rc
         self._failed_init = True
+        self._hard_copy_on_send = False
         rc = pthread.pthread_mutex_init(&self._mutex, NULL)
         pthread.check_rc(rc)
         rc = libzmq.zmq_msg_init_size(&self._infomessage, sizeof(carray_message_info))
@@ -116,6 +118,10 @@ cdef class Publisher:
     def __iter__(self):
         """Iterate over the publisher."""
         return iter(self._publishers)
+        
+    def enable_hardcopy(self):
+        """Enable hardcopy on send."""
+        self._hard_copy_on_send = True
     
     property framecount:
         """A counter incremented each time a message is sent by this publisher."""
@@ -173,13 +179,19 @@ cdef class Publisher:
     cdef int _publish(self, void * socket, int flags) nogil except -1:
         """Send all messages/arrays once via the provided socket."""
         cdef int i, rc
+        cdef carray_named message
         self.lock()
         try:
             self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
             self._set_framecounter_message(self._framecount)
             for i in range(self._n_messages):
                 rc = libzmq.zmq_msg_copy(&self._messages[i].array.info, &self._infomessage)
-                rc = send_named_array(self._messages[i], socket, flags)
+                if self._hard_copy_on_send:
+                    copy_named_array_hard(&message, self._messages[i])
+                else:
+                    empty_named_array(&message)
+                    copy_named_array(&message, self._messages[i])
+                rc = send_named_array(&message, socket, flags)
         finally:
             self.unlock()
         return rc
