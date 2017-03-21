@@ -15,7 +15,7 @@ from astropy.tests.pytest_plugins import *
 try:
     PYTEST_HEADER_MODULES['astropy'] = 'astropy'
     PYTEST_HEADER_MODULES['zmq'] = 'zmq'
-    PYTEST_HEADER_MODULES.pop('h5py', None)
+    PYTEST_HEADER_MODULES['h5py'] = 'h5py'
     PYTEST_HEADER_MODULES.pop('Scipy', None)
     PYTEST_HEADER_MODULES.pop('Matplotlib', None)
     PYTEST_HEADER_MODULES.pop('Pandas', None)
