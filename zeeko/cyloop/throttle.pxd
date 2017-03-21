@@ -6,6 +6,7 @@ cimport numpy as np
 
 cdef class Throttle:
     
+    cdef bint _configured
     cdef public bint active
     """Flag which enables / disables this throttle object."""
     
@@ -18,7 +19,7 @@ cdef class Throttle:
     cdef readonly np.ndarray _history
     cdef readonly int _i
     
-    cdef public double period
+    cdef double _period
     """Target period between when this throttle should fire, in seconds."""
     
     cdef public double timeout

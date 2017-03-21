@@ -17,12 +17,13 @@ cdef class Throttle:
     # in milliseconds so as to be compatible with ZMQ.
     
     def __cinit__(self):
+        self._configured = False
         self._last_event = 0.0
         self._next_event = 0.0
         self._last_start = 0.0
         self._delay = 0.0
         
-        self.period = 0.01
+        self._period = 0.01
         self._gain = 0.2
         self._c = 1e-4
         self._adjustment = 0.25e-3
@@ -31,7 +32,21 @@ cdef class Throttle:
         
         self._history = np.zeros((1000,), dtype=np.float)
         self._i = 0
+    
+    def _updated_configuration(self):
+        """Method called to mark that the throttle has been configured."""
+        if not self._configured:
+            self.active = True
+        self._configured = True
+    
+    property period:
+        def __get__(self):
+            return self._period
         
+        def __set__(self, double value):
+            self._period = value
+            self._updated_configuration()
+    
     property frequency:
         """Frequency, in Hz."""
         def __get__(self):
@@ -39,6 +54,7 @@ cdef class Throttle:
         
         def __set__(self, double value):
             self.period = 1.0 / value
+            self._updated_configuration()
             
     
     property gain:
@@ -51,6 +67,7 @@ cdef class Throttle:
                 self._gain = value
             else:
                 raise ValueError("Gain must be between 0.0 and 1.0.")
+            self._updated_configuration()
     
     property leak:
         """Integrator leak"""
@@ -70,6 +87,7 @@ cdef class Throttle:
                 self._c = value
             else:
                 raise ValueError("C must be between 0.0 and 1.0.")
+            self._updated_configuration()
         
     property overhead:
         """Estimate of the amount of time spent doing work."""
@@ -103,6 +121,12 @@ cdef class Throttle:
             self.active = kwargs.pop("active")
         if "timeout" in kwargs:
             self.timeout = kwargs.pop("timeout")
+        if len(kwargs):
+            raise ValueError("Some configuration items were not used: [{0}]".format(
+                ",".join("'{0}'".format(key) for key in kwargs)
+            ))
+        self._updated_configuration()
+        
     
     def _reset_at(self, last_event):
         """Reset integrator from python."""
@@ -134,11 +158,11 @@ cdef class Throttle:
     cdef int mark_at(self, double now) nogil:
         """Mark the operation as done at a specific time., preparing for the next event time."""
         cdef double delay_i = now - self._last_event
-        #cdef double delay_i = self.period - now + self._last_event
-        cdef double error = self.period - delay_i# - self._delay
+        #cdef double delay_i = self._period - now + self._last_event
+        cdef double error = self._period - delay_i# - self._delay
         cdef double memory = self._delay + (self._gain * error)
         self._delay = memory - (memory * self._c) #- self._adjustment
-        self._next_event = now + self.period
+        self._next_event = now + self._period
         self._last_event = now
         
         # Record history
