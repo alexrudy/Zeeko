@@ -103,6 +103,20 @@ class TestRecorder(RecorderTests):
     """Tests for just the recorder."""
     pytestmark = pytest.mark.usefixtures("rnotify")
     cls = Recorder
+    
+    @pytest.mark.xfail
+    def test_hwm_faulting(self, recorder, pub, sub, arrays, framecount):
+        """Test against a high water mark."""
+        sub.hwm = 10
+        sub.set(zmq.SUBSCRIBE, "")
+        n = 50
+        for i in range(n):
+            self.send_arrays(pub, arrays, framecount)
+            arrays = OrderedDict((key, data * 2.0) for key, data in arrays.items())
+        for i in range(10):
+            self.recv_arrays(recorder, sub, arrays)
+        assert not sub.poll(timeout=1000)
+        
         
 class TestRecorderMapping(ZeekoMappingTests, ReceiverTestBase):
     """Test recorder behavior as a mapping."""
