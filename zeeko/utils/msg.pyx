@@ -9,6 +9,13 @@ from .sandwich import unsandwich_unicode
 import zmq
 import struct as s
 
+cdef int zmq_msg_hard_copy(libzmq.zmq_msg_t * dst, libzmq.zmq_msg_t * src) nogil except -1:
+    cdef int rc = 0
+    cdef size_t sz = libzmq.zmq_msg_size(src)
+    rc = check_zmq_rc(libzmq.zmq_msg_init_size(dst, sz))
+    memcpy(libzmq.zmq_msg_data(dst), libzmq.zmq_msg_data(src), sz)
+    return rc
+    
 cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1:
     cdef int rc = 0
     cdef libzmq.zmq_msg_t zmessage

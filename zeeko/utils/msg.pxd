@@ -3,6 +3,7 @@ cimport zmq.backend.cython.libzmq as libzmq
 from .rc cimport check_zmq_rc, check_memory_ptr
 
 # Wrappers for recieving simple things.
+cdef int zmq_msg_hard_copy(libzmq.zmq_msg_t * dst, libzmq.zmq_msg_t * src) nogil except -1
 cdef int zmq_recv_sized_message(void * socket, void * dest, size_t size, int flags) nogil except -1
 cdef int zmq_init_recv_msg_t(void * socket, int flags, libzmq.zmq_msg_t * zmessage) nogil except -1
 cdef libzmq.zmq_msg_t * zmq_recv_new_msg_t(void * socket, int flags) nogil except NULL
