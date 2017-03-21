@@ -125,7 +125,6 @@ cdef class Throttle:
             raise ValueError("Some configuration items were not used: [{0}]".format(
                 ",".join("'{0}'".format(key) for key in kwargs)
             ))
-        self._updated_configuration()
         
     
     def _reset_at(self, last_event):
