@@ -232,14 +232,14 @@ cdef class SocketInfo:
             raise ValueError("Can't add option support when the socket is already bound.")
         self.opt = SocketOptions.wrap_socket(self.socket)
         
-    def create_ioloop(self):
+    def create_ioloop(self, **kwargs):
         """This is a shortcut method to create an I/O Loop to manage this object.
         
         :param zmq.Context ctx: The ZeroMQ context to use for sockets in this loop.
         :returns: The :class:`~zeeko.cyloop.loop.IOLoop` object.
         """
         from ..cyloop.loop import IOLoop
-        loop = IOLoop(self.socket.context)
+        loop = IOLoop(self.socket.context, **kwargs)
         loop.attach(self)
         self._loop = loop
         return loop

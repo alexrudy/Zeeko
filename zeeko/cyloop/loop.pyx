@@ -336,12 +336,13 @@ cdef class IOLoopWorker:
 cdef class IOLoop:
     """An I/O loop manager which relies on polling via ZMQ."""
     
-    def __init__(self, ctx):
+    def __init__(self, ctx, **kwargs):
         self.state = StateMachine()        
         self.workers = []
         self.context = ctx or zmq.Context.instance()
         self.log = logging.getLogger(".".join([self.__class__.__module__,self.__class__.__name__]))
         self.add_worker()
+        self.configure_throttle(**kwargs)
     
     def __repr__(self):
         return "<{0} n={1} {2}>".format(self.__class__.__name__, len(self.workers), self.state.name)
