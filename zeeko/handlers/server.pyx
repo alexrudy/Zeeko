@@ -68,7 +68,9 @@ cdef class Server(SocketMutableMapping):
             parts.append("{0}".format(self.loop.state.name))
         if len(self):
             parts.append("framecount={0}".format(self.framecount))
-            parts.append("keys=[{0}]".format(",".join(self.keys())))
+            parts.append("keys=[{0}]".format(",".join("'{0!s}'".format(key) for key in self.keys())))
+        else:
+            parts.append("keys=[]")
         return "<{0}>".format(" ".join(parts))
     
     @classmethod
