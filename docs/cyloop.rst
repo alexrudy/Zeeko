@@ -1,3 +1,5 @@
+.. _IOLoop:
+
 Cython I/O Loop
 ***************
 
