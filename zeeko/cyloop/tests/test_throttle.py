@@ -19,11 +19,11 @@ def test_inactive_throttle():
     assert not t.active
     assert t._get_timeout_at(0.0) == 10
 
-def test_active_throttle():
+def test_activate_throttle():
     """Test an active throttle."""
     t = Throttle()
-    t.active = True
     t.period = 1.0
+    assert t.active
     t._reset_at(0.0)
     t._start_at(0.0)
     t._mark_at(1.0)
