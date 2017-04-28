@@ -7,6 +7,8 @@ import pytest
 import numpy as np
 import struct
 import zmq
+import time
+import datetime as dt
 
 from ..message import ArrayMessage
 from ..sugar import Publisher
@@ -61,6 +63,29 @@ class TestPublisherMapping(ZeekoMutableMappingTests):
 class BasePublisherTests(BaseContainerTests):
     """Base tests for publishers."""
     
+    @pytest.fixture(params=[2**18, 0, 50])
+    def framecount(self, request):
+        """Fixture for the framecount."""
+        return request.param
+    
+    def get_last_message(self, receiver):
+        """Get the value of the last message."""
+        last_message = receiver.last_message
+        assert isinstance(last_message, (float, dt.datetime))
+        if isinstance(last_message, dt.datetime):
+            last_message = time.mktime(last_message.timetuple())
+        assert isinstance(last_message, float)
+        return last_message
+    
+    def test_publisher_attrs(self, obj, framecount):
+        """Test attributes"""
+        assert obj.framecount == framecount
+        last_message = self.get_last_message(obj)
+        now = dt.datetime.now()
+        last_timestamp = dt.datetime.fromtimestamp(last_message)
+        assert now - dt.timedelta(seconds=10) < last_timestamp
+        assert last_timestamp < now + dt.timedelta(seconds=10)
+    
     def test_publish(self, obj, push, pull, name):
         """Test the array publisher."""
         obj.publish(push)
@@ -89,13 +114,13 @@ class TestPublisher(BasePublisherTests):
         return request.param
     
     @pytest.fixture
-    def obj(self, name, n, shape, hardcopy):
+    def obj(self, name, n, shape, hardcopy, framecount):
         """Return the publisher, with arrays."""
         publishers = [("{0:s}{1:d}".format(name, i), np.random.randn(*shape)) for i in range(n)]
         pub = Publisher([])
         if hardcopy:
             pub.enable_hardcopy()
-        pub.framecount = 2**18
+        pub.framecount = framecount
         for name, array in publishers:
             pub[name] = array
         return pub

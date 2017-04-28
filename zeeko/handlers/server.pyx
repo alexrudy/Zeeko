@@ -4,6 +4,7 @@ from zmq.backend.cython.socket cimport Socket
 from zmq.backend.cython.context cimport Context
 
 import struct as s
+import datetime as dt
 import zmq
 
 from ..utils.rc cimport check_zmq_rc
@@ -111,4 +112,12 @@ cdef class Server(SocketMutableMapping):
         the server."""
         def __get__(self):
             return self.publisher.framecount
+        
+        def __set__(self, value):
+            self.publisher.framecount = int(value)
+        
+    property last_message:
+        """The last time a message was sent from this server."""
+        def __get__(self):
+            return dt.datetime.fromtimestamp(self.publisher.last_message)
         

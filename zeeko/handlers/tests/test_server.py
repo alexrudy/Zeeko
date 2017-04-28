@@ -36,11 +36,12 @@ class TestServerPublisher(BasePublisherTests):
     cls = Server
     
     @pytest.fixture
-    def obj(self, pull, push, arrays):
+    def obj(self, pull, push, arrays, framecount):
         """Return the publisher, with arrays."""
         c = self.cls(push, zmq.POLLERR)
         for k, v in arrays:
             c[k] = v
+        c.framecount = framecount
         yield c
         c.close()
     
