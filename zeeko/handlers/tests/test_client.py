@@ -54,6 +54,12 @@ class TestClient(SocketInfoTestBase):
         c = self.cls(pull, zmq.POLLIN)
         yield c
         c.close()
+        
+    def test_running_repr(self, ioloop, socketinfo):
+        """Test repr while running"""
+        with self.running_loop(ioloop, timeout=0.1):
+            r = repr(socketinfo)
+            assert r[1:].startswith(self.cls.__name__)
     
     def test_no_loop(self, socketinfo, Publisher, push):
         """Test client without using the loop."""
