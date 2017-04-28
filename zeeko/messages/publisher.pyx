@@ -85,6 +85,7 @@ cdef class Publisher:
             else:
                 raise TypeError("Publisher can only contain ArrayMessage instances, got {!r}".format(publisher))
         self._update_messages()
+        self.framecount = 0
     
     def __dealloc__(self):
         if self._messages is not NULL:
@@ -131,6 +132,16 @@ cdef class Publisher:
             if fc < 0:
                 raise ValueError("Frame count must be positive")
             self._framecount = fc
+            # self._set_framecounter_message(self._framecount)
+    
+    property last_message:
+        """Return the raw timestamp for the last message"""
+        def __get__(self):
+            cdef carray_message_info * info
+            cdef size_t size = libzmq.zmq_msg_size(&self._infomessage)
+            info = <carray_message_info *>libzmq.zmq_msg_data(&self._infomessage)
+            check_ptr(info)
+            return info.timestamp
     
     cdef int lock(self) nogil except -1:
         cdef int rc
