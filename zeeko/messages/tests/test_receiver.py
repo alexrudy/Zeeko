@@ -8,6 +8,7 @@ import pytest
 import numpy as np
 import time
 import zmq
+import datetime as dt
 import itertools
 
 from ..message import ArrayMessage
@@ -100,14 +101,20 @@ class ReceiverTestBase(ZeekoTestBase):
 class ReceiverTests(ReceiverTestBase):
     """Test methods for the receiver"""
     
+    def get_last_message(self, receiver):
+        """Get the value of the last message."""
+        last_message = receiver.last_message
+        assert isinstance(last_message, (float, dt.datetime))
+        if isinstance(last_message, dt.datetime):
+            last_message = time.mktime(last_message.timetuple())
+        assert isinstance(last_message, float)
+        return last_message
+    
     def test_receiver_attrs(self, receiver):
         """Test receiver attributes after init"""
         assert receiver.framecount == 0
-        last_message = receiver.last_message
-        if isinstance(last_message, float):
-            assert last_message == 0.0
-        else:
-            assert time.mktime(last_message.timetuple()) == 0.0
+        last_message = self.get_last_message(receiver)
+        assert last_message == 0.0
         evt = receiver.event("my_key")
         assert isinstance(evt, Event)
     
@@ -119,6 +126,8 @@ class ReceiverTests(ReceiverTestBase):
         self.recv_arrays(receiver, pull, arrays)
         self.assert_receiver_arrays_allclose(receiver, arrays)
         assert receiver.framecount == framecount
+        last_message = self.get_last_message(receiver)
+        
         
     def test_unbundled(self, receiver, push, pull, arrays):
         """Test an unbundled send."""
