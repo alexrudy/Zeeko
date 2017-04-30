@@ -6,76 +6,81 @@ Command-line interface for various Zeeko components
 import click
 import logging
 import zmq
-import socket
-import urlparse
-import contextlib
 import time
+import sys
+import numpy as np
+
+from zutils import zmain, ioloop, MessageLine
+
 
 log = logging.getLogger()
 
-@contextlib.contextmanager
-def ioloop(context, *sockets):
-    """Render a running IOLoop"""
-    from zeeko.cyloop.loop import DebugIOLoop
-    loop = DebugIOLoop(context)
-    for socket in sockets:
-        loop.attach(socket)
-    with loop.running():
-        yield loop
-    
-
-def to_bind(address):
-    """Parse an address to a bind address."""
-    parsed = urlparse.urlparse(address)
-    if parsed.hostname == "*":
-        hostname = "*"
-    else:
-        hostname = socket.gethostbyname(parsed.hostname)
-    return "{0.scheme}://{hostname}:{0.port:d}".format(parsed, hostname=hostname)
-
-def setup_logging():
-    """Initialize logging."""
-    h = logging.StreamHandler()
-    f = logging.Formatter("%(levelname)-8s --> %(message)s [%(name)s]")
-    h.setLevel(logging.DEBUG)
-    h.setFormatter(f)
-    
-    l = logging.getLogger()
-    l.addHandler(h)
-    l.setLevel(logging.DEBUG)
-
-@click.group()
-@click.option("--port", type=int, help="Port number.", default=7654)
-@click.option("--host", type=str, help="Host name.", default="localhost")
-@click.option("--scheme", type=str, help="ZMQ Protocol.", default="tcp")
-@click.pass_context
-def main(ctx, port, host, scheme):
-    """Command line interface for the Zeeko library."""
-    setup_logging()
-    ctx.obj.log = logging.getLogger(ctx.invoked_subcommand)
-    ctx.obj.zcontext = zmq.Context()
-    ctx.obj.addr = "{scheme}://{hostname}:{port:d}".format(port=port, scheme=scheme, hostname=host)
-    ctx.obj.bind = to_bind(ctx.obj.addr)
-    ctx.obj.host = host
-    ctx.obj.scheme = scheme
-    ctx.obj.port = port
-    ctx.obj.extra_addr = "{scheme}://{hostname}:{port:d}".format(port=port+1, scheme=scheme, hostname=host)
-    ctx.obj.extra_bind = to_bind(ctx.obj.extra_addr)
-    
+main = zmain()
 
 @main.command()
 @click.option("--interval", type=int, help="Polling interval for client status.", default=3)
 @click.pass_context
-def client(ctx, interval):
+def proxy(ctx, interval):
+    """A proxy object for monitoring traffic between two sockets"""
+    xpub = ctx.obj.zcontext.socket(zmq.XPUB)
+    xsub = ctx.obj.zcontext.socket(zmq.XSUB)
+    
+    xpub.bind(ctx.obj.secondary.bind)
+    xsub.bind(ctx.obj.primary.bind)
+    
+    click.echo("XPUB at {0}".format(ctx.obj.secondary.bind))
+    click.echo("XSUB at {0}".format(ctx.obj.primary.bind))
+    
+    poller = zmq.Poller()
+    poller.register(xpub, zmq.POLLIN)
+    poller.register(xsub, zmq.POLLIN)
+    
+    rate = 0.0
+    last_message = time.time()
+    
+    while True:
+        start = time.time()
+        while last_message + interval > start:
+            data = 0
+            sockets = dict(poller.poll(timeout=10))
+            if sockets.get(xpub, 0) & zmq.POLLIN:
+                msg = xpub.recv_multipart()
+                click.echo("[BROKER]: SUB {0!r}".format(msg))
+                xsub.send_multipart(msg)
+                data += sum(len(m) for m in msg)
+            if sockets.get(xsub, 0) & zmq.POLLIN:
+                msg = xsub.recv_multipart()
+                xpub.send_multipart(msg)
+                data += sum(len(m) for m in msg)
+            end = time.time()
+            rate = (rate * 0.9) + (data / (end - start)) * 0.1
+            start = time.time()
+        click.echo("Rate = {:.2f} Mb/s".format(rate / (1024 ** 2)))
+        last_message = time.time()
+
+@main.command()
+@click.option("--interval", type=int, help="Polling interval for client status.", default=3)
+@click.option("--subscribe", type=str, default="", help="Subscription value.")
+@click.pass_context
+def client(ctx, interval, subscribe):
     """Make a client"""
     from zeeko.handlers.client import Client
-    c = Client.at_address(ctx.obj.addr, ctx.obj.zcontext)
+    
+    c = Client.at_address(ctx.obj.primary.addr(), ctx.obj.zcontext, bind=ctx.obj.primary.did_bind())
+    if subscribe:
+        c.opt.subscribe(subscribe.encode('utf-8'))
     with ioloop(ctx.obj.zcontext, c) as loop:
-        count = c.framecount
-        while True:
-            time.sleep(interval)
-            ctx.obj.log.info("Receiving {:.1f} msgs per second. Delay: {:.3g}".format((c.framecount - count) / float(interval), c.snail.delay))
+        ctx.obj.mem.calibrate()
+        click.echo("Memory usage at start: {:d}MB".format(ctx.obj.mem.poll() / (1024**2)))
+        with MessageLine(sys.stdout) as msg:
             count = c.framecount
+            time.sleep(0.1)
+            sys.stdout.write("Client connected to {0:s}".format(ctx.obj.primary.addr()))
+            sys.stdout.flush()
+            while True:
+                time.sleep(interval)
+                msg("Receiving {:10.1f} msgs per second. Delay: {:4.3g} Mem: {:d}MB".format((c.framecount - count) / float(interval), c.snail.delay, ctx.obj.mem.usage() / (1024**2)))
+                count = c.framecount
 
 @main.command()
 @click.option("--interval", type=int, help="Polling interval for server status.", default=3)
@@ -86,26 +91,31 @@ def server(ctx, frequency, interval):
     from zeeko.handlers.server import Server
     import numpy as np
     
-    s = Server.at_address(ctx.obj.bind, ctx.obj.zcontext)
+    s = Server.at_address(ctx.obj.primary.addr(prefer_bind=True), ctx.obj.zcontext, bind=ctx.obj.primary.did_bind(prefer_bind=True))
     s.throttle.frequency = frequency
     s.throttle.active = True
     s['image'] = np.random.randn(180,180)
     s['grid'] = np.random.randn(32, 32)
     s['array'] = np.random.randn(52)
     
-    click.echo("Publishing {:d} array(s) to '{:s}' at {:.0f}Hz".format(len(s), ctx.obj.bind, s.throttle.frequency))
+    click.echo("Publishing {:d} array(s) to '{:s}' at {:.0f}Hz".format(len(s), ctx.obj.primary.addr(prefer_bind=True), s.throttle.frequency))
     click.echo("^C to stop.")
     with ioloop(ctx.obj.zcontext, s) as loop:
+        ctx.obj.mem.calibrate()
+        click.echo("Memory usage at start: {:d}MB".format(ctx.obj.mem.poll() / (1024**2)))
         count = s.framecount
-        while loop.is_alive():
-            time.sleep(interval)
-            s['image'] = np.random.randn(180,180)
-            s['grid'] = np.random.randn(32, 32)
-            s['array'] = np.random.randn(52)
-            ncount = s.framecount
-            ctx.obj.log.info("Sending {:.1f} msgs per second. N={:d}, to={:.4f}".format(
-                            (ncount - count) / float(interval) * len(s), ncount, s.throttle._delay))
-            count = s.framecount
+        with MessageLine(sys.stdout) as msg:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            while loop.is_alive():
+                time.sleep(interval)
+                s['image'] = np.random.randn(180,180)
+                s['grid'] = np.random.randn(32, 32)
+                s['array'] = np.random.randn(52)
+                ncount = s.framecount
+                msg("Sending {:5.1f} msgs per second. N={:6d}, to={:.4f}, mem={:d}MB".format(
+                    (ncount - count) / float(interval) * len(s), ncount, max(s.throttle._delay,0.0), ctx.obj.mem.usage() / (1024**2)))
+                count = ncount
     
 
 @main.command()
@@ -116,7 +126,7 @@ def sprofile(ctx, frequency):
     from zeeko.handlers.server import Server
     import numpy as np
     interval = 1.0
-    s = Server.at_address(ctx.obj.bind, ctx.obj.zcontext)
+    s = Server.at_address(ctx.obj.primary.addr(prefer_bind=True), ctx.obj.zcontext, bind=ctx.obj.primary.did_bind(prefer_bind=True))
     # s.throttle.frequency = frequency
     # s.throttle.active = True
     s['image'] = np.random.randn(180,180)
