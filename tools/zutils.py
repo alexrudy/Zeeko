@@ -50,16 +50,17 @@ class MemoryUsage(object):
     def poll():
         """Poll for memory usage, in bytes."""
         process = psutil.Process(os.getpid())
-        return process.memory_info().rss
+        return process.memory_info().rss / (1024 ** 2)
         
     def calibrate(self):
         """Set the zeropoint for calibration."""
         self.zeropoint = self.poll()
         
+        
     def usage(self):
-        """Return memory usage."""
-        return self.poll() - self.zeropoint
-
+        """Return memory usage, in MB."""
+        return (self.poll() - self.zeropoint)
+    
 class MessageLine(object):
     """A single line message"""
     def __init__(self, stream):
@@ -126,7 +127,7 @@ class AddressInfo(object):
             return True
         else:
             return False
-def zmain():
+def zmain(docs=None):
     """Generate a main command group."""
     @click.group()
     @click.option("--port", type=int, help="Port number.", default=7654)
@@ -149,4 +150,6 @@ def zmain():
             ctx.obj.primary.is_bind = True if bind == 'bind' else False
         ctx.obj.mem = MemoryUsage()
         ctx.obj.mem.calibrate()
+    if docs is not None:
+        main.__doc__ = docs
     return main

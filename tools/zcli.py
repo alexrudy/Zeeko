@@ -71,7 +71,7 @@ def client(ctx, interval, subscribe):
         c.opt.subscribe(subscribe.encode('utf-8'))
     with ioloop(ctx.obj.zcontext, c) as loop:
         ctx.obj.mem.calibrate()
-        click.echo("Memory usage at start: {:d}MB".format(ctx.obj.mem.poll() / (1024**2)))
+        click.echo("Memory usage at start: {:d}MB".format(ctx.obj.mem.poll()))
         with MessageLine(sys.stdout) as msg:
             count = c.framecount
             time.sleep(0.1)
@@ -79,7 +79,7 @@ def client(ctx, interval, subscribe):
             sys.stdout.flush()
             while True:
                 time.sleep(interval)
-                msg("Receiving {:10.1f} msgs per second. Delay: {:4.3g} Mem: {:d}MB".format((c.framecount - count) / float(interval), c.snail.delay, ctx.obj.mem.usage() / (1024**2)))
+                msg("Receiving {:10.1f} msgs per second. Delay: {:4.3g} Mem: {:d}MB".format((c.framecount - count) / float(interval), c.snail.delay, ctx.obj.mem.usage()))
                 count = c.framecount
 
 @main.command()
@@ -102,7 +102,7 @@ def server(ctx, frequency, interval):
     click.echo("^C to stop.")
     with ioloop(ctx.obj.zcontext, s) as loop:
         ctx.obj.mem.calibrate()
-        click.echo("Memory usage at start: {:d}MB".format(ctx.obj.mem.poll() / (1024**2)))
+        click.echo("Memory usage at start: {:d}MB".format(ctx.obj.mem.poll()))
         count = s.framecount
         with MessageLine(sys.stdout) as msg:
             sys.stdout.write("\n")
@@ -114,7 +114,7 @@ def server(ctx, frequency, interval):
                 s['array'] = np.random.randn(52)
                 ncount = s.framecount
                 msg("Sending {:5.1f} msgs per second. N={:6d}, to={:.4f}, mem={:d}MB".format(
-                    (ncount - count) / float(interval) * len(s), ncount, max(s.throttle._delay,0.0), ctx.obj.mem.usage() / (1024**2)))
+                    (ncount - count) / float(interval) * len(s), ncount, max(s.throttle._delay,0.0), ctx.obj.mem.usage()))
                 count = ncount
     
 
