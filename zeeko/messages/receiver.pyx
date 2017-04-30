@@ -210,6 +210,8 @@ cdef class Receiver:
             rc = libzmq.zmq_msg_send(&notification, notify_socket, 0)
             check_zmq_rc(rc)
         
+        close_named_array(&message)
+        
         return rc
         
     cdef int reset(self) nogil except -1:
