@@ -443,8 +443,12 @@ cdef class SocketOptions(SocketInfo):
         """Start the socket with subscriptions"""
         super(SocketOptions, self)._start()
         if self.client.type == zmq.SUB:
-            if self.autosubscribe:
+            if self.subscriptions:
+                for s in self.subscriptions:
+                    self.client.subscribe(s)
+            elif self.autosubscribe:
                 self.client.subscribe("")
+
     
     cdef int paused(self) nogil except -1:
         """Function called when the loop has paused."""
@@ -456,7 +460,7 @@ cdef class SocketOptions(SocketInfo):
             if self.client.type == zmq.SUB:
                 if self.subscriptions:
                     for s in self.subscriptions:
-                        self.client.subscribe("")
+                        self.client.subscribe(s)
                 elif self.autosubscribe:
                     self.client.subscribe("")
 
