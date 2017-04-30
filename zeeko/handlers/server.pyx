@@ -75,7 +75,7 @@ cdef class Server(SocketMutableMapping):
         return "<{0}>".format(" ".join(parts))
     
     @classmethod
-    def at_address(cls, str address, Context ctx = None, int kind = zmq.PUB):
+    def at_address(cls, str address, Context ctx = None, int kind = zmq.PUB, bind=True):
         """Create a server which is already bound to a specified address.
         
         :param str address: The ZeroMQ address to connect to.
@@ -85,7 +85,11 @@ cdef class Server(SocketMutableMapping):
         """
         ctx = ctx or zmq.Context.instance()
         socket = ctx.socket(kind)
-        socket.bind(address)
+        if bind:
+            socket.bind(address)
+        else:
+            socket.connect(address)
+        
         return cls(socket, zmq.POLLERR)
     
     def publish(self, Socket socket = None, int flags = 0):

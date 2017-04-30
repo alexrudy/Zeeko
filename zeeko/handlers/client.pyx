@@ -96,7 +96,7 @@ cdef class Client(SocketMapping):
         self.use_reconnections = True
     
     @classmethod
-    def at_address(cls, str address, Context ctx = None, int kind = zmq.SUB, enable_reconnections=True):
+    def at_address(cls, str address, Context ctx = None, int kind = zmq.SUB, bind = False, enable_reconnections = True):
         """Create a client which is already connected to a specified address.
     
         :param str address: The ZeroMQ address to connect to.
@@ -107,7 +107,10 @@ cdef class Client(SocketMapping):
         """
         ctx = ctx or zmq.Context.instance()
         socket = ctx.socket(kind)
-        socket.connect(address)
+        if bind:
+            socket.bind(address)
+        else:
+            socket.connect(address)
         obj = cls(socket, zmq.POLLIN)
         if enable_reconnections:
             obj.enable_reconnections(address)
