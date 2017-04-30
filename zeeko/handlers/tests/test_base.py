@@ -188,6 +188,7 @@ class SocketInfoTestBase(ZeekoTestBase):
         print("Finished setsocketoptions loop test")
         
     
+    
     def test_create_ioloop(self, socketinfo):
         """Test creating an IOLoop instance"""
         ioloop = socketinfo.create_ioloop()

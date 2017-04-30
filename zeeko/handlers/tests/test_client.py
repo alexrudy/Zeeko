@@ -137,3 +137,17 @@ class TestClient(SocketInfoTestBase):
         assert client.framecount != 0
         print(client.last_message)
         assert len(client) == nloop
+        
+    def test_pubsub_subscribe(self, ioloop, address, context, Publisher, pub):
+        """Test the pub/sub algorithm."""
+        client = self.cls.at_address(address, context, kind=zmq.SUB)
+        ioloop.attach(client)
+        nloop = 3
+        akey = next(iter(Publisher))
+        client.subscribe(akey)
+        self.run_loop_safely(ioloop, functools.partial(Publisher.publish, pub), nloop)
+        assert client.framecount != 0
+        print(client.last_message)
+        assert len(client) == 1
+        assert akey in client
+        
