@@ -25,7 +25,7 @@ cdef inline double timespec_to_microseconds(timespec * ts) nogil:
 cdef inline double current_time() nogil:
     cdef timespec ts
     current_utc_time(&ts)
-    return (<double>ts.tv_nsec / <double>NANOSECONDS) + <double>ts.tv_sec
+    return timespec_to_microseconds(&ts) / MICROSECONDS
 
 cdef inline timespec microseconds_offset(long microseconds) nogil:
     cdef timespec ts
