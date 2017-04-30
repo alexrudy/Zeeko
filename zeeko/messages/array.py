@@ -183,12 +183,12 @@ def send_array_packet_header(socket, topic, narrays, framecount=0, timestamp=Non
     m4 = socket.send(struct.pack("d", timestamp), flags=flags, copy=copy, track=False)
     return [m1, m2, m3, m4]
 
-def send_array_packet(socket, framecount, arrays, flags=0, copy=True, track=False, header=False, bundle=True, topic=None):
+def send_array_packet(socket, framecount, arrays, flags=0, copy=True, track=False, header=False, timestamp=None, bundle=True, topic=None):
     """Send a packet of arrays."""
     bflags = flags|zmq.SNDMORE if bundle else flags
     ms = []
     if header:
-        ms.extend(send_array_packet_header(socket, topic, len(arrays), framecount=framecount, flags=flags, copy=copy, track=track))
+        ms.extend(send_array_packet_header(socket, topic, len(arrays), framecount=framecount, timestamp=timestamp, flags=flags, copy=copy, track=track))
     for name, array in arrays[:-1]:
         ms.append(send_named_array(socket, name, array, framecount=framecount, flags=bflags, copy=copy, track=track))
     name, array = arrays[-1]
