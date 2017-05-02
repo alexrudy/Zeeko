@@ -28,6 +28,8 @@ import collections
 from zmq.utils import jsonapi
 from ..utils.sandwich import sandwich_unicode
 
+cdef long MAXFRAMECOUNT = (2**15)
+
 cdef unsigned long hash_name(char * name, size_t length) nogil except -1:
     cdef unsigned long hashvalue = 5381
     cdef int i, c
@@ -197,7 +199,10 @@ cdef class Receiver:
             copy_named_array(self._messages[i], &message)
             framecount = (<carray_message_info *>libzmq.zmq_msg_data(&self._messages[i].array.info)).framecount
             if framecount > self._framecount:
+                #TODO: Handle roll over here?
                 self._framecount = framecount
+            if self._framecount == MAXFRAMECOUNT - 1:
+                self._framecount = 0
             
         finally:
             self.unlock()
