@@ -168,7 +168,8 @@ cdef class Publisher:
     cdef int _update_messages(self) except -1:
         """Update the internal array of message structures."""
         cdef int rc
-        self.lock()
+        with nogil:
+            self.lock()
         try:
 
             self._messages = <carray_named **>realloc(<void *>self._messages, sizeof(carray_named *) * len(self._publishers))
@@ -184,7 +185,8 @@ cdef class Publisher:
             self._active_publishers = list(self._publishers.values())
             self._n_messages = len(self._publishers)
         finally:
-            self.unlock()
+            with nogil:
+                self.unlock()
         return 0
         
     cdef int _publish(self, void * socket, int flags) nogil except -1:
