@@ -442,6 +442,12 @@ cdef class SocketOptions(SocketInfo):
         self.set(zmq.UNSUBSCRIBE, key)
         self.subscriptions.discard(key)    
     
+    def unsubscribe_all(self):
+        """Unsubscribe from all subscriptions"""
+        assert_socket_is_sub(self.socket)
+        for key in list(self.subscriptions):
+            self.unsubscribe(key)
+    
     def _start(self):
         """Start the socket with subscriptions"""
         super(SocketOptions, self)._start()
