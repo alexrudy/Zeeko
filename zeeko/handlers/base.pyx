@@ -20,6 +20,7 @@ import collections
 import weakref
 import struct as s
 from ..utils.msg import internal_address
+from ..utils.sandwich import sandwich_unicode
 
 __all__ = ['SocketInfo', 'SocketOptions', 'SocketOptionError']
 
@@ -423,19 +424,21 @@ cdef class SocketOptions(SocketInfo):
                 raise SocketOptionTimeout("Socket getoption timed out after {0} ms.".format(timeout))
         return response
     
-    def subscribe(self, str key):
+    def subscribe(self, key):
         """Subscribe to a channel"""
         assert_socket_is_sub(self.client)
+        key = sandwich_unicode(key)
         if key in self.subscriptions:
             return
         self.subscriptions.add(key)
         self.set(zmq.SUBSCRIBE, key)
 
-    def unsubscribe(self, str key):
+    def unsubscribe(self, key):
         """Unsubscribe from a specific channel."""
         assert_socket_is_sub(self.socket)
+        key = sandwich_unicode(key)
         if key not in self.subscriptions:
-            raise ValueError("Can't unsubscribe from {0:s}, not subscribed.".format(key))
+            raise ValueError("Can't unsubscribe from {0:s}, not subscribed.".format(key.encode('utf-8')))
         self.set(zmq.UNSUBSCRIBE, key)
         self.subscriptions.discard(key)    
     
