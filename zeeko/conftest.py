@@ -75,6 +75,7 @@ def pytest_configure(config):
 import zmq
 import functools
 import threading
+import warnings
 import struct
 import numpy as np
 
@@ -94,6 +95,35 @@ def try_term(context):
         zmq.sugar.context.Context._instance = None
         raise RuntimeError("ZMQ Context failed to terminate.")
     
+def check_threads(ignore_daemons=True):
+    """Check for dangling threads."""
+    # Check for zombie threads.
+    import threading, time
+    if threading.active_count() > 1:
+        time.sleep(0.1) #Allow zombies to die!
+    count = 0
+    for thread in threading.enumerate():
+        if not thread.isAlive():
+            continue
+        if (ignore_daemons and getattr(thread, 'daemon', False)):
+            continue
+        if thread not in check_threads.seen:
+            count += 1
+            warnings.warn("Zombie thread: {0!r}".format(thread))
+            check_threads.seen.add(thread)
+            
+    # If there are new, non-daemon threads, cause an error.
+    if count > 1:
+        threads_info = []
+        for thread in threading.enumerate():
+            # referers = ",".join(type(r).__name__ for r in gc.get_referrers(thread))
+            referers = "\n   ".join(repr(r) for r in gc.get_referrers(thread))
+            threads_info.append("{0}:\n   {1}".format(repr(thread), referers))
+        threads_str = "\n".join(threads_info)
+        raise ValueError("{0:d} {3:s}thread{1:s} left alive!\n{2!s}".format(
+            count-1, "s" if (count-1)>1 else "", threads_str, "non-deamon " if ignore_daemons else ""))
+
+check_threads.seen = set()
 
 class Socket(zmq.Socket):
     
@@ -125,6 +155,7 @@ def context(request):
     yield ctx
     t.cancel()
     try_term(ctx)
+    check_threads()
     
 def socket_pair(context, left, right):
     """Given a context, make a socket."""
