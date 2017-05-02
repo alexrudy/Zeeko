@@ -65,4 +65,4 @@ html/*
 ci-docker.sh
 zeeko.test.hdf5
 .tox/
-
+zcli-*.log

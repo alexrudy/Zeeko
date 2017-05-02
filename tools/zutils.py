@@ -69,6 +69,13 @@ class MessageLine(object):
         self.active = False
         self.last_message_length = 0
         
+    def echo(self, message):
+        """Delegate to click.echo, then continue."""
+        self.__call__(message)
+        self.stream.write("\n")
+        self.stream.flush()
+        self.last_message_length = 0
+        
     def __enter__(self):
         """Start messages."""
         if not self.active:

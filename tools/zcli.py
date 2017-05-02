@@ -18,15 +18,27 @@ log = logging.getLogger()
 main = zmain()
 
 @main.command()
-@click.option("--interval", type=int, help="Polling interval for client status.", default=3)
+@click.option("--interval", type=int, help="Polling interval for client status.", default=1)
+@click.option("--guess", "bind", default=True, help="Try to bind the connection.", flag_value='guess')
+@click.option("--bind", "bind", help="Try to bind the connection.", flag_value='bind')
+@click.option("--connect", "bind", help="Try to use connect to attach the connection", flag_value='connect')
 @click.pass_context
-def proxy(ctx, interval):
+def proxy(ctx, interval, bind):
     """A proxy object for monitoring traffic between two sockets"""
+    proxylog = log.getChild("proxy")
+    h = logging.FileHandler("zcli-proxy.log", mode='w')
+    h.setFormatter(logging.Formatter(fmt='%(message)s,%(created)f'))
+    proxylog.addHandler(h)
+    proxylog.propagate = False
     xpub = ctx.obj.zcontext.socket(zmq.XPUB)
     xsub = ctx.obj.zcontext.socket(zmq.XSUB)
     
-    xpub.bind(ctx.obj.secondary.bind)
-    xsub.bind(ctx.obj.primary.bind)
+    if bind == 'connect':
+        xpub.connect(ctx.obj.secondary.url)
+        xsub.connect(ctx.obj.primary.url)
+    else:
+        xpub.bind(ctx.obj.secondary.bind)
+        xsub.bind(ctx.obj.primary.bind)
     
     click.echo("XPUB at {0}".format(ctx.obj.secondary.bind))
     click.echo("XSUB at {0}".format(ctx.obj.primary.bind))
@@ -38,29 +50,37 @@ def proxy(ctx, interval):
     rate = 0.0
     last_message = time.time()
     
-    while True:
-        start = time.time()
-        while last_message + interval > start:
-            data = 0
-            sockets = dict(poller.poll(timeout=10))
-            if sockets.get(xpub, 0) & zmq.POLLIN:
-                msg = xpub.recv_multipart()
-                if len(msg) == 1 and msg[0][0] in "\x00\x01":
-                    if msg[0][0] == '\x00':
-                        click.echo("[BROKER]: unsubscribe '{0}'".format(msg[0][1:]))
-                    elif msg[0][0] == '\x01':
-                        click.echo("[BROKER]: subscribe '{0}'".format(msg[0][1:]))
-                xsub.send_multipart(msg)
-                data += sum(len(m) for m in msg)
-            if sockets.get(xsub, 0) & zmq.POLLIN:
-                msg = xsub.recv_multipart()
-                xpub.send_multipart(msg)
-                data += sum(len(m) for m in msg)
-            end = time.time()
-            rate = (rate * 0.9) + (data / (end - start)) * 0.1
+    with MessageLine(sys.stdout) as printer:
+        while True:
             start = time.time()
-        click.echo("Rate = {:.2f} Mb/s".format(rate / (1024 ** 2)))
-        last_message = time.time()
+            while last_message + interval > start:
+                data = 0
+                sockets = dict(poller.poll(timeout=10))
+                if sockets.get(xpub, 0) & zmq.POLLIN:
+                    msg = xpub.recv_multipart()
+                    if len(msg) == 1 and msg[0][0] in "\x00\x01":
+                        if msg[0][0] == '\x00':
+                            printer.echo("[BROKER]: unsubscribe '{0}'".format(msg[0][1:]))
+                            proxylog.info("unsubscribe,'{0}'".format(msg[0][1:]))
+                        elif msg[0][0] == '\x01':
+                            printer.echo("[BROKER]: subscribe '{0}'".format(msg[0][1:]))
+                            proxylog.info("subscribe,'{0}'".format(msg[0][1:]))
+                        ratemsg = "Rate = {:.2f} Mb/s".format(rate / (1024 ** 2))
+                        proxylog.info("rate,{:.2f}".format(rate / 1024 ** 2))
+                        printer(ratemsg)
+                    xsub.send_multipart(msg)
+                    data += sum(len(m) for m in msg)
+                if sockets.get(xsub, 0) & zmq.POLLIN:
+                    msg = xsub.recv_multipart()
+                    xpub.send_multipart(msg)
+                    data += sum(len(m) for m in msg)
+                end = time.time()
+                rate = (rate * 0.9) + (data / (end - start)) * 0.1
+                start = time.time()
+            ratemsg = "Rate = {:.2f} Mb/s".format(rate / (1024 ** 2))
+            proxylog.info("rate,{:.2f}".format(rate / 1024 ** 2))
+            printer(ratemsg)
+            last_message = time.time()
 
 @main.command()
 @click.option("--interval", type=int, help="Polling interval for client status.", default=3)
@@ -79,8 +99,7 @@ def client(ctx, interval, subscribe):
         with MessageLine(sys.stdout) as msg:
             count = c.framecount
             time.sleep(0.1)
-            sys.stdout.write("Client connected to {0:s}".format(ctx.obj.primary.addr()))
-            sys.stdout.flush()
+            msg.echo("Client connected to {0:s} (bind={1})".format(ctx.obj.primary.addr(), ctx.obj.primary.did_bind()))
             while True:
                 time.sleep(interval)
                 msg("Receiving {:10.1f} msgs per second. Delay: {:4.3g} Mem: {:d}MB".format((c.framecount - count) / float(interval), c.snail.delay, ctx.obj.mem.usage()))
