@@ -45,7 +45,11 @@ def proxy(ctx, interval):
             sockets = dict(poller.poll(timeout=10))
             if sockets.get(xpub, 0) & zmq.POLLIN:
                 msg = xpub.recv_multipart()
-                click.echo("[BROKER]: SUB {0!r}".format(msg))
+                if len(msg) == 1 and msg[0][0] in "\x00\x01":
+                    if msg[0][0] == '\x00':
+                        click.echo("[BROKER]: unsubscribe '{0}'".format(msg[0][1:]))
+                    elif msg[0][0] == '\x01':
+                        click.echo("[BROKER]: subscribe '{0}'".format(msg[0][1:]))
                 xsub.send_multipart(msg)
                 data += sum(len(m) for m in msg)
             if sockets.get(xsub, 0) & zmq.POLLIN:
