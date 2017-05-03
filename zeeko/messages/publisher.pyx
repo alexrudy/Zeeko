@@ -159,7 +159,7 @@ cdef class Publisher:
 
             self._messages = <carray_named **>realloc(<void *>self._messages, sizeof(carray_named *) * len(self._publishers))
             if self._messages is NULL and len(self._publishers):
-                raise MemoryError("Could not allocate messages array for Publisher {!r}".format(self))
+                raise MemoryError("Could not allocate messages array for Publisher {0!r}".format(self))
             for i, key in enumerate(self._publishers.keys()):
                 self._messages[i] = &(<ArrayMessage>self._publishers[key])._message
                 rc = libzmq.zmq_msg_copy(&self._messages[i].array.info, &self._infomessage)
