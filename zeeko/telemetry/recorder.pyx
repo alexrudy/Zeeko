@@ -64,8 +64,8 @@ cdef class Recorder:
             raise ValueError("Chunksize must be non-negative.")
         self.chunksize = chunksize
     
-    def __dealloc__(self):
-        self._release_arrays()
+    # def __dealloc__(self):
+    #     self._release_arrays()
         
     def __repr__(self):
         return "<Recorder frame={0:d} count={1:d} offset={2:d} keys=[{3:s}]>".format(self.framecount, self.counter, self.offset, ",".join(self.keys()))
