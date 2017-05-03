@@ -11,7 +11,7 @@ from .carray cimport carray_named
 import zmq
 cimport zmq.backend.cython.libzmq as libzmq
 from zmq.backend.cython.socket cimport Socket
-from ..utils cimport pthread
+from ..utils.lock cimport Lock
 from ..utils.condition cimport Event, event
 from .mevents cimport EventMap
 
@@ -33,11 +33,9 @@ cdef class Receiver:
     cdef unsigned long * _hashes
     cdef dict _name_cache
     cdef int _name_cache_valid
-    cdef pthread.pthread_mutex_t _mutex
+    cdef Lock lock
     cdef bint _failed_init
     
-    cdef int lock(self) nogil except -1
-    cdef int unlock(self) nogil except -1
     cdef int reset(self) nogil except -1
     cdef int _build_namecache(self)
     cdef int get_message_index(self, libzmq.zmq_msg_t * name) nogil except -1

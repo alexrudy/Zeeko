@@ -90,19 +90,10 @@ cdef class Receiver:
         self._framecount = 0
         self._name_cache = {}
         self._name_cache_valid = 1
-        rc = pthread.mutex_init(&self._mutex, NULL)
-        self._failed_init = False
+        self.lock = Lock()
         self.last_message = 0.0
-    
-    cdef int lock(self) nogil except -1:
-        cdef int rc
-        rc = pthread.pthread_mutex_lock(&self._mutex)
-        return rc
-
-    cdef int unlock(self) nogil except -1:
-        cdef int rc
-        rc = pthread.pthread_mutex_unlock(&self._mutex)
-        return rc
+        
+        self._failed_init = False
     
     cdef int _update_messages(self, int nm) nogil except -1:
         cdef int i
@@ -129,8 +120,6 @@ cdef class Receiver:
             self._messages = NULL
         if self._hashes is not NULL:
             free(self._hashes)
-        if not self._failed_init:
-            pthread.pthread_mutex_destroy(&self._mutex)
     
     cdef int _receive(self, void * socket, int flags, void * notify_socket) nogil except -1:
         cdef int rc
@@ -153,7 +142,7 @@ cdef class Receiver:
         data = <char *>libzmq.zmq_msg_data(name)
         hashvalue = hash_name(data, size)
         
-        self.lock()
+        self.lock._acquire()
         try:
             for i in range(self._n_messages):
                 if self._hashes[i] == hashvalue:
@@ -162,7 +151,7 @@ cdef class Receiver:
             else:
                 idx = -1
         finally:
-            self.unlock()
+            self.lock._release()
         return idx
     
     cdef int _receive_unbundled(self, void * socket, int flags, void * notify_socket) nogil except -1:
@@ -184,7 +173,7 @@ cdef class Receiver:
         if self.last_message < info.timestamp:
             self.last_message = info.timestamp
         
-        self.lock()
+        self.lock._acquire()
         try:
             for i in range(self._n_messages):
                 if self._hashes[i] == hashvalue:
@@ -205,7 +194,7 @@ cdef class Receiver:
                 self._framecount = 0
             
         finally:
-            self.unlock()
+            self.lock._release()
         
         if notify_socket != NULL:
             rc = libzmq.zmq_msg_init(&notification)
@@ -249,25 +238,25 @@ cdef class Receiver:
             return 0
         
         self._name_cache.clear()
-        self.lock()
+        self.lock.acquire()
         try:
             for i in range(self._n_messages):
                 name = zmq_msg_to_str(&self._messages[i].name)
                 self._name_cache[name] = i
         finally:
-            self.unlock()
+            self.lock.release()
         self._name_cache_valid = 1
         return 0
         
     def _get_by_index(self, i):
-        self.lock()
+        self.lock.acquire()
         try:
             if i < self._n_messages:
                 return ArrayMessage.from_message(self._messages[i])
             else:
                 raise IndexError("Index to messages out of range.")
         finally:
-            self.unlock()
+            self.lock.release()
     
     def __iter__(self):
         """Iterate over the keys (names of arrays) in the recorder."""
