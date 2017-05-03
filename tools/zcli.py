@@ -36,12 +36,13 @@ def proxy(ctx, interval, bind):
     if bind == 'connect':
         xpub.connect(ctx.obj.secondary.url)
         xsub.connect(ctx.obj.primary.url)
+        click.echo("XPUB at {0}".format(ctx.obj.secondary.url))
+        click.echo("XSUB at {0}".format(ctx.obj.primary.url))
     else:
         xpub.bind(ctx.obj.secondary.bind)
         xsub.bind(ctx.obj.primary.bind)
-    
-    click.echo("XPUB at {0}".format(ctx.obj.secondary.bind))
-    click.echo("XSUB at {0}".format(ctx.obj.primary.bind))
+        click.echo("XPUB at {0}".format(ctx.obj.secondary.bind))
+        click.echo("XSUB at {0}".format(ctx.obj.primary.bind))
     
     poller = zmq.Poller()
     poller.register(xpub, zmq.POLLIN)
