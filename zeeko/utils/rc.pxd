@@ -30,7 +30,7 @@ cdef inline void * check_memory_ptr(void * ptr) nogil except NULL:
             raise MemoryError()
     return ptr
 
-cdef inline void * check_memory_ptr_size(void * ptr, size_t size) nogil except NULL:
+cdef inline void * check_memory_ptr_size(void * ptr, size_t size) nogil except? NULL:
     if size == 0:
         return ptr
     return check_memory_ptr(ptr)
@@ -48,5 +48,5 @@ cdef inline void * calloc(size_t count, size_t size) nogil except NULL:
 cdef inline void * malloc(size_t size) nogil except NULL:
     return check_memory_ptr(_malloc(size))
 
-cdef inline void * realloc(void *ptr, size_t size) nogil except NULL:
+cdef inline void * realloc(void *ptr, size_t size) nogil except? NULL:
     return check_memory_ptr_size(_realloc(ptr, size), size)
