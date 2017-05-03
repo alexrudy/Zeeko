@@ -8,7 +8,6 @@ cimport numpy as np
 
 np.import_array()
 
-from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport strndup, memcpy
 
 import collections
@@ -27,8 +26,9 @@ from zmq.backend.cython.message cimport Frame
 from .carray cimport send_named_array, empty_named_array, close_named_array, carray_message_info
 from .carray cimport copy_named_array_hard, copy_named_array
 from .message cimport ArrayMessage, zmq_msg_to_str
-from .utils cimport check_rc, check_ptr
 from ..utils.clock cimport current_time
+from ..utils.lock cimport Lock
+from ..utils.rc cimport check_zmq_rc, check_zmq_ptr, free, malloc, realloc
 from .. import ZEEKO_PROTOCOL_VERSION
 
 __all__ = ['Publisher']
@@ -44,19 +44,19 @@ cdef int send_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int fc, i
     cdef libzmq.zmq_msg_t zmessage
     
     rc = libzmq.zmq_msg_init(&zmessage)
-    check_rc(rc)
+    check_zmq_rc(rc)
     libzmq.zmq_msg_copy(&zmessage, topic)
     rc = libzmq.zmq_msg_send(&zmessage, socket, flags|libzmq.ZMQ_SNDMORE)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = libzmq.zmq_sendbuf(socket, <void *>&fc, sizeof(unsigned int), flags|libzmq.ZMQ_SNDMORE)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = libzmq.zmq_sendbuf(socket, <void *>&nm, sizeof(int), flags|libzmq.ZMQ_SNDMORE)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     rc = libzmq.zmq_sendbuf(socket, <void *>&now, sizeof(double), flags)
-    check_rc(rc)
+    check_zmq_rc(rc)
     
     return rc
     
@@ -68,12 +68,11 @@ cdef class Publisher:
         cdef int rc
         self._failed_init = True
         self._hard_copy_on_send = False
-        rc = pthread.pthread_mutex_init(&self._mutex, NULL)
-        pthread.check_rc(rc)
         rc = libzmq.zmq_msg_init_size(&self._infomessage, sizeof(carray_message_info))
-        check_rc(rc)
+        check_zmq_rc(rc)
         self._set_framecounter_message(0)
         self._n_messages = 0
+        self.lock = Lock()
         self._failed_init = False
         
     def __init__(self, publishers=list()):
@@ -92,7 +91,6 @@ cdef class Publisher:
             free(self._messages)
         if not self._failed_init:
             rc = libzmq.zmq_msg_close(&self._infomessage)
-            rc = pthread.pthread_mutex_destroy(&self._mutex)
     
     def __repr__(self):
         return "<Publisher frame={0:d} keys=[{1:s}]>".format(self._framecount, ",".join(self.keys()))
@@ -140,27 +138,15 @@ cdef class Publisher:
             cdef carray_message_info * info
             cdef size_t size = libzmq.zmq_msg_size(&self._infomessage)
             info = <carray_message_info *>libzmq.zmq_msg_data(&self._infomessage)
-            check_ptr(info)
+            check_zmq_ptr(info)
             return info.timestamp
-    
-    cdef int lock(self) nogil except -1:
-        cdef int rc
-        rc = pthread.pthread_mutex_lock(&self._mutex)
-        pthread.check_rc(rc)
-        return rc
-    
-    cdef int unlock(self) nogil except -1:
-        cdef int rc
-        rc = pthread.pthread_mutex_unlock(&self._mutex)
-        pthread.check_rc(rc)
-        return rc
         
     cdef int _set_framecounter_message(self, unsigned long framecount) nogil except -1:
         """Set the framecounter value."""
         cdef carray_message_info * info
         cdef size_t size = libzmq.zmq_msg_size(&self._infomessage)
         info = <carray_message_info *>libzmq.zmq_msg_data(&self._infomessage)
-        check_ptr(info)
+        check_zmq_ptr(info)
         info.framecount = framecount
         info.timestamp = current_time()
         return 0
@@ -168,12 +154,11 @@ cdef class Publisher:
     cdef int _update_messages(self) except -1:
         """Update the internal array of message structures."""
         cdef int rc
-        with nogil:
-            self.lock()
+        self.lock.acquire()
         try:
 
             self._messages = <carray_named **>realloc(<void *>self._messages, sizeof(carray_named *) * len(self._publishers))
-            if self._messages is NULL:
+            if self._messages is NULL and len(self._publishers):
                 raise MemoryError("Could not allocate messages array for Publisher {!r}".format(self))
             for i, key in enumerate(self._publishers.keys()):
                 self._messages[i] = &(<ArrayMessage>self._publishers[key])._message
@@ -185,15 +170,14 @@ cdef class Publisher:
             self._active_publishers = list(self._publishers.values())
             self._n_messages = len(self._publishers)
         finally:
-            with nogil:
-                self.unlock()
+            self.lock.release()
         return 0
         
     cdef int _publish(self, void * socket, int flags) nogil except -1:
         """Send all messages/arrays once via the provided socket."""
         cdef int i, rc
         cdef carray_named message
-        self.lock()
+        self.lock._acquire()
         try:
             self._framecount = (self._framecount + 1) % MAXFRAMECOUNT
             self._set_framecounter_message(self._framecount)
@@ -206,7 +190,7 @@ cdef class Publisher:
                     copy_named_array(&message, self._messages[i])
                 rc = send_named_array(&message, socket, flags)
         finally:
-            self.unlock()
+            self.lock._release()
         return rc
         
     def publish(self, Socket socket, int flags = 0):

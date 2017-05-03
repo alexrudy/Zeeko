@@ -8,7 +8,7 @@ np.import_array()
 
 from zmq.backend.cython.message cimport Frame
 from carray cimport carray_named
-from ..utils cimport pthread
+from ..utils.lock cimport Lock
 cimport zmq.backend.cython.libzmq as libzmq
 from .utils cimport check_rc, check_ptr
 from libc.string cimport strndup, memcpy
@@ -38,16 +38,13 @@ cdef class Publisher:
     cdef int _n_messages
     cdef unsigned long _framecount
     cdef carray_named ** _messages
-    cdef pthread.pthread_mutex_t _mutex
+    cdef Lock lock
     cdef libzmq.zmq_msg_t _infomessage
     cdef object _publishers
     cdef list _active_publishers
     cdef bint _failed_init
     cdef bint _hard_copy_on_send
-    
-    
-    cdef int lock(self) nogil except -1
-    cdef int unlock(self) nogil except -1
+
     cdef int _update_messages(self) except -1
     cdef int _publish(self, void * socket, int flags) nogil except -1
     cdef int _set_framecounter_message(self, unsigned long framecount) nogil except -1
