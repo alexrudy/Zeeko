@@ -435,7 +435,7 @@ cdef class SocketOptions(SocketInfo):
 
     def unsubscribe(self, key):
         """Unsubscribe from a specific channel."""
-        assert_socket_is_sub(self.socket)
+        assert_socket_is_sub(self.client)
         key = sandwich_unicode(key)
         if key not in self.subscriptions:
             raise ValueError("Can't unsubscribe from {0:s}, not subscribed.".format(key.encode('utf-8')))
@@ -444,7 +444,7 @@ cdef class SocketOptions(SocketInfo):
     
     def unsubscribe_all(self):
         """Unsubscribe from all subscriptions"""
-        assert_socket_is_sub(self.socket)
+        assert_socket_is_sub(self.client)
         for key in list(self.subscriptions):
             self.unsubscribe(key)
     
