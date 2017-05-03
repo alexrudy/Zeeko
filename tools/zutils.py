@@ -90,6 +90,7 @@ class MessageLine(object):
         self.active = False
         self.stream.write("\n")
         self.stream.flush()
+        return
         
     def __call__(self, msg):
         """Call messages"""
@@ -138,20 +139,23 @@ def zmain(docs=None):
     """Generate a main command group."""
     @click.group()
     @click.option("--port", type=int, help="Port number.", default=7654)
+    @click.option("--secondary-port", type=int, help="Port number.", default=None)
     @click.option("--host", type=str, help="Host name.", default="localhost")
     @click.option("--scheme", type=str, help="ZMQ Protocol.", default="tcp")
     @click.option("--guess", "bind", default=True, help="Try to bind the connection.", flag_value='guess')
     @click.option("--bind", "bind", help="Try to bind the connection.", flag_value='bind')
     @click.option("--connect", "bind", help="Try to use connect to attach the connection", flag_value='connect')
     @click.pass_context
-    def main(ctx, port, host, scheme, bind):
+    def main(ctx, port, secondary_port, host, scheme, bind):
         """Command line interface for the Zeeko library."""
         setup_logging()
         ctx.obj.log = logging.getLogger(ctx.invoked_subcommand)
         ctx.obj.zcontext = zmq.Context()
         ctx.obj.is_bind = bind
         ctx.obj.primary = AddressInfo(scheme, host, port)
-        ctx.obj.secondary = AddressInfo(port=port+1, scheme=scheme, hostname=host)
+        if secondary_port is None:
+            secondary_port = port + 1
+        ctx.obj.secondary = AddressInfo(port=secondary_port, scheme=scheme, hostname=host)
         if bind != "guess":
             click.echo("Bind = {0}".format(bind))
             ctx.obj.primary.is_bind = True if bind == 'bind' else False
