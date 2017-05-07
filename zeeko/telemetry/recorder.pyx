@@ -19,7 +19,7 @@ from ..utils.condition cimport event_init, event_trigger, event_destroy
 
 from .chunk cimport Chunk, array_chunk, chunk_append, chunk_init_array, chunk_send, chunk_close
 from ..messages.publisher cimport send_header
-from ..messages.carray cimport carray_message_info, carray_named, new_named_array, receive_named_array
+from ..messages.carray cimport carray_message_info, carray_named, new_named_array, receive_named_array, close_named_array
 
 # -----------------
 # Python imports
@@ -197,6 +197,8 @@ cdef class Recorder:
             self._notify_completion(notify, notify_flags)
         elif self._check_for_completion() == 1:
             self._notify_completion(notify, notify_flags)
+        
+        close_named_array(&message)
         
         return rc
         
