@@ -93,7 +93,7 @@ def initialize_group(chunk, h5group, axis=0):
         chunks.insert(axis, chunk.chunksize)
         chunks = tuple(chunks)
     
-    print("Shape: {0} Maxshape: {1} Chunks: {2}".format(shape, maxshape, chunks))
+    # print("Shape: {0} Maxshape: {1} Chunks: {2}".format(shape, maxshape, chunks))
     
     d = h5group.create_dataset("data", 
         shape=shape,
