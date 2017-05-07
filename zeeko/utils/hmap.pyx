@@ -109,7 +109,7 @@ cdef class HashMap:
         if entry.key != NULL:
             free(entry.key)
         if entry.value != NULL:
-            if self._dcb != NULL and entry.vinit != 0:
+            if self._dcb != NULL and (entry.flags & HASHINIT):
                 self._dcb(entry.value, self._dcb_data)
             free(entry.value)
         return rc
@@ -152,7 +152,7 @@ cdef class HashMap:
         strncpy(self.hashes[i].key, data, length)
         
         self.hashes[i].value = calloc(1, self.itemsize)
-        self.hashes[i].vinit = 0
+        self.hashes[i].flags = 0
         return &self.hashes[i]
         
     cdef int remove(self, char * data, size_t length) nogil except -1:

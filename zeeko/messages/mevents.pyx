@@ -5,7 +5,7 @@
 from libc.stdlib cimport free
 from libc.string cimport memset
 
-from ..utils.hmap cimport hashentry
+from ..utils.hmap cimport hashentry, HASHINIT
 from ..utils.condition cimport Event, event, event_init, event_trigger, event_destroy
 
 # Python Imports
@@ -36,9 +36,9 @@ cdef class EventMap:
     
     cdef event * _get_event(self, char * name, size_t sz) nogil except NULL:
         cdef hashentry * h = self._map.get(name, sz)
-        if h.vinit == 0:
+        if not (h.flags & HASHINIT):
             event_init(<event *>h.value)
-            h.vinit = 1
+            h.flags = h.flags | HASHINIT
         return <event *>h.value
     
     

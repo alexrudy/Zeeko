@@ -5,12 +5,16 @@ ctypedef int (*dealloc_callback)(void * ptr, void * data) nogil except -1
 cdef object unsandwich_unicode(char * value, size_t length)
 cdef bytes sandwich_unicode(object value)
 
+cdef enum hashflags:
+    HASHINIT = 1
+    HASHWRITE = 2
+
 ctypedef struct hashentry:
     hashvalue hvalue
     char * key
     size_t length
     void * value
-    bint vinit
+    int flags
 
 cdef class HashMap:
     cdef size_t n

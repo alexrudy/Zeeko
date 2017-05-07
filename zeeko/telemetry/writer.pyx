@@ -7,7 +7,7 @@ from zmq.backend.cython.socket cimport Socket
 from libc.stdlib cimport free
 from libc.string cimport memset
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr
-from ..utils.hmap cimport HashMap, hashentry
+from ..utils.hmap cimport HashMap, hashentry, HASHINIT, HASHWRITE
 
 # from ..handlers.client cimport Client
 # I'd have to expose the client class?
@@ -47,14 +47,14 @@ cdef class Writer:
         self.log = logging.getLogger(".".join([__name__, self.__class__.__name__]))
 
     def __dealloc__(self):
-        self._release_arrays()
+        self.map.clear()
 
     def __len__(self):
         return self.map.n
 
     def __getitem__(self, key):
         cdef hashentry * h = self.map.pyget(key)
-        if h.vinit == 0:
+        if not (h.flags & HASHINIT):
             raise KeyError(key)
         return Chunk.from_chunk(<array_chunk *>(h.value))
     
@@ -129,9 +129,9 @@ cdef class Writer:
         chunk_recv(&chunk, socket, flags)
         
         entry = self.map.get(<char *>libzmq.zmq_msg_data(&chunk.name), libzmq.zmq_msg_size(&chunk.name))
-        if not entry.vinit:
+        if not (entry.flags & HASHINIT):
             rc = chunk_init(<array_chunk * >entry.value)
-            entry.vinit = 1
+            entry.flags = entry.flags | HASHINIT
         chunk_copy(<array_chunk * >entry.value, &chunk)
         
         with gil:

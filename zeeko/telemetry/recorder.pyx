@@ -10,7 +10,7 @@ from libc.string cimport memset
 
 from ..utils.rc cimport check_zmq_rc, check_zmq_ptr
 from ..utils.clock cimport current_time
-from ..utils.hmap cimport HashMap, hashentry
+from ..utils.hmap cimport HashMap, hashentry, HASHINIT
 from ..utils.msg cimport zmq_msg_to_str
 from ..utils.condition cimport event_init, event_trigger, event_destroy
 
@@ -75,7 +75,7 @@ cdef class Recorder:
     
     def __getitem__(self, key):
         cdef hashentry * h = self.map.pyget(key)
-        if h.vinit == 0:
+        if not (h.flags & HASHINIT):
             raise KeyError(key)
         return Chunk.from_chunk(<array_chunk *>(h.value))
         
@@ -169,9 +169,9 @@ cdef class Recorder:
         
         # Update the chunk array
         entry = self.map.get(<char *>libzmq.zmq_msg_data(&message.name), libzmq.zmq_msg_size(&message.name))
-        if not entry.vinit:
+        if not (entry.flags & HASHINIT):
             rc = chunk_init_array(<array_chunk * >entry.value, &message, self._chunksize)
-            entry.vinit = 1
+            entry.flags = entry.flags | HASHINIT
         chunk = <array_chunk * >entry.value
         # Save the message to the chunk array, initializing if necessary.
         index = (<long>info.framecount - <long>self.offset)
