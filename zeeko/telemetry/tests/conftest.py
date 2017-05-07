@@ -71,5 +71,5 @@ def assert_h5py_allclose(group, chunk):
     assert "data" in group
     assert "mask" in group
     findex = chunk.chunksize
-    np.testing.assert_allclose(group['mask'][-findex:], (chunk.mask != 0).astype(np.int))
+    np.testing.assert_allclose(group['mask'][-findex:], chunk.mask.astype(np.int))
     np.testing.assert_allclose(group['data'][-findex:,...], chunk.array)

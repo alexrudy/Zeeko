@@ -30,7 +30,7 @@ class TestPipeline(ZeekoTestBase):
                 assert name in mg
                 g = mg[name]
                 assert g['data'].shape[0] == (chunksize * nchunks)
-                assert g['mask'][...].sum() == (chunksize * nchunks)
+                assert (g['mask'][...] > 0).sum() == (chunksize * nchunks)
     
     def publish_chunks(self, publisher, pub, chunksize, n=1):
         """Publish chunks."""
@@ -109,8 +109,8 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
             g = mg[name]
             assert g['data'].shape[0] == (chunksize)
             # Compute the last index
-            print(np.arange(g['mask'].shape[0])[g['mask'][...] == 1])
-            li = (np.arange(g['mask'].shape[0])[g['mask'][...] == 1]).max()
+            print(np.arange(g['mask'].shape[0])[g['mask'][...] > 0])
+            li = (np.arange(g['mask'].shape[0])[g['mask'][...] > 0]).max()
             print(g['mask'][...])
             assert li == g['mask'].shape[0] - 1
             np.testing.assert_allclose(g['data'][li], Publisher[name].array)
