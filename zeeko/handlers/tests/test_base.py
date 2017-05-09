@@ -45,6 +45,7 @@ class SocketInfoTestBase(ZeekoTestBase):
         """Run a snail test against the loop."""
         snail.nlate_max = 2 * narrays
         snail.delay_max = 0.1 * timeout * (-1.0 if force else 1.0)
+        counter_start = counter_callback()
         callback()
         time.sleep(timeout)
         
@@ -53,7 +54,7 @@ class SocketInfoTestBase(ZeekoTestBase):
             # Wait on the first message to come in.
             ioloop.state.selected("RUN").wait(timeout=timeout)
             time.sleep(0.1 * timeout)
-            assert counter_callback() == 36
+            # assert counter_callback() == counter_start
             assert snail.nlate == narrays
             
             # Pause, so we can send the second message with a delay.
@@ -88,6 +89,7 @@ class SocketInfoTestBase(ZeekoTestBase):
         """Run a snail test against the loop."""
         snail.nlate_max = 2 * narrays
         snail.delay_max = 0.1 * timeout * (-1.0 if force else 1.0)
+        counter_start = counter_callback()
         callback()
         time.sleep(timeout)
         with ioloop.running(timeout=timeout):
@@ -95,7 +97,7 @@ class SocketInfoTestBase(ZeekoTestBase):
             # Wait on the first message to come in.
             ioloop.state.selected("RUN").wait(timeout=timeout)
             time.sleep(0.1 * timeout)
-            assert counter_callback() == 0
+            assert counter_callback() == counter_start
             assert snail.nlate == 0
             
             # Again, pause and wait.
@@ -118,7 +120,7 @@ class SocketInfoTestBase(ZeekoTestBase):
             print("Waiting on PAUSE")
             ioloop.state.selected("PAUSE").wait(timeout=timeout)
             time.sleep(0.1 * timeout)
-            assert counter_callback() == 36 + n + 1
+            assert counter_callback() == counter_start + n + 1
             
     
     def test_repr(self, socketinfo):

@@ -86,15 +86,17 @@ class BasePublisherTests(BaseContainerTests):
         assert now - dt.timedelta(seconds=10) < last_timestamp
         assert last_timestamp < now + dt.timedelta(seconds=10)
     
-    def test_publish(self, obj, push, pull, name):
+    def test_publish(self, obj, push, pull, name, framecount):
         """Test the array publisher."""
         obj.publish(push)
         for i, key in enumerate(obj.keys()):
             recvd_name, A = array_api.recv_named_array(pull)
             assert "{0:s}{1:d}".format(name, i) == recvd_name
             np.testing.assert_allclose(A, obj[key].array)
+            assert A.framecount == framecount + 1
+            
         
-    def test_unbundled(self, obj, push, pull, name):
+    def test_unbundled(self, obj, push, pull, name, framecount):
         """Test publisher in unbundled mode."""
         obj.publish(push)
         for i, key in enumerate(obj.keys()):
@@ -102,6 +104,7 @@ class BasePublisherTests(BaseContainerTests):
             assert "{0:s}{1:d}".format(name, i) == recvd_name
             np.testing.assert_allclose(A, obj[key].array)
             assert not pull.getsockopt(zmq.RCVMORE)
+            assert A.framecount == framecount + 1
 
 class TestPublisher(BasePublisherTests):
     """Test the publisher."""
