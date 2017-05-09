@@ -44,6 +44,7 @@ cdef class Publisher:
     cdef list _active_publishers
     cdef bint _failed_init
     cdef bint _hard_copy_on_send
+    cdef object log
 
     cdef int _update_messages(self) except -1
     cdef int _publish(self, void * socket, int flags) nogil except -1

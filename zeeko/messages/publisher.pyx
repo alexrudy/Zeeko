@@ -16,6 +16,7 @@ try:
 except ImportError:
     from astropy.utils.compat.odict import OrderedDict
 
+import logging
 import zmq
 from zmq.utils import jsonapi
 from zmq.backend.cython.socket cimport Socket
@@ -33,7 +34,7 @@ from .. import ZEEKO_PROTOCOL_VERSION
 
 __all__ = ['Publisher']
 
-cdef long MAXFRAMECOUNT = (2**15)
+cdef long MAXFRAMECOUNT = (2**30)
 
 cdef int send_header(void * socket, libzmq.zmq_msg_t * topic, unsigned int fc, int nm, int flags) nogil except -1:
     """Send the message header for a publisher. Sent as:
@@ -85,6 +86,7 @@ cdef class Publisher:
                 raise TypeError("Publisher can only contain ArrayMessage instances, got {!r}".format(publisher))
         self._update_messages()
         self.framecount = 0
+        self.log = logging.getLogger(__name__)
     
     def __dealloc__(self):
         if self._messages is not NULL:
