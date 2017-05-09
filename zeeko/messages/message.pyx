@@ -74,6 +74,11 @@ cdef class ArrayMessage:
         self._construct_data()
         self._construct_info()
         
+    def __repr__(self):
+        return "<{0:s} {1:s} ({2:s}) at {3:d}>".format(
+            self.__class__.__name__, self.name, "x".join(["{0:d}".format(s) for s in self.shape]),
+            self.framecount) 
+        
     def _construct_name(self, char[:] name):
         cdef int rc
         
