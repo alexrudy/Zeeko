@@ -134,7 +134,7 @@ cdef class Writer:
             entry = self.map.index_get(i)
             if not (entry.flags & HASHWRITE):
                 with gil:
-                    self.log.warning("Missed a chunk write! {:d}".format(i))
+                    self.log.warning("Missed a chunk write! {0:d}".format(i))
         
         return rc
     
