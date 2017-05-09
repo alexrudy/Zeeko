@@ -29,16 +29,16 @@ def to_bind(address):
         hostname = socket.gethostbyname(parsed.hostname)
     return "{0.scheme}://{hostname}:{0.port:d}".format(parsed, hostname=hostname)
 
-def setup_logging():
+def setup_logging(level=logging.DEBUG):
     """Initialize logging."""
     h = logging.StreamHandler()
     f = logging.Formatter("%(levelname)-8s --> %(message)s [%(name)s]")
-    h.setLevel(logging.DEBUG)
+    h.setLevel(level)
     h.setFormatter(f)
     
     l = logging.getLogger()
     l.addHandler(h)
-    l.setLevel(logging.DEBUG)
+    l.setLevel(level)
 
 @attr.s
 class MemoryUsage(object):
@@ -138,6 +138,7 @@ class AddressInfo(object):
 def zmain(docs=None):
     """Generate a main command group."""
     @click.group()
+    @click.option("--quiet/--no-quiet", default=False, help="Make logging quiet again!")
     @click.option("--port", type=int, help="Port number.", default=7654)
     @click.option("--secondary-port", type=int, help="Port number.", default=None)
     @click.option("--host", type=str, help="Host name.", default="localhost")
@@ -146,9 +147,9 @@ def zmain(docs=None):
     @click.option("--bind", "bind", help="Try to bind the connection.", flag_value='bind')
     @click.option("--connect", "bind", help="Try to use connect to attach the connection", flag_value='connect')
     @click.pass_context
-    def main(ctx, port, secondary_port, host, scheme, bind):
+    def main(ctx, quiet, port, secondary_port, host, scheme, bind):
         """Command line interface for the Zeeko library."""
-        setup_logging()
+        setup_logging(level=logging.WARNING if quiet else logging.DEBUG)
         ctx.obj.log = logging.getLogger(ctx.invoked_subcommand)
         ctx.obj.zcontext = zmq.Context()
         ctx.obj.is_bind = bind
