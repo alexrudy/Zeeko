@@ -36,8 +36,8 @@ def chunk_array(shape, dtype, chunksize, lastindex):
 @pytest.fixture
 def chunk_mask(chunksize, lastindex):
     """docstring for mask"""
-    mask = np.zeros((chunksize,), dtype=np.int32)
-    mask[:lastindex] = np.arange(lastindex) + 1
+    mask = -1*np.ones((chunksize,), dtype=np.int64)
+    mask[:lastindex] = np.arange(lastindex)
     return mask
     
 def assert_chunk_allclose(chunka, chunkb):
@@ -59,10 +59,8 @@ def assert_chunk_array_allclose(chunk, array, index=None):
         index = chunk.lastindex
     assert jsonify(chunk.md) == jsonify(array.md)
     assert chunk.name == array.name
-    assert np.max(chunk.mask) >= index + 1
-    mask = chunk.mask
-    print(mask)
-    assert mask[index] == index + 1
+    assert np.argmax(chunk.mask) >= index
+    assert chunk.mask[index] >= 0
     np.testing.assert_allclose(chunk.array[index], array.array)
 
 def assert_h5py_allclose(group, chunk):

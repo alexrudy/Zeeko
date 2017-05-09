@@ -83,14 +83,22 @@ cdef class Writer:
         cdef int rc
         cdef void * handle = socket.handle
         cdef void * notify_handle = NULL
+        cdef hashentry * entry
         if notify is not None:
             notify_handle = notify.handle
         
         with nogil:
             rc = self._receive(handle, flags, notify_handle)
+        
+        for key in self.map:
+            entry = self.map.pyget(key)
+            if not (entry.flags & HASHWRITE):
+                raise ValueError("Missed a chunk {0}".format(key))
+        
         return rc
     
     cdef int _receive(self, void * socket, int flags, void * interrupt) nogil except -1:
+        cdef int i = 0
         cdef int rc = 0
         cdef int value = 1
         cdef size_t optsize = sizeof(int)
@@ -98,6 +106,11 @@ cdef class Writer:
         cdef int nm = 0
         cdef double tm = 0.0
         cdef libzmq.zmq_msg_t topic
+        cdef hashentry * entry
+        
+        for i in range(self.map.n):
+            entry = self.map.index_get(i)
+            entry.flags = entry.flags & (~HASHWRITE)
         
         rc = check_zmq_rc(libzmq.zmq_msg_init(&topic))
         try:
@@ -116,6 +129,13 @@ cdef class Writer:
             rc = self._receive_chunk(socket, flags)
             rc = check_zmq_rc(libzmq.zmq_getsockopt(socket, libzmq.ZMQ_RCVMORE, &value, &optsize))
         self._framecount = fc
+        
+        for i in range(self.map.n):
+            entry = self.map.index_get(i)
+            if not (entry.flags & HASHWRITE):
+                with gil:
+                    self.log.warning("Missed a chunk write! {:d}".format(i))
+        
         return rc
     
     cdef int _receive_chunk(self, void * socket, int flags) nogil except -1:
@@ -144,6 +164,7 @@ cdef class Writer:
             self.log.debug("Wrote chunk {0} to {1}".format(pychunk.name , self.file.name))
             self.file.file.flush()
             self.counter += 1
+        entry.flags = entry.flags | HASHWRITE
         
         self._event_map._trigger_event(<char *>libzmq.zmq_msg_data(&chunk.name), libzmq.zmq_msg_size(&chunk.name))
         chunk_close(&chunk)

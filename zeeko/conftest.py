@@ -95,6 +95,19 @@ def try_term(context):
         zmq.sugar.context.Context._instance = None
         raise RuntimeError("ZMQ Context failed to terminate.")
     
+def check_garbage(fail=True):
+    """Check for garbage."""
+    # Check for cycles.
+    import gc
+    for i in range(4):
+        gc.collect()
+    if len(gc.garbage):
+        warnings.warn("There are {0:d} pieces of garbage".format(len(gc.garbage)))
+        for garbage in gc.garbage:
+            warnings.warn("Garbage: {0!r}".format(garbage))
+        if fail:
+            raise RuntimeError("Garbage remains!")
+    
 def check_threads(ignore_daemons=True):
     """Check for dangling threads."""
     # Check for zombie threads.
@@ -156,6 +169,7 @@ def context(request):
     t.cancel()
     try_term(ctx)
     check_threads()
+    check_garbage()
     
 def socket_pair(context, left, right):
     """Given a context, make a socket."""

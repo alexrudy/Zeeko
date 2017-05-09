@@ -6,7 +6,7 @@ from zmq.backend.cython.message cimport Frame
 
 from ..messages.carray cimport carray_named
 
-ctypedef np.int32_t DINT_t
+ctypedef np.int64_t DINT_t
 
 ctypedef struct array_chunk:
     size_t chunksize
@@ -20,7 +20,7 @@ ctypedef struct array_chunk:
 cdef int chunk_init(array_chunk * chunk) nogil except -1
 cdef int chunk_init_array(array_chunk * chunk, carray_named * array, size_t chunksize) nogil except -1
 cdef int chunk_copy(array_chunk * dest, array_chunk * src) nogil except -1
-cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index) nogil except -1
+cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index, DINT_t framecount) nogil except -1
 cdef int chunk_send(array_chunk * chunk, void * socket, int flags) nogil except -1
 cdef int chunk_recv(array_chunk * chunk, void * socket, int flags) nogil except -1
 cdef int chunk_close(array_chunk * chunk) nogil except -1

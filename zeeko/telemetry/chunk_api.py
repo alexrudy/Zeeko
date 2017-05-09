@@ -16,7 +16,7 @@ class PyChunk(object):
     def __init__(self, name, array, mask):
         super(PyChunk, self).__init__()
         array = np.asarray(array)
-        mask = np.asarray(mask)
+        mask = np.asarray(mask, dtype=np.int64)
         if array.shape[0] != mask.shape[0]:
             raise ValueError("Shape mismatch between data and mask.")
         self.array = array
@@ -105,7 +105,7 @@ class PyChunk(object):
             buf = buffer(msg)
         except NameError: #pragma: py3
             buf = memoryview(msg)
-        mask = np.frombuffer(buf, dtype=np.int32)
+        mask = np.frombuffer(buf, dtype=np.int64)
         
         return cls(name, data, mask)
     

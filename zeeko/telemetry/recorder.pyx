@@ -17,7 +17,7 @@ from ..utils.condition cimport event_init, event_trigger, event_destroy
 # from ..handlers.client cimport Client
 # I'd have to expose the client class?
 
-from .chunk cimport Chunk, array_chunk, chunk_append, chunk_init_array, chunk_send, chunk_close
+from .chunk cimport Chunk, array_chunk, chunk_append, chunk_init_array, chunk_send, chunk_close, DINT_t
 from ..messages.publisher cimport send_header
 from ..messages.carray cimport carray_message_info, carray_named, new_named_array, receive_named_array, close_named_array
 
@@ -178,7 +178,7 @@ cdef class Recorder:
         valid_index = (index > 0 and ((chunk.last_index < (<size_t>index))))
         initial_index = (chunk.last_index == 0 and index == 0)
         if (valid_index or initial_index) and (index < chunk.chunksize):
-            rc = chunk_append(chunk, &message, <size_t>index)
+            rc = chunk_append(chunk, &message, <size_t>index, <DINT_t>info.framecount)
         else:
             with gil:
                 self.log.debug("Skipped {0:s} with framecount={1:d} offset={2} index={3} last={4}".format(zmq_msg_to_str(&message.name), info.framecount, self.offset, index, chunk.last_index))

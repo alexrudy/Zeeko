@@ -62,7 +62,7 @@ cdef int chunk_init_array(array_chunk * chunk, carray_named * array, size_t chun
     rc = libzmq.zmq_msg_init_size(&chunk.mask, chunksize * sizeof(DINT_t))
     check_zmq_rc(rc)
     dst = libzmq.zmq_msg_data(&chunk.mask)
-    memset(dst, <DINT_t>0, chunksize * sizeof(DINT_t))
+    memset(dst, <DINT_t>-1, chunksize * sizeof(DINT_t))
     
     size = libzmq.zmq_msg_size(&array.array.data)
     chunk.stride = size
@@ -107,7 +107,7 @@ cdef int chunk_copy(array_chunk * dest, array_chunk * src) nogil except -1:
     
     return rc
 
-cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index) nogil except -1:
+cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index, DINT_t framecount) nogil except -1:
     """
     Append data to a chunk at a given index position.
     """
@@ -141,7 +141,7 @@ cdef int chunk_append(array_chunk * chunk, carray_named * array, size_t index) n
     data = libzmq.zmq_msg_data(&chunk.data)
     memcpy(&data[index * chunk.stride], libzmq.zmq_msg_data(&array.array.data), size)
     mask = <DINT_t *>libzmq.zmq_msg_data(&chunk.mask)
-    mask[index] = <DINT_t>(index + 1)
+    mask[index] = framecount
     chunk.last_index = index
     return 0
     
@@ -320,7 +320,7 @@ cdef class Chunk:
         def __get__(self):
             cdef Frame mask = Frame()
             libzmq.zmq_msg_copy(&mask.zmq_msg, &self._chunk.mask)
-            return np.frombuffer(mask, dtype=np.int32)
+            return np.frombuffer(mask, dtype=np.int64)
             
     property chunksize:
         """Number of array messages in a single chunk."""
@@ -376,10 +376,12 @@ cdef class Chunk:
     
     def append(self, array):
         """Append a numpy array to the chunk."""
+        cdef DINT_t framecount
         cdef size_t index = self.lastindex + 1
         msg = ArrayMessage(self.name, array)
+        framecount = msg.framecount
         with nogil:
-            chunk_append(&self._chunk, &msg._message, index)
+            chunk_append(&self._chunk, &msg._message, index, framecount)
     
     def write(self, g, **kwargs):
         """
