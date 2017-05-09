@@ -5,6 +5,7 @@ Command-line interface for various Zeeko components
 
 import click
 import logging
+import logging.handlers
 import zmq
 import time
 import sys
@@ -26,7 +27,7 @@ main = zmain()
 def proxy(ctx, interval, bind):
     """A proxy object for monitoring traffic between two sockets"""
     proxylog = log.getChild("proxy")
-    h = logging.FileHandler("zcli-proxy.log", mode='w')
+    h = logging.RotatingFileHandler("zcli-proxy.log", mode='w', maxBytes=10 * (1024 ** 2), backupCount=0, encoding='utf-8')
     h.setFormatter(logging.Formatter(fmt='%(message)s,%(created)f'))
     proxylog.addHandler(h)
     proxylog.propagate = False
@@ -107,6 +108,28 @@ def client(ctx, interval, subscribe):
                 count = c.framecount
 
 @main.command()
+@click.option("--interval", type=int, help="Polling interval for client status.", default=3)
+@click.option("--subscribe", type=str, default="", help="Subscription value.")
+@click.option("--chunksize", type=int, default=1024, help="Telemetry chunk size")
+@click.pass_context
+def telemetry(ctx, interval, subscribe, chunksize):
+    """Run a telemetry pipeline."""
+    from zeeko.telemetry import PipelineIOLoop
+    p = PipelineIOLoop(ctx.obj.primary.addr(), ctx.obj.zcontext, chunksize=chunksize)
+    c = p.record
+    with p.running() as loop:
+        ctx.obj.mem.calibrate()
+        click.echo("Memory usage at start: {:d}MB".format(ctx.obj.mem.poll()))
+        with MessageLine(sys.stdout) as msg:
+            count = c.framecount
+            time.sleep(0.1)
+            msg.echo("Client connected to {0:s} (bind={1})".format(ctx.obj.primary.addr(), ctx.obj.primary.did_bind()))
+            while True:
+                time.sleep(interval)
+                msg("Receiving {:10.1f} msgs per second. Delay: {:4.3g} Mem: {:d}MB".format((c.framecount - count) / float(interval), c.snail.delay, ctx.obj.mem.usage()))
+                count = c.framecount
+
+@main.command()
 @click.option("--interval", type=int, help="Polling interval for server status.", default=3)
 @click.option("--frequency", type=float, help="Publish frequency for server.", default=100)
 @click.pass_context
@@ -141,6 +164,8 @@ def server(ctx, frequency, interval):
                     (ncount - count) / float(interval) * len(s), ncount, max(s.throttle._delay,0.0), ctx.obj.mem.usage()))
                 count = ncount
     
+
+
 
 @main.command()
 @click.option("--frequency", type=float, help="Publish frequency for server.", default=100)
