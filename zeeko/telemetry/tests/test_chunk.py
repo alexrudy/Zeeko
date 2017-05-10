@@ -55,6 +55,16 @@ def test_chunk_append(chunk, array, lastindex):
     assert (lastindex - 1) == chunk.lastindex
     chunk.append(array)
     np.testing.assert_allclose(chunk.array[lastindex], array)
+    
+def test_chunk_fill(chunk, array, lastindex):
+    """Test chunk fill."""
+    for i in range(chunk.chunksize):
+        if not (chunk.lastindex + 1) < chunk.chunksize:
+            break
+        chunk.append(array, chunk.lastindex + 1)
+    else:
+        raise ValueError("Should have filled the chunk!")
+    np.testing.assert_allclose(np.diff(chunk.mask), 1.0)
 
 def test_chunk_write(chunk, lastindex, filename):
     """Try writing a chunk to a new h5py file"""

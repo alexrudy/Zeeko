@@ -69,10 +69,13 @@ class PyChunk(object):
         """The JSON-encoded metadata for this chunk"""
         return unsandwich_unicode(jsonapi.dumps(self.md))
     
-    def append(self, data):
+    def append(self, data, framecount=None):
         """Append data to the chunk"""
         index = self.lastindex + 1
-        self.mask[index] = index + 1
+        if framecount is None:
+            framecount = index
+        
+        self.mask[index] = framecount
         self.array[index,...] = data
         self._lastindex = index
     

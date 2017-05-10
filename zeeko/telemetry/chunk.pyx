@@ -361,7 +361,7 @@ cdef class Chunk:
     property lastindex:
         """The highest valid index in the array."""
         def __get__(self):
-            return np.argmax(self.mask)
+            return self.mask.shape[0] - np.argmax(self.mask[::-1] >= 0) - 1
             
     property _lastindex:
         def __get__(self):
@@ -374,14 +374,16 @@ cdef class Chunk:
             rc = chunk_send(&self._chunk, handle, flags)
         check_zmq_rc(rc)
     
-    def append(self, array):
+    def append(self, array, framecount=None):
         """Append a numpy array to the chunk."""
-        cdef DINT_t framecount
+        cdef DINT_t fc
         cdef size_t index = self.lastindex + 1
         msg = ArrayMessage(self.name, array)
-        framecount = msg.framecount
+        if framecount is None:
+            framecount = msg.framecount
+        fc = <DINT_t> framecount
         with nogil:
-            chunk_append(&self._chunk, &msg._message, index, framecount)
+            chunk_append(&self._chunk, &msg._message, index, fc)
     
     def write(self, g, **kwargs):
         """
