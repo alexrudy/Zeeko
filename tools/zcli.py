@@ -27,7 +27,7 @@ main = zmain()
 def proxy(ctx, interval, bind):
     """A proxy object for monitoring traffic between two sockets"""
     proxylog = log.getChild("proxy")
-    h = logging.RotatingFileHandler("zcli-proxy.log", mode='w', maxBytes=10 * (1024 ** 2), backupCount=0, encoding='utf-8')
+    h = logging.handlers.RotatingFileHandler("zcli-proxy.log", mode='w', maxBytes=10 * (1024 ** 2), backupCount=0, encoding='utf-8')
     h.setFormatter(logging.Formatter(fmt='%(message)s,%(created)f'))
     proxylog.addHandler(h)
     proxylog.propagate = False
@@ -115,6 +115,12 @@ def client(ctx, interval, subscribe):
 def telemetry(ctx, interval, subscribe, chunksize):
     """Run a telemetry pipeline."""
     from zeeko.telemetry import PipelineIOLoop
+    memory_logger = log.getChild("telemetry")
+    h = logging.handlers.RotatingFileHandler("zcli-telemetry.log", mode='w', maxBytes=10 * (1024 ** 2), backupCount=0, encoding='utf-8')
+    h.setFormatter(logging.Formatter(fmt='%(message)s,%(created)f'))
+    memory_logger.addHandler(h)
+    memory_logger.propagate = False
+    
     p = PipelineIOLoop(ctx.obj.primary.addr(), ctx.obj.zcontext, chunksize=chunksize)
     c = p.record
     with p.running() as loop:
@@ -127,6 +133,7 @@ def telemetry(ctx, interval, subscribe, chunksize):
             while True:
                 time.sleep(interval)
                 msg("Receiving {:10.1f} msgs per second. Delay: {:4.3g} Mem: {:d}MB".format((c.framecount - count) / float(interval), c.snail.delay, ctx.obj.mem.usage()))
+                memory_logger.info("{0},{1},{2}".format(c.chunkcount, p.write.counter, ctx.obj.mem.usage()))
                 count = c.framecount
 
 @main.command()
