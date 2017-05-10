@@ -153,6 +153,8 @@ cdef class Recorder:
         if self.last_message < info.timestamp:
             self.last_message = info.timestamp
         
+        self.framecount = info.framecount
+        
         if self.offset == -1:
             # Handle initial state of the offset.
             self.offset = info.framecount
@@ -164,7 +166,6 @@ cdef class Recorder:
             self._notify_completion(notify, notify_flags)
             self.offset = info.framecount
         
-        self.framecount = info.framecount
         
         
         # Update the chunk array
