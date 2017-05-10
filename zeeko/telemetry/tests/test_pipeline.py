@@ -119,7 +119,6 @@ def test_run_pipeline(pipeline, Publisher, pub, filename, chunksize):
 def test_final_write(pipeline, Publisher, pub, filename, chunksize):
     """Test running the pipeline."""
     with pipeline.running(timeout=0.1):
-        print("Waiting on start.")
         pipeline.state.selected("RUN").wait(timeout=0.1)
         for i in range(chunksize * 2):
             if pipeline.record.pushed.is_set():
@@ -127,7 +126,6 @@ def test_final_write(pipeline, Publisher, pub, filename, chunksize):
             Publisher.update()
             Publisher.publish(pub, flags=zmq.NOBLOCK)
             time.sleep(0.1)
-        print("Waiting on publishing events")
         pipeline.record.pushed.wait(timeout=3.0)
         pipeline.write.fired.wait(timeout=3.0)
         
@@ -143,10 +141,6 @@ def test_final_write(pipeline, Publisher, pub, filename, chunksize):
         
     pipeline.state.selected("STOP").wait(timeout=1.0)
     assert pipeline.state.selected("STOP").is_set()
-    print("Finished loop work.")
-    print("Complete = {0}".format(pipeline.record.complete))
-    for chunk in pipeline.record:
-        print("{0}: {1}".format(chunk, pipeline.record[chunk].lastindex))
     assert pipeline.write.fired.is_set()
     assert pipeline.record.framecounter == len(Publisher) * (chunksize + 3)
     with h5py.File(filename.format(0), 'r') as f:
@@ -156,5 +150,6 @@ def test_final_write(pipeline, Publisher, pub, filename, chunksize):
             assert name in mg
             g = mg[name]
             assert g['data'].shape[0] == (chunksize * 2)
+            assert np.max(g['mask']) == pipeline.record.framecount
 
     
