@@ -156,10 +156,13 @@ cdef class Writer:
         
         with gil:
             pychunk = Chunk.from_chunk(<array_chunk * >entry.value)
-            if self.metadata_callback is None:
-                md = {}
-            else:
+            try:
                 md = self.metadata_callback()
+            except Exception:
+                if self.metadata_callback is not None:
+                    self.log.exception("Problem generating metadata:")
+                md = {}
+                self.log.warning("Using empty metadata attributes.")
             pychunk.write(self.file, metadata=md)
             self.log.debug("Wrote chunk {0} to {1}".format(pychunk.name , self.file.name))
             self.file.file.flush()
