@@ -191,6 +191,7 @@ cdef class Publisher:
                     empty_named_array(&message)
                     copy_named_array(&message, self._messages[i])
                 rc = send_named_array(&message, socket, flags)
+                rc = close_named_array(&message)
         finally:
             self.lock._release()
         return rc
