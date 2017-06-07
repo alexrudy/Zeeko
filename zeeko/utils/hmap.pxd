@@ -11,8 +11,8 @@ cdef enum hashflags:
 
 ctypedef struct hashentry:
     hashvalue hvalue
-    char * key
     size_t length
+    char * key
     void * value
     int flags
 

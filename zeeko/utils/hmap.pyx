@@ -46,6 +46,10 @@ cdef class HashMap:
         for i in range(self.n):
             yield unsandwich_unicode(self.hashes[i].key, self.hashes[i].length)
         
+    def __getitem__(self, key):
+        cdef int i = key
+        return unsandwich_unicode(self.hashes[i].key, self.hashes[i].length)
+        
     def keys(self):
         return list(self)
         
