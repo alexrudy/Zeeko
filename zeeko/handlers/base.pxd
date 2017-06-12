@@ -52,8 +52,8 @@ cdef class SocketInfo:
     
     cdef int paused(self) nogil except -1    
     cdef int resumed(self) nogil except -1
-    cdef int bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1
-    cdef int fire(self, libzmq.zmq_pollitem_t * pollitem, void * interrupt) nogil except -1
+    cdef int _bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1
+    cdef int _fire(self, libzmq.zmq_pollitem_t * pollitem, void * interrupt) nogil except -1
     cdef int _disconnect(self, str url) except -1
     cdef int _reconnect(self, str url) except -1
 

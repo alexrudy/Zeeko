@@ -5,8 +5,8 @@
 from zmq.backend.cython.message cimport Frame
 from zmq.backend.cython.context cimport Context
 
-from libc.string cimport strlen
-from ..utils.rc cimport check_zmq_rc, malloc, free
+from libc.string cimport strlen, memcpy
+from ..utils.rc cimport check_zmq_rc, malloc, free, calloc
 from ..utils.msg cimport zmq_init_recv_msg_t, zmq_recv_sized_message, zmq_recv_more
 from ..utils.msg cimport zmq_convert_sockopt, zmq_invert_sockopt, zmq_size_sockopt
 
@@ -37,6 +37,52 @@ cdef enum sockopt_kind:
     SET = 1
     GET = 2
     ERR = 3
+    CON = 4
+
+cdef enum sockconn_kind:
+    BIND = 1
+    CONNECT = 2
+    DROP = 4
+
+cdef int connect(void * handle, void * target) nogil except -1:
+    cdef int rc = 0
+    cdef int flags = 0
+    cdef int reply = CON
+    cdef int connection = 0
+    cdef int errno
+    cdef size_t sz = 255
+    cdef char * endpoint
+    cdef libzmq.zmq_msg_t zmessage
+    
+    rc = zmq_recv_sized_message(handle, &connection, sizeof(int), flags)
+    if not zmq_recv_more(handle) == 1:
+        return -2
+    
+    rc = zmq_init_recv_msg_t(handle, flags, &zmessage)
+    # Ensure that the endpoint is null-terminated by copying into a new buffer.
+    endpoint = <char *>calloc(libzmq.zmq_msg_size(&zmessage) + 1, sizeof(char))
+    memcpy(endpoint, libzmq.zmq_msg_data(&zmessage), libzmq.zmq_msg_size(&zmessage))
+    if (connection & CONNECT) and not (connection & DROP):
+        rc = libzmq.zmq_connect(target, endpoint)
+    elif (connection & CONNECT) and (connection & DROP):
+        rc = libzmq.zmq_disconnect(target, endpoint)
+    elif (connection & BIND) and not (connection & DROP):
+        rc = libzmq.zmq_bind(target, endpoint)
+    elif (connection & BIND) and (connection & DROP):
+        rc = libzmq.zmq_unbind(target, endpoint)
+    else:
+        rc = -2
+    if rc == 0:
+        rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
+        rc = check_zmq_rc(libzmq.zmq_msg_send(&zmessage, handle, flags))
+    else:
+        reply = ERR
+        errno = libzmq.zmq_errno()
+        rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
+        rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &errno, sizeof(int), flags))
+        rc = check_zmq_rc(libzmq.zmq_msg_close(&zmessage))
+    free(endpoint)
+    return rc
 
 cdef int getsockopt(void * handle, void * target) nogil except -1:
     cdef int rc = 0
@@ -102,6 +148,8 @@ cdef int cbsockopt(void * handle, short events, void * data, void * interrupt_ha
                 rc = setsockopt(handle, client_socket)
             elif kind == GET:
                 rc = getsockopt(handle, client_socket)
+            elif kind == CON:
+                rc = connect(handle, client_socket)
         else:
             pass
     return rc
@@ -174,7 +222,7 @@ cdef class SocketInfo:
         """Function called when the loop is resumed."""
         return 0
     
-    cdef int bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1:
+    cdef int _bind(self, libzmq.zmq_pollitem_t * pollitem) nogil except -1:
         cdef int rc = 0
         pollitem.events = self.events
         pollitem.socket = self.socket.handle
@@ -182,7 +230,7 @@ cdef class SocketInfo:
         pollitem.revents = 0
         return rc
         
-    cdef int fire(self, libzmq.zmq_pollitem_t * pollitem, void * interrupt) nogil except -1:
+    cdef int _fire(self, libzmq.zmq_pollitem_t * pollitem, void * interrupt) nogil except -1:
         cdef int rc = 0
         if pollitem.socket != self.socket.handle:
             with gil:
@@ -220,7 +268,7 @@ cdef class SocketInfo:
         pollitem.revents = events
         pollitem.events = self.events
         with nogil:
-            rc = self.fire(&pollitem, interrupt_handle)
+            rc = self._fire(&pollitem, interrupt_handle)
         return rc
         
     def support_options(self):
@@ -336,6 +384,75 @@ cdef class SocketOptions(SocketInfo):
     property context:
         def __get__(self):
             return self.client.context
+        
+    
+    def _preflight_call(self, function, int timeout, *args, **kwargs):
+        if not self._is_loop_running():
+            with self._inuse.timeout(timeout):
+                return_value = function(*args, **kwargs)
+            return True, return_value
+        else:
+            return False, None
+    
+    def _optmessage(self, int control, list message, int timeout):
+        """Refactor to handle sending an option message."""
+        cdef bytes optctl = PyBytes_FromStringAndSize(<char *>&control, sizeof(int))
+        
+        sink = self.context.socket(zmq.REQ)
+        sink.linger = 10
+        with sink:
+            sink.connect(self.address)
+            sink.send(optctl, flags=zmq.SNDMORE)
+            sink.send_multipart(message)
+            if sink.poll(timeout=timeout, flags=zmq.POLLIN):
+                result = s.unpack("i", sink.recv())[0]
+                if result == control:
+                    return sink.recv(copy=False)
+                elif result == ERR:
+                    errno = s.unpack("i", sink.recv())[0]
+                    raise zmq.ZMQError(errno)
+                else:
+                    raise SocketOptionError("Reply mode did not match request mode. Sent {0} got {1}".format(control, result))
+            else:
+                raise SocketOptionTimeout("Socket setoption timed out after {0} ms.".format(timeout))
+    
+    def _connection(self, int connection_kind, str endpoint, int timeout):
+        """Extracted method to handle connection tools."""
+        cdef bytes connection_c = PyBytes_FromStringAndSize(<char *>&connection_kind, sizeof(int))
+        return self._optmessage(CON, [connection_c, sandwich_unicode(endpoint)], timeout)
+        
+    def bind(self, str endpoint, int timeout=1000):
+        """Bind this socket to a ZMQ endpoint in a threadsafe manner."""
+        called, return_value = self._preflight_call(self.client.bind, timeout, endpoint)
+        if called:
+            return return_value
+        else:
+            self._connection(BIND, endpoint, timeout)
+    
+    def unbind(self, str endpoint, int timeout=1000):
+        """Unbind this socket from a ZMQ endpoint in a threadsafe manner."""
+        called, return_value = self._preflight_call(self.client.unbind, timeout, endpoint)
+        if called:
+            return return_value
+        else:
+            return self._connection(BIND | DROP, endpoint, timeout)
+    
+    def connect(self, str endpoint, int timeout=1000):
+        """Connect this socket to a ZMQ endpoint in a threadsafe manner."""
+        # Handle the case where the loop isn't running yet.
+        called, return_value = self._preflight_call(self.client.connect, timeout, endpoint)
+        if called:
+            return return_value
+        else:
+            return self._connection(CONNECT, endpoint, timeout)
+    
+    def disconnect(self, str endpoint, int timeout=1000):
+        """Disconnect this socket from a ZMQ endpoint in a threadsafe manner."""
+        called, return_value = self._preflight_call(self.client.disconnect, timeout, endpoint)
+        if called:
+            return return_value
+        else:
+            self._connection(CONNECT | DROP, endpoint, timeout)
     
     def set(self, int option, object optval, int timeout=1000):
         """Set a specific socket option.
@@ -347,37 +464,19 @@ cdef class SocketOptions(SocketInfo):
         """
         cdef bytes optval_c
         cdef bytes option_c
-        cdef bytes optctl_c
-        cdef int optctl = SET
         
         if not self._is_loop_running():
             with self._inuse.timeout(timeout):
                 return self.client.setsockopt(option, optval)
             # raise SocketOptionError("Can't set a socket option. The underlying I/O Loop is not running.")
         
-        optctl_c = PyBytes_FromStringAndSize(<char *>&optctl, sizeof(int))
         option_c = PyBytes_FromStringAndSize(<char *>&option, sizeof(int))
         optval_c = zmq_invert_sockopt(option, optval)
-        sink = self.context.socket(zmq.REQ)
-        sink.linger = 10
-        with sink:
-            sink.connect(self.address)
-            sink.send(optctl_c, flags=zmq.SNDMORE)
-            sink.send(option_c, flags=zmq.SNDMORE)
-            sink.send(optval_c)
-            
-            if sink.poll(timeout=timeout, flags=zmq.POLLIN):
-                result = s.unpack("i", sink.recv())[0]
-                if result == SET:
-                    reply_option = s.unpack("i", sink.recv())[0]
-                    if reply_option != option:
-                        raise SocketOptionError("Reply did not match requested socket option.")
-                else:
-                    errno = s.unpack("i", sink.recv())[0]
-                    print("Sent {0} -> {1!r}".format(option, optval))
-                    raise zmq.ZMQError(errno)
-            else:
-                raise SocketOptionTimeout("Socket setoption timed out after {0} ms.".format(timeout))
+        
+        result = self._optmessage(SET, [option_c, optval_c], timeout)
+        reply_option = s.unpack("i", result)[0]
+        if reply_option != option:
+            raise SocketOptionError("Reply did not match requested socket option.")
         return
     
     def get(self, int option, int timeout=1000):
@@ -389,39 +488,20 @@ cdef class SocketOptions(SocketInfo):
         """
         cdef bytes optval_c
         cdef bytes optsize_c
-        cdef bytes optctl_c
         cdef size_t optsize
-        cdef int optctl = GET
         
         if not self._is_loop_running():
             with self._inuse.timeout(timeout):
                 return self.client.getsockopt(option)
             # raise SocketOptionError("Can't get a socket option. The underlying I/O Loop is not running.")
         
-        optctl_c = PyBytes_FromStringAndSize(<char *>&optctl, sizeof(int))
         option_c = PyBytes_FromStringAndSize(<char *>&option, sizeof(int))
         
         optsize = zmq_size_sockopt(option)
         optsize_c = PyBytes_FromStringAndSize(<char *>&optsize, sizeof(size_t))
         
-        sink = self.context.socket(zmq.REQ)
-        sink.linger = 10
-        with sink:
-            sink.connect(self.address)
-            sink.send(optctl_c, flags=zmq.SNDMORE)
-            sink.send(option_c, flags=zmq.SNDMORE)
-            sink.send(optsize_c)
-            
-            if sink.poll(timeout=timeout, flags=zmq.POLLIN):
-                result = s.unpack("i",sink.recv())[0]
-                if result == GET:
-                    frame = <Frame>sink.recv(copy=False)
-                    response = zmq_convert_sockopt(option, &frame.zmq_msg)
-                else:
-                    errno = s.unpack("i",sink.recv())[0]
-                    raise zmq.ZMQError(errno)
-            else:
-                raise SocketOptionTimeout("Socket getoption timed out after {0} ms.".format(timeout))
+        result = self._optmessage(GET, [option_c, optsize_c], timeout)
+        response = zmq_convert_sockopt(option, &(<Frame>result).zmq_msg)
         return response
     
     def subscribe(self, key):

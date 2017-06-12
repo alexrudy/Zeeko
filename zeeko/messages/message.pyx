@@ -64,7 +64,7 @@ cdef class ArrayMessage:
         close_named_array(&self._message)
         
     
-    def __init__(self, str name, data):
+    def __init__(self, name, data):
         # Initialize with new values.
         self._construct_name(bytearray(sandwich_unicode(name)))
         data = np.asarray(data)

@@ -151,7 +151,7 @@ cdef class IOLoopWorker:
     
             self._pollitems = <libzmq.zmq_pollitem_t *>realloc(self._pollitems, (len(self._sockets) + 1) * sizeof(libzmq.zmq_pollitem_t))
             check_memory_ptr(self._pollitems)
-            sinfo.bind(&self._pollitems[len(self._sockets)])
+            sinfo._bind(&self._pollitems[len(self._sockets)])
             # address = address_of(self._pollitems[len(self._sockets)].socket)
             # print("{:d}) {:s} connected".format(len(self._sockets), address))
             self._n_pollitems = len(self._sockets) + 1
@@ -309,7 +309,7 @@ cdef class IOLoopWorker:
                     rc = (<SocketInfo>self._socketinfos[i-1]).throttle.start_at(now)
                 if self.state.sentinel(&self._pollitems[0]) != 1:
                     for i in range(1, self._n_pollitems):
-                        rc = (<SocketInfo>self._socketinfos[i-1]).fire(&self._pollitems[i], self._interrupt_handle)
+                        rc = (<SocketInfo>self._socketinfos[i-1])._fire(&self._pollitems[i], self._interrupt_handle)
                 else:
                     with gil:
                         self.log.debug("{0} -> {1}".format(self.thread.name, self.state.name))

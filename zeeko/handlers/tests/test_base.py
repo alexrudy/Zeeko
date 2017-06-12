@@ -10,7 +10,6 @@ from ...utils.stopwatch import Stopwatch
 from ..base import SocketInfo, SocketOptions
 from ...tests.test_helpers import ZeekoTestBase
 
-
 class SocketInfoTestBase(ZeekoTestBase):
     """Base class for socket info tests."""
     
@@ -133,7 +132,8 @@ class SocketInfoTestBase(ZeekoTestBase):
         """Test the close function."""
         socketinfo.close()
         assert socketinfo.socket.closed
-            
+        
+    @pytest.mark.ioloop
     def test_attach(self, ioloop, socketinfo):
         """Test client add to a loop."""
         ioloop.attach(socketinfo)
@@ -142,6 +142,7 @@ class SocketInfoTestBase(ZeekoTestBase):
             assert socketinfo._is_loop_running()
         assert not socketinfo._is_loop_running()
         
+    @pytest.mark.ioloop
     def test_getsocketoptions(self, ioloop, socketinfo):
         """Test socket options."""
         if socketinfo.opt is None:
@@ -163,6 +164,7 @@ class SocketInfoTestBase(ZeekoTestBase):
         with pytest.raises(zmq.ZMQError):
             hwm = socketinfo.opt.get(zmq.RCVHWM)
     
+    @pytest.mark.ioloop
     def test_setsocketoptions(self, ioloop, socketinfo):
         """Test set socket options"""
         if socketinfo.opt is None:
@@ -189,8 +191,31 @@ class SocketInfoTestBase(ZeekoTestBase):
         
         print("Finished setsocketoptions loop test")
         
+    @pytest.mark.ioloop
+    def test_bindsocket(self, ioloop, socketinfo):
+        """Test set socket options"""
+        if socketinfo.opt is None:
+            socketinfo.support_options()
+        socketinfo.opt.bind("inproc://test-bind")
+        socketinfo.opt.unbind("inproc://test-bind")
+        ioloop.attach(socketinfo)
+        socketinfo.opt.bind("inproc://test-bind")
+        socketinfo.opt.unbind("inproc://test-bind")
+        
+        print("Starting setsocketoptions loop test")
+        with self.running_loop(ioloop, timeout=0.1):
+            # This should test against the REP/REQ pair
+            # which impelments live socket options
+            
+            socketinfo.opt.bind("inproc://test-bind")
+            socketinfo.opt.unbind("inproc://test-bind")
+            
+            socketinfo.opt.bind("inproc://test-bind")
+            socketinfo.opt.unbind("inproc://test-bind")
+            
+        print("Finished setsocketoptions loop test")
     
-    
+    @pytest.mark.ioloop
     def test_create_ioloop(self, socketinfo):
         """Test creating an IOLoop instance"""
         ioloop = socketinfo.create_ioloop()
@@ -218,6 +243,10 @@ class TestSocketInfo(SocketInfoTestBase):
         with pytest.raises(AssertionError):
             super(TestSocketInfo, self).test_create_ioloop(socketinfo)
         
+    def test_bindsocket(self, ioloop, socketinfo):
+        """Sockopts shouldn't work."""
+        with pytest.raises(AssertionError):
+            super(TestSocketInfo, self).test_bindsocket(ioloop, socketinfo)
         
     def test_setsocketoptions(self, ioloop, socketinfo):
         """Sockopts shouldn't work."""
