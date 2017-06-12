@@ -139,6 +139,16 @@ cdef class Client(SocketMapping):
     def unsubscribe(self, key):
         """Unsubscribe from a specific key."""
         self.opt.unsubscribe(key)
+        
+    def reconnect(self):
+        """Trigger a reconnection"""
+        if not self.use_reconnections:
+            raise ValueError("Reconnections are not enabled!")
+        try:
+            self.opt.disconnect(self.address)
+        except zmq.ZMQError as e:
+            pass # Swallow errors which arise due to disconnections.
+        self.opt.connect(self.address)
     
     def event(self, key):
         """Return an event which will be set once a value is received for a specific key.
