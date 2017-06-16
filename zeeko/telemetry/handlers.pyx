@@ -104,6 +104,7 @@ cdef class Telemetry(SocketMapping):
         self.notify = None
         self.notify_handle = NULL
         self.writer = None
+        self.log = None
     
     def __init__(self, *args, **kwargs):
         from .sugar import Recorder
@@ -434,6 +435,7 @@ cdef class TelemetryWriter(SocketMapping):
                 if self.h5_group_name:
                     h5file = h5file.require_group(self.h5_group_name)
                 self.writer.file = h5file
+                self.log.info("Rolled over file to {0:s}".format(self.last_filename))
         
         if not self.use_reconnections:
             return 0

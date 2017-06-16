@@ -101,6 +101,7 @@ cdef class Writer:
         cdef int i = 0
         cdef int rc = 0
         cdef int value = 1
+        cdef int missed = 0
         cdef size_t optsize = sizeof(int)
         cdef unsigned long fc = 0
         cdef int nm = 0
@@ -133,8 +134,12 @@ cdef class Writer:
         for i in range(self.map.n):
             entry = self.map.index_get(i)
             if not (entry.flags & HASHWRITE):
+                missed = 1
                 with gil:
-                    self.log.warning("Missed a chunk write! {0:s}".format(self.map[i]))
+                    self.log.debug("Missed a chunk write! {0:s}".format(self.map[i]))
+        if missed == 1:
+            with gil:
+                self.log.warning("Missed writing at least one chunk.")
         
         return rc
     

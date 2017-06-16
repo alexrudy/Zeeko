@@ -49,6 +49,9 @@ cdef class SocketInfo:
     cdef object _loop_worker
     """Weakref to a loop worker."""
     
+    # Logging facility
+    cdef readonly object log
+    """Logging facility"""
     
     cdef int paused(self) nogil except -1    
     cdef int resumed(self) nogil except -1

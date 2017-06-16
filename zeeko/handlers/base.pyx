@@ -18,6 +18,7 @@ import zmq
 import errno
 import collections
 import weakref
+import logging
 import struct as s
 from ..utils.msg import internal_address
 from ..utils.sandwich import sandwich_unicode
@@ -181,6 +182,7 @@ cdef class SocketInfo:
         self._inuse = Lock()
         self._loop_ref = lambda : None
         self._loop_worker = lambda : None
+        self.log = logging.getLogger(".".join([__name__, self.__class__.__name__]))
         
     def __init__(self, socket, events, **kwargs):
         super().__init__()
@@ -346,6 +348,9 @@ cdef class SocketInfo:
                 pass
             else:
                 raise
+        else:
+            if self.opt is not None:
+                self.opt._resubscribe()
         return 0
 
 cdef class SocketOptions(SocketInfo):
@@ -531,12 +536,7 @@ cdef class SocketOptions(SocketInfo):
     def _start(self):
         """Start the socket with subscriptions"""
         super(SocketOptions, self)._start()
-        if self.client.type == zmq.SUB:
-            if self.subscriptions:
-                for s in self.subscriptions:
-                    self.client.subscribe(s)
-            elif self.autosubscribe:
-                self.client.subscribe("")
+        self._resubscribe()
 
     
     cdef int paused(self) nogil except -1:
@@ -546,12 +546,15 @@ cdef class SocketOptions(SocketInfo):
     cdef int resumed(self) nogil except -1:
         """Function called when the loop is resumed."""
         with gil:
-            if self.client.type == zmq.SUB:
-                if self.subscriptions:
-                    for s in self.subscriptions:
-                        self.client.subscribe(s)
-                elif self.autosubscribe:
-                    self.client.subscribe("")
+            self._resubscribe()
+        
+    def _resubscribe(self):
+        if self.client.type == zmq.SUB:
+            if self.subscriptions:
+                for s in self.subscriptions:
+                    self.client.subscribe(s)
+            elif self.autosubscribe:
+                self.client.subscribe("")
 
 cdef class SocketMapping(SocketInfo):
     
