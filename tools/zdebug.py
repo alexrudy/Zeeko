@@ -19,15 +19,20 @@ log = logging.getLogger()
 main = zmain()
 
 @main.command()
+@click.option("--once/--no-once", default=False, help="Print each key only once.")
 @click.pass_context
-def subdebug(ctx):
+def subdebug(ctx, once):
     """Subscription debugger"""
     sub = ctx.obj.zcontext.socket(zmq.SUB)
     sub.connect(ctx.obj.primary.addr())
     sub.subscribe("")
+    seen = set()
     while True:
         if sub.poll(timeout=1000):
             msg = sub.recv_multipart()
+            if once and msg[0] in seen:
+                continue
+            seen.add(msg[0])
             for i,part in enumerate(msg):
                 rpart = repr(part)
                 if len(rpart) > 100:
