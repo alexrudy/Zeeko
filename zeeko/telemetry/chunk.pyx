@@ -243,11 +243,11 @@ cdef class Chunk:
         #Initialize the chunk structure.
         self._chunk.chunksize = chunksize
         self._chunk.stride = data.dtype.itemsize * stride
-        self._data_frame = Frame(data=np.asanyarray(data))
+        self._data_frame = Frame(data=np.asanyarray(data), copy=False)
         rc = libzmq.zmq_msg_copy(&self._chunk.data, &self._data_frame.zmq_msg)
         check_zmq_rc(rc)
         
-        self._mask_frame = Frame(data=np.asanyarray(mask))
+        self._mask_frame = Frame(data=np.asanyarray(mask), copy=False)
         rc = libzmq.zmq_msg_copy(&self._chunk.mask, &self._mask_frame.zmq_msg)
         check_zmq_rc(rc)
         

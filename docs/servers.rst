@@ -5,12 +5,14 @@ Servers send numpy arrays over a ZeroMQ socket at a specified frequency.
 
 To use a server, set it up with :meth:`Server.at_address`::
     
-    >>> server = Server.at_adress("inproc://server")
+    >>> from zeeko.handlers.server import Server
+    >>> server = Server.at_address("inproc://server")
     >>> server
     <Server keys=[]>
     
 Then, attach numpy arrays to the server::
     
+    >>> import numpy as np
     >>> server['my_data'] = np.random.rand(20,20)
     >>> server
     <Server framecount=0 keys=['my_data']>

@@ -20,7 +20,7 @@ def check_zeromq():
             rc = libzmq.zmq_getsockopt(handle, libzmq.ZMQ_AFFINITY, &affinity, &sz)
             if rc != 0:
                 errno = libzmq.zmq_errno()
-                if errno == libzmq.EINVAL:
+                if errno == libzmq.ZMQ_EINVAL:
                     raise ZMQLinkingError("Something has gone wrong with ZMQ Linking")
                 raise zmq.ZMQError()
 
