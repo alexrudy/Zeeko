@@ -40,12 +40,35 @@ cdef enum sockopt_kind:
     ERR = 3
     CON = 4
 
+# Bitmask flag to control connection modes.
+# BIND = we should bind this socket to an address.
+# BIND & DROP = we should unbind this socket.
+# CONNECT = we should connect this socket to an address.
+# CONNECT & DROP = we should disconnect this socket from
+# an address.
 cdef enum sockconn_kind:
     BIND = 1
     CONNECT = 2
     DROP = 4
 
 cdef int connect(void * handle, void * target) nogil except -1:
+    # Callback which handles connect() control messages.
+    #
+    # When this function starts, *handle is the controlling socket,
+    # which has just recieved the first control flag, which must
+    # have been a CON signal (from sockopt_kind).
+    #
+    # CON control messages have the following form:
+    # [CON, sockconn_kind, connection_string]
+    # 
+    # *target is the socket which is being controlled by this callback,
+    # and so will be connected or disconnected.
+
+    # return values:
+    # -1 = ZMQ Library Error
+    # -2 = Protocol error (e.g. the message didn't conform to the expected format).
+    # -3 = Memory allocation error
+
     cdef int rc = 0
     cdef int flags = 0
     cdef int reply = CON
@@ -55,14 +78,21 @@ cdef int connect(void * handle, void * target) nogil except -1:
     cdef char * endpoint
     cdef libzmq.zmq_msg_t zmessage
     
-    rc = zmq_recv_sized_message(handle, &connection, sizeof(int), flags)
+    # Recieve the connection kind: sockconn_kind
+    # This is an int which serves as a bitflag for connections.
+    rc = check_zmq_rc(zmq_recv_sized_message(handle, &connection, sizeof(int), flags))
     if not zmq_recv_more(handle) == 1:
         return -2
     
-    rc = zmq_init_recv_msg_t(handle, flags, &zmessage)
+    # Recieve the connection string.
     # Ensure that the endpoint is null-terminated by copying into a new buffer.
+    rc = check_zmq_rc(zmq_init_recv_msg_t(handle, flags, &zmessage))
     endpoint = <char *>calloc(libzmq.zmq_msg_size(&zmessage) + 1, sizeof(char))
+    if endpoint == NULL:
+        return -3
     memcpy(endpoint, libzmq.zmq_msg_data(&zmessage), libzmq.zmq_msg_size(&zmessage))
+
+    # Handle the actual connection method.
     if (connection & CONNECT) and not (connection & DROP):
         rc = libzmq.zmq_connect(target, endpoint)
     elif (connection & CONNECT) and (connection & DROP):
@@ -73,19 +103,46 @@ cdef int connect(void * handle, void * target) nogil except -1:
         rc = libzmq.zmq_unbind(target, endpoint)
     else:
         rc = -2
+
+    # Reply on the control socket with either success or failure.
     if rc == 0:
+
+        # Send back the success flag and the connection string
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
         rc = check_zmq_rc(libzmq.zmq_msg_send(&zmessage, handle, flags))
     else:
         reply = ERR
         errno = libzmq.zmq_errno()
+
+        # Send back the error control flag and errono.
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &errno, sizeof(int), flags))
+
+        # Close the message with the endpoint because we don't want to orphan it.
         rc = check_zmq_rc(libzmq.zmq_msg_close(&zmessage))
+    
+    # We allocated the endpoint with calloc above.
     free(endpoint)
     return rc
 
 cdef int getsockopt(void * handle, void * target) nogil except -1:
+    # Callback which handles getsockopt() control messages.
+    #
+    # When this function starts, *handle is the controlling socket,
+    # which has just recieved the first control flag, which must
+    # have been a GET signal (from sockopt_kind).
+    #
+    # GET control messages have the following form:
+    # [GET, sockopt, size]
+    # 
+    # *target is the socket which is being controlled by this callback,
+    # and so will inspected for options.
+
+    # return values:
+    # -1 = ZMQ Library Error
+    # -2 = Protocol error (e.g. the message didn't conform to the expected format).
+    # -3 = Memory allocation error
+    
     cdef int rc = 0
     cdef int flags = 0
     cdef int sockopt = 0
@@ -94,24 +151,61 @@ cdef int getsockopt(void * handle, void * target) nogil except -1:
     cdef size_t sz = 255
     cdef void * optval
 
-    rc = zmq_recv_sized_message(handle, &sockopt, sizeof(int), flags)
+    # First part of the message is the constant which represents the socket option.
+    rc = check_zmq_rc(zmq_recv_sized_message(handle, &sockopt, sizeof(int), flags))
     if not zmq_recv_more(handle) == 1:
         return -2
     
-    rc = zmq_recv_sized_message(handle, &sz, sizeof(size_t), flags)
+    # Second part of the message is the size of the option.
+    rc = check_zmq_rc(zmq_recv_sized_message(handle, &sz, sizeof(size_t), flags))
+
+    # Allocate a value to recieve the option.
     optval = malloc(sz)
+    if optval == NULL:
+        # Memory Error
+        return -3
+
     rc = libzmq.zmq_getsockopt(target, sockopt, &optval, &sz)
+
+    # Reply on the control socket with success or failure.
     if rc == 0:
+
+        # Success replies contain the control code (GET) and the option value.
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &optval, sz, flags))
+        #TODO: zmq_sendbuf should take care of freeing the buffer?
+    
     else:
+
+        # Error replies contain the control code (ERR) and the errno from ZMQ
         reply = ERR
         errno = libzmq.zmq_errno()
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &errno, sizeof(int), flags))
+        
+        # In the error case, we need to manulaly free the value buffer.
+        free(optval)
+    
     return rc
 
 cdef int setsockopt(void * handle, void * target) nogil except -1:
+    # Callback which handles setsockopt() control messages.
+    #
+    # When this function starts, *handle is the controlling socket,
+    # which has just recieved the first control flag, which must
+    # have been a SET signal (from sockopt_kind).
+    #
+    # SET control messages have the following form:
+    # [SET, sockopt, value]
+    # 
+    # *target is the socket which is being controlled by this callback,
+    # and so will inspected for options.
+
+    # return values:
+    # -1 = ZMQ Library Error
+    # -2 = Protocol error (e.g. the message didn't conform to the expected format).
+    # -3 = Memory allocation error
+
     cdef int rc = 0
     cdef int flags = 0
     cdef int sockopt = 0
@@ -119,17 +213,27 @@ cdef int setsockopt(void * handle, void * target) nogil except -1:
     cdef int errno
     cdef libzmq.zmq_msg_t zmessage
     
-    rc = zmq_recv_sized_message(handle, &sockopt, sizeof(int), flags)
+    # Receive the socket option specifier
+    rc = check_zmq_rc(zmq_recv_sized_message(handle, &sockopt, sizeof(int), flags))
     if not zmq_recv_more(handle) == 1:
         return -2
-    rc = zmq_init_recv_msg_t(handle, flags, &zmessage)
+    
+    # Recieve the socket value
+    rc = check_zmq_rc(zmq_init_recv_msg_t(handle, flags, &zmessage))
+
+    # Set the option
     rc = libzmq.zmq_setsockopt(target, sockopt, 
                                 libzmq.zmq_msg_data(&zmessage), 
                                 libzmq.zmq_msg_size(&zmessage))
+    
+    # Reply with the result
     if rc == 0:
+        
+        # In the success case, the reply is just [SET, sockopt]
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &sockopt, sizeof(int), flags))
     else:
+        # In the error case, the reply is [ERR, errno]
         reply = ERR
         errno = libzmq.zmq_errno()
         rc = check_zmq_rc(libzmq.zmq_sendbuf(handle, &reply, sizeof(int), flags|libzmq.ZMQ_SNDMORE))
@@ -138,6 +242,8 @@ cdef int setsockopt(void * handle, void * target) nogil except -1:
     return rc
 
 cdef int cbsockopt(void * handle, short events, void * data, void * interrupt_handle) nogil except -1:
+    # Callback for socket option management.
+    # The void*data pointer is a pointer to the client socket.
     cdef int rc = 0
     cdef int flags = 0
     cdef int kind = 0
