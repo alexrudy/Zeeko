@@ -68,7 +68,7 @@ cdef class ArrayMessage:
         # Initialize with new values.
         self._construct_name(bytearray(sandwich_unicode(name)))
         data = np.asarray(data)
-        self._frame = Frame(data=data)
+        self._frame = Frame(data=data, copy=False)
         self._readonly = False
         self._construct_metadata(data)
         self._construct_data()
